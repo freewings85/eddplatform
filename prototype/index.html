@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EddPlatform · 评估驱动研发平台 · 原型</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --panel:#ffffff; --ink:#0f172a; --muted:#64748b; --line:#e5e8ee;
+    --side:#0f172a; --side-ink:#cbd5e1; --side-active:#1e293b;
+    --primary:#4f46e5; --primary-weak:#eef2ff;
+    --ok:#16a34a; --ok-weak:#e9f7ef; --bad:#dc2626; --bad-weak:#fdecec;
+    --warn:#d97706; --warn-weak:#fdf2e3; --info:#0ea5e9;
+    --radius:12px; --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .app{display:flex;min-height:100vh}
+  /* sidebar */
+  .sidebar{width:230px;background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;flex-shrink:0}
+  .brand{display:flex;align-items:center;gap:10px;padding:18px 18px 14px}
+  .brand .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#22d3ee);display:grid;place-items:center;color:#fff;font-weight:800}
+  .brand b{color:#fff;font-size:15px;letter-spacing:.3px}
+  .brand small{display:block;color:#64748b;font-size:11px;font-weight:500}
+  .nav{padding:8px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;color:var(--side-ink);text-decoration:none;border-radius:8px;font-size:13.5px;cursor:pointer;margin:2px 0}
+  .nav a:hover{background:#1a2436;color:#fff}
+  .nav a.active{background:var(--side-active);color:#fff}
+  .nav .sec{color:#475569;font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:14px 12px 4px}
+  .nav a.backglobal{color:#93c5fd;font-size:12.5px;margin-bottom:2px}
+  .nav a.backglobal:hover{color:#fff}
+  .syspick{margin:2px 8px 8px;padding:9px 12px;background:#1e293b;border-radius:8px;color:#94a3b8;font-size:11px}
+  .syspick b{color:#fff;font-size:13.5px;display:block;margin-top:2px}
+  .side-foot{margin-top:auto;padding:14px 16px;border-top:1px solid #1e293b;font-size:12px;color:#64748b}
+  /* main */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:56px;background:var(--panel);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:0 22px;position:sticky;top:0;z-index:5}
+  .crumb{font-weight:600;font-size:15px}
+  .crumb span{color:var(--muted);font-weight:500}
+  .search{margin-left:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 12px;color:var(--muted);width:240px;font-size:13px}
+  .avatar{width:32px;height:32px;border-radius:50%;background:#4f46e5;color:#fff;display:grid;place-items:center;font-size:13px;font-weight:600}
+  .content{padding:22px 26px;max-width:1180px;width:100%}
+  h2.page{font-size:20px;margin:0 0 2px}
+  .sub{color:var(--muted);margin:0 0 18px}
+  /* cards */
+  .grid{display:grid;gap:16px}
+  .stats{grid-template-columns:repeat(4,1fr)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .stat{padding:16px 18px}
+  .stat .k{color:var(--muted);font-size:12.5px;display:flex;align-items:center;gap:6px}
+  .stat .v{font-size:26px;font-weight:700;margin-top:6px}
+  .stat .d{font-size:12px;margin-top:2px}
+  .up{color:var(--ok)} .down{color:var(--bad)} .flat{color:var(--muted)}
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin:24px 0 12px}
+  .section-title h3{margin:0;font-size:15px}
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;color:var(--ink);
+    padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500}
+  .btn:hover{background:#f8fafc}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.primary:hover{background:#4338ca}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:11px 14px;border-bottom:1px solid var(--line);background:#fbfcfe}
+  td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr.click{cursor:pointer}
+  tr.click:hover td{background:#f8fafc}
+  .tbl-wrap{overflow:hidden;border-radius:var(--radius);border:1px solid var(--line);background:#fff;box-shadow:var(--shadow)}
+  /* pills / badges */
+  .pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.ok{background:var(--ok-weak);color:var(--ok)}
+  .pill.bad{background:var(--bad-weak);color:var(--bad)}
+  .pill.warn{background:var(--warn-weak);color:var(--warn)}
+  .pill.run{background:#fef9c3;color:#a16207}
+  .pill.neutral{background:#eef2f7;color:#475569}
+  .pill.new{background:var(--primary-weak);color:var(--primary)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;background:#eef2f7;color:#475569;font-size:11.5px;margin-right:4px}
+  .tag.v{background:var(--primary-weak);color:var(--primary)}
+  .tag.only{background:var(--warn-weak);color:var(--warn)}
+  .delta.up{font-weight:700} .delta.down{font-weight:700}
+  .muted{color:var(--muted)} .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .spark{font-family:ui-monospace,monospace;letter-spacing:2px;color:var(--primary);font-size:16px}
+  /* wizard/modal */
+  .modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:50}
+  .modal.open{display:flex}
+  .dialog{background:#fff;border-radius:16px;width:640px;max-width:92vw;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .dialog-h{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+  .dialog-h b{font-size:16px}
+  .steps{display:flex;gap:6px;padding:16px 22px 4px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .steps .s{padding:4px 10px;border-radius:999px;background:#f1f5f9}
+  .steps .s.active{background:var(--primary);color:#fff}
+  .steps .s.done{background:var(--ok-weak);color:var(--ok)}
+  .dialog-b{padding:18px 22px}
+  .dialog-f{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600}
+  select,input[type=text]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff}
+  /* pipeline */
+  .pipe{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 14px}
+  .step{display:flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;background:#fff}
+  .step.done{background:var(--ok-weak);border-color:#bbe6cd;color:#15803d}
+  .step.run{background:#fef9c3;border-color:#fde68a;color:#a16207}
+  .step.todo{color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+  .bar{height:10px;background:#eef2f7;border-radius:999px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,#6366f1,#22d3ee);width:64%}
+  /* tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:6px 0 16px}
+  .tabs .tab{padding:9px 14px;font-size:13.5px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+  .tabs .tab.active{color:var(--primary);border-bottom-color:var(--primary)}
+  /* comparison */
+  .filterbar{display:flex;gap:8px;align-items:center;margin:14px 0 10px}
+  .chip{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12.5px;cursor:pointer}
+  .chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .detail{background:#fbfcfe}
+  .diff{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0}
+  .diff .col{border:1px solid var(--line);border-radius:10px;background:#fff}
+  .diff .col h5{margin:0;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px}
+  .diff .col.v1 h5{color:var(--muted)} .diff .col.v2 h5{color:var(--primary)}
+  .diff .col .body{padding:11px 12px;font-size:12.5px;white-space:pre-wrap}
+  .judge{margin-top:8px;padding:11px 12px;border-radius:10px;background:var(--bad-weak);color:#991b1b;font-size:12.5px}
+  .hint{font-size:12px;color:var(--muted);margin-top:8px}
+  .note{background:#f1f5ff;border:1px solid #dbe4ff;color:#3949ab;border-radius:10px;padding:10px 13px;font-size:12.5px;margin:2px 0 14px}
+  .row-flex{display:flex;gap:16px}.row-flex>*{flex:1}
+  .cmp-pick{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:var(--shadow)}
+  .cmp-pick .vs{font-weight:700;color:var(--muted)}
+  .logbox{background:#0f172a;color:#cbd5e1;border-radius:10px;padding:14px 16px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.7;white-space:pre-wrap}
+  .logbox .g{color:#4ade80}.logbox .y{color:#fde047}.logbox .b{color:#7dd3fc}.logbox .m{color:#64748b}
+  .trace{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+  .trace .sp{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--line)}
+  .trace .sp:last-child{border-bottom:none}
+  .trace .nm{color:var(--ink)} .trace .du{color:var(--muted)}
+  .kv{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;font-size:13px}
+  .kv .k{color:var(--muted)}
+  .segmented{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .segmented .seg{padding:7px 12px;font-size:12.5px;background:#fff;border:none;border-right:1px solid var(--line);cursor:pointer;color:var(--muted)}
+  .segmented .seg:last-child{border-right:none}
+  .segmented .seg.active{background:var(--primary);color:#fff}
+  textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;min-height:84px;resize:vertical;background:#fff}
+  .codeblk{background:#0f172a;color:#cbd5e1;border-radius:10px;padding:12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;line-height:1.65}
+  .chips .tag{cursor:default}
+  [hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">E</div>
+      <div><b>EddPlatform</b><small>评估驱动研发 · 原型</small></div>
+    </div>
+
+    <!-- 第一层：全局 -->
+    <nav class="nav" id="nav-global">
+      <div class="sec">全局</div>
+      <a data-view="overview" class="active">📊 全局概览</a>
+      <a data-view="systems">🗂️ 系统管理</a>
+      <div class="sec">平台</div>
+      <a data-view="settings">⚙️ 平台设置 / 治理</a>
+    </nav>
+
+    <!-- 第二层：进入某个系统 -->
+    <nav class="nav" id="nav-system" hidden>
+      <a class="backglobal" onclick="setMode('global')">← 返回全局</a>
+      <div class="syspick">当前系统<b id="sysPick">保险报价系统</b></div>
+      <div class="sec">系统</div>
+      <a data-view="sys-overview" class="active">🏠 系统概览</a>
+      <a data-view="sys-modules">🧱 模块 &amp; Git</a>
+      <a data-view="sys-versions">🧩 系统版本</a>
+      <div class="sec">资产</div>
+      <a data-view="datasets">📁 用例库</a>
+      <a data-view="evaluators">⚗️ 评估器</a>
+      <a data-view="environments">🗄️ 环境 / 沙箱</a>
+      <div class="sec">运行 &amp; 评估</div>
+      <a data-view="runs">🏃 运行记录</a>
+      <a data-view="evaluations">✅ 评估</a>
+      <a data-view="comparison">🔀 评估对比</a>
+      <div class="sec">其他</div>
+      <a data-view="settings">⚙️ 系统设置</a>
+    </nav>
+
+    <div class="side-foot">底座：k8s · Garden · Temporal<br/>Harbor · Langfuse · Backstage</div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">全局概览</div>
+      <input class="search" placeholder="搜索系统 / 用例 / 评估 / 运行…" />
+      <div class="avatar">李</div>
+    </div>
+    <div class="content">
+
+      <!-- ============ 全局层 ============ -->
+      <section id="view-overview">
+        <h2 class="page">全局概览</h2>
+        <p class="sub">跨所有系统的总览 · 进入某个系统看它的模块 / 版本 / 用例 / 运行 / 评估</p>
+        <div class="grid stats">
+          <div class="card stat"><div class="k">系统</div><div class="v">4</div><div class="d flat">保险 / 客服 / 门店 / 推荐</div></div>
+          <div class="card stat"><div class="k">进行中评估</div><div class="v">1</div><div class="d flat">智能客服 v5</div></div>
+          <div class="card stat"><div class="k">运行中沙箱</div><div class="v">3</div><div class="d flat">2 评估 · 1 单独</div></div>
+          <div class="card stat"><div class="k">待处理回归</div><div class="v">5</div><div class="d down">需人工确认</div></div>
+        </div>
+        <div class="section-title"><h3>最近评估（跨系统）</h3></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>评估任务</th><th>系统 / 版本</th><th>状态</th><th>结果</th><th>运行记录</th><th></th></tr></thead>
+          <tbody>
+            <tr class="click" onclick="openSystemTo('保险报价系统','comparison')"><td><b>保险报价重构·候选</b></td><td>保险报价系统 · v2</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono">#R-1042</td><td><button class="btn sm">对比</button></td></tr>
+            <tr class="click" onclick="openSystemTo('智能客服系统','runs')"><td><b>客服升级·候选</b></td><td>智能客服系统 · v5</td><td><span class="pill run">● 运行中</span></td><td class="muted">64%…</td><td class="mono">#R-1050</td><td><button class="btn sm">查看</button></td></tr>
+            <tr class="click" onclick="openSystemTo('门店服务系统','comparison')"><td><b>门店查询·候选</b></td><td>门店服务系统 · v2</td><td><span class="pill ok">✓ 完成</span></td><td>通过 79%</td><td class="mono">#R-1033</td><td><button class="btn sm">对比</button></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section id="view-systems" hidden>
+        <h2 class="page">系统管理</h2>
+        <p class="sub">平台支持<b>多套系统</b>；每套系统管理自己的模块与各模块的 Git（地址 / 分支）</p>
+        <div class="section-title"><h3>全部系统</h3><button class="btn primary" onclick="openSystemNew()">+ 新建系统</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>系统</th><th>模块数</th><th>负责人</th><th>生产版本</th><th>运行环境</th><th></th></tr></thead>
+          <tbody>
+            <tr class="click" onclick="openSystem('保险报价系统')"><td><b>保险报价系统</b></td><td>5</td><td>李雷</td><td>v1</td><td>2 沙箱</td><td><button class="btn sm">管理</button></td></tr>
+            <tr class="click" onclick="openSystem('智能客服系统')"><td><b>智能客服系统</b></td><td>7</td><td>韩梅</td><td>v4</td><td>1 沙箱</td><td><button class="btn sm">管理</button></td></tr>
+            <tr class="click" onclick="openSystem('门店服务系统')"><td><b>门店服务系统</b></td><td>4</td><td>王强</td><td>v2</td><td>0</td><td><button class="btn sm">管理</button></td></tr>
+            <tr class="click" onclick="openSystem('项目推荐系统')"><td><b>项目推荐系统</b></td><td>3</td><td>刘敏</td><td>v3</td><td>0</td><td><button class="btn sm">管理</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">对应 Backstage 软件目录：System（系统）→ Component（模块，携带 Git 源）。系统管理 = 复用 Backstage catalog，不自研。</p>
+      </section>
+
+      <section id="view-settings" hidden>
+        <h2 class="page">设置 / 治理</h2>
+        <p class="sub">SSO、权限、配额、审计（由 Backstage + 各开源组件提供）</p>
+        <div class="row-flex">
+          <div class="card stat"><div class="k">SSO</div><div class="muted" style="margin-top:8px">OAuth2 / SAML（Backstage）</div></div>
+          <div class="card stat"><div class="k">权限 / RBAC</div><div class="muted" style="margin-top:8px">按系统 / 角色</div></div>
+          <div class="card stat"><div class="k">审计</div><div class="muted" style="margin-top:8px">评估 / 运行 / 环境操作留痕</div></div>
+        </div>
+      </section>
+
+      <!-- ============ 系统层 ============ -->
+      <section id="view-sys-overview" hidden>
+        <h2 class="page" id="sysTitleO">保险报价系统</h2>
+        <p class="sub">系统工作台 · 本系统的模块 / 版本 / 用例 / 运行 / 评估都在这一层</p>
+        <div class="grid stats">
+          <div class="card stat"><div class="k">模块</div><div class="v">5</div><div class="d flat">2 待升级</div></div>
+          <div class="card stat"><div class="k">生产版本</div><div class="v">v1</div><div class="d flat">候选 v2 草稿</div></div>
+          <div class="card stat"><div class="k">运行沙箱</div><div class="v">2</div><div class="d flat">v1 / v2</div></div>
+          <div class="card stat"><div class="k">最近评估通过率</div><div class="v">86%</div><div class="d up">▲ +4pt</div></div>
+        </div>
+        <div class="section-title"><h3>快捷操作</h3></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="go('sys-modules')">🧱 模块 &amp; Git</button>
+          <button class="btn" onclick="go('sys-versions')">🧩 系统版本</button>
+          <button class="btn" onclick="openRun()">🏃 单独运行</button>
+          <button class="btn primary" onclick="openWizard()">✅ 发起评估</button>
+        </div>
+        <div class="section-title"><h3>最近评估</h3></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>评估任务</th><th>版本</th><th>状态</th><th>结果</th><th>运行记录</th><th></th></tr></thead>
+          <tbody>
+            <tr class="click" onclick="go('comparison')"><td>保险报价重构·候选</td><td>v2</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono">#R-1042</td><td><button class="btn sm">对比</button></td></tr>
+            <tr class="click" onclick="go('comparison')"><td>保险报价重构·基线</td><td>v1</td><td><span class="pill ok">✓ 完成</span></td><td>通过 82%</td><td class="mono">#R-1041</td><td><button class="btn sm">对比</button></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section id="view-sys-modules" hidden>
+        <h2 class="page">模块 &amp; Git</h2>
+        <p class="sub">本系统的模块（服务/进程）· 每个绑定 Git 仓库(地址/分支) + Harbor 镜像</p>
+        <div class="section-title"><h3>模块（5）</h3><button class="btn primary" onclick="openModule()">+ 添加模块</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>模块</th><th>Git 仓库</th><th>分支</th><th>镜像 (Harbor)</th><th>生产 tag</th><th>负责人</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>intent-service</b></td><td class="mono">git@git.co/insur/intent.git</td><td><span class="tag">main</span></td><td class="mono">registry/intent</td><td class="mono">1.4.2</td><td>李雷</td><td><button class="btn sm" onclick="openModule()">编辑</button></td></tr>
+            <tr><td><b>quote-engine</b></td><td class="mono">git@git.co/insur/quote.git</td><td><span class="tag">release/2.2</span></td><td class="mono">registry/quote</td><td class="mono">2.1.0</td><td>张三</td><td><button class="btn sm" onclick="openModule()">编辑</button></td></tr>
+            <tr><td><b>dialog-agent</b></td><td class="mono">git@git.co/insur/dialog.git</td><td><span class="tag">main</span></td><td class="mono">registry/dialog</td><td class="mono">0.9.5</td><td>李四</td><td><button class="btn sm" onclick="openModule()">编辑</button></td></tr>
+            <tr><td><b>store-service</b></td><td class="mono">git@git.co/insur/store.git</td><td><span class="tag">main</span></td><td class="mono">registry/store</td><td class="mono">3.0.1</td><td>王五</td><td><button class="btn sm" onclick="openModule()">编辑</button></td></tr>
+            <tr><td><b>memory-service</b></td><td class="mono">git@git.co/insur/memory.git</td><td><span class="tag">main</span></td><td class="mono">registry/memory</td><td class="mono">1.2.0</td><td>赵六</td><td><button class="btn sm" onclick="openModule()">编辑</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">对应 Backstage：System → Component，Git 即 <span class="mono">backstage.io/source-location</span> 注解。</p>
+      </section>
+
+      <section id="view-sys-versions" hidden>
+        <h2 class="page">系统版本</h2>
+        <p class="sub">系统版本 = 各模块钉住一个 tag/commit 的快照（拉自 Harbor / Git）</p>
+        <div class="section-title"><h3>版本</h3><button class="btn primary" onclick="openWizard()">+ 新建版本 / 发起评估</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>版本</th><th>模块组合</th><th>状态</th><th>创建</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>v1</b></td><td class="muted">5 模块（当前生产）</td><td><span class="pill ok">生产</span></td><td class="muted">—</td><td><button class="btn sm">查看</button></td></tr>
+            <tr><td><b>v2</b> 保险报价重构</td><td class="muted">2 新 + 3 旧</td><td><span class="pill neutral">草稿</span></td><td class="muted">今天</td><td><button class="btn sm" onclick="openWizard()">发起评估</button></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 用例库（有版本 + 适用系统版本） -->
+      <section id="view-datasets" hidden>
+        <h2 class="page">用例库 · 保险报价 <span class="muted">(200)</span></h2>
+        <p class="sub">用例有<b>自身版本</b>（编辑历史）+ <b>适用系统版本</b>（多版本通用 / 某版本专属）</p>
+        <div class="note">⚖️ 评估对比时，<b>只统计"被比两个版本都适用"的用例</b>；某版本专属用例（如 v2 才有的功能）会单列、不计入对比，避免不公平。</div>
+        <div class="section-title"><h3>用例</h3><span><button class="btn">+ 导入自真实 trace</button> <button class="btn primary">+ 新建用例</button></span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>#</th><th>用例名</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
+          <tbody>
+            <tr><td>17</td><td>新能源车型报价</td><td><span class="tag v">v3</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr><td>63</td><td>多车型比价</td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">judge：无幻觉</td><td><span class="tag">工单 #4821</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr><td>88</td><td>含优惠叠加报价</td><td><span class="tag v">v1</span></td><td><span class="tag">全部版本</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr><td>91</td><td>历史出险影响保费</td><td><span class="tag v">v4</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">金额一致 + 延迟&lt;3s</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr><td>102</td><td>新能源专属补贴校验</td><td><span class="tag v">v1</span></td><td><span class="tag only">仅 v2 专属</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">维护：编辑（产生用例新版本）/ 归档 / 批量导入 / 设置适用版本。评估器：金额校验(code) · 条款解释(judge) · 工具调用(code)。</p>
+      </section>
+
+      <section id="view-evaluators" hidden>
+        <h2 class="page">评估器（给用例打分 / 判定的规则）</h2>
+        <p class="sub">用例跑完有个输出，"评估器"就是判断这个输出<b>算不算通过</b>的规则；底层 = Pydantic Evals 的 Evaluator，管理层 = Langfuse</p>
+        <div class="note">
+          🔁 打分流程：<b>用例输入</b> → 系统跑出 <b>输出 + 轨迹(ctx)</b> → <b>评估器 evaluate(ctx)</b> → 返回值自动归类：<b>bool→通过/不通过</b>、<b>数值→分数</b>、<b>字符串→标签</b>。一条用例可挂多个评估器，全过才算过。
+        </div>
+        <div class="row-flex" style="margin-bottom:6px">
+          <div class="card" style="padding:14px 16px">
+            <div><span class="pill neutral">code</span> <b>代码评估器</b></div>
+            <p class="muted" style="margin:8px 0 0">写死的校验，结果<b>确定</b>可复现。用内置（EqualsExpected / Contains / MaxDuration / HasMatchingSpan…）或自定义 <span class="mono">Evaluator</span> 子类。</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <div><span class="pill new">LLM-judge</span> <b>模型评委</b> <span class="mono">LLMJudge</span></div>
+            <p class="muted" style="margin:8px 0 0">让模型按 <b>rubric</b> 打分，处理<b>主观</b>问题（幻觉/语气）。默认出"通过+理由"，可再附 0-1 分。⚠️ 需<b>人工校准</b>。</p>
+          </div>
+        </div>
+        <p class="hint chips" style="margin:12px 0 0">Pydantic Evals 内置可直接选：
+          <span class="tag">EqualsExpected</span><span class="tag">Equals</span><span class="tag">Contains</span><span class="tag">IsInstance</span><span class="tag">MaxDuration</span><span class="tag">HasMatchingSpan</span><span class="tag">LLMJudge</span>
+          <span class="muted">（Python 评估器已被移除，不提供）</span>
+        </p>
+
+        <div class="section-title"><h3>本系统的评估器</h3><button class="btn primary" onclick="openEvalDef()">+ 定义评估器</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>评估器</th><th>定义方式</th><th>读取 (ctx)</th><th>输出</th><th>通过阈值</th><th>用在用例</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>金额校验</b></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">output.premium</td><td>assertion</td><td class="muted">== 规则引擎</td><td class="mono">#17 #88 #91</td><td><button class="btn sm" onclick="toggleDetail('e1')">看定义</button></td></tr>
+            <tr id="e1" class="detail" hidden><td></td><td colspan="6">
+              <div class="codeblk">from dataclasses import dataclass
+from pydantic_evals.evaluators import Evaluator, EvaluatorContext
+
+@dataclass
+class 金额校验(Evaluator):
+    def evaluate(self, ctx: EvaluatorContext) -> bool:
+        return ctx.output["premium"] == ctx.expected_output["premium"]
+# 返回 bool → 自动记为 assertion（通过 / 不通过）</div>
+              <div class="hint">确定性：同输入永远同结果，适合金额/字段/格式这类<b>有标准答案</b>的检查。也可用内置 <span class="mono">EqualsExpected</span> 免写代码。</div>
+            </td></tr>
+
+            <tr><td><b>条款解释</b></td><td><span class="pill new">LLM 评委</span></td><td class="mono">output（+ inputs）</td><td>assertion + score</td><td class="muted">judge ≥ 4</td><td class="mono">#63</td><td><button class="btn sm" onclick="toggleDetail('e2')">看定义</button></td></tr>
+            <tr id="e2" class="detail" hidden><td></td><td colspan="6">
+              <div class="codeblk">from pydantic_evals.evaluators import LLMJudge
+
+LLMJudge(
+    rubric="只依据真实条款，不得编造优惠/减免；1=严重编造，5=完全准确",
+    model="openai:gpt-5.2",
+    include_input=True,
+    assertion={"include_reason": True},   # 通过 / 不通过 + 理由
+    score={"evaluation_name": "条款质量"},  # 另附 0-1 分
+)</div>
+              <div class="hint">⚠️ 上线前用人工标注过的用例<b>校准</b> rubric，让判分与人一致（对应 #63 判出的 4.5→2.1 幻觉）。</div>
+            </td></tr>
+
+            <tr><td><b>工具调用正确</b></td><td><span class="pill neutral">内置 code</span></td><td class="mono">span_tree</td><td>assertion</td><td class="muted">命中工具 span</td><td class="mono">#17 #44</td><td><button class="btn sm" onclick="toggleDetail('e3')">看定义</button></td></tr>
+            <tr id="e3" class="detail" hidden><td></td><td colspan="6">
+              <div class="codeblk"># YAML（EvaluatorSpec）——挂到用例集 / 单个用例
+evaluators:
+- HasMatchingSpan: {query: {name_contains: "tool:quote-engine"}}
+# 轨迹里存在该工具调用的 span → 通过（读 ctx.span_tree，来自 OTel）</div>
+              <div class="hint">工具/延迟这类"看执行过程"的判定，靠 OTel 轨迹：<span class="mono">HasMatchingSpan</span> 查 span、<span class="mono">MaxDuration</span> 看耗时。</div>
+            </td></tr>
+
+            <tr><td><b>延迟阈值</b></td><td><span class="pill neutral">内置 code</span></td><td class="mono">duration</td><td>assertion</td><td class="muted">≤ 3s</td><td class="mono">#91</td><td></td></tr>
+            <tr><td><b>提示词注入检测</b></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">output</td><td>assertion</td><td class="muted">未越权/未泄露</td><td class="mono">全部（安全）</td><td></td></tr>
+          </tbody>
+        </table></div>
+
+        <div class="section-title"><h3>字段映射：我们的 UI ↔ Pydantic Evals ↔ Langfuse</h3></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>UI 字段</th><th>Pydantic Evals（执行）</th><th>Langfuse（管理/存储）</th></tr></thead>
+          <tbody>
+            <tr><td>名称</td><td class="mono">evaluation_name</td><td>score / template 名称</td></tr>
+            <tr><td>打分方式</td><td class="mono">Evaluator 子类 / LLMJudge</td><td>Code evaluator / LLM-judge template</td></tr>
+            <tr><td>读取输入</td><td class="mono">ctx.output / expected_output / inputs / metadata / span_tree</td><td>变量映射（JSONPath）</td></tr>
+            <tr><td>规则 / rubric</td><td class="mono">evaluate() / LLMJudge.rubric</td><td>prompt 模板</td></tr>
+            <tr><td>评委模型</td><td class="mono">LLMJudge.model</td><td>model（LLM Connection）</td></tr>
+            <tr><td>输出类型</td><td class="mono">bool→assertion / 数值→score / 字符串→label</td><td>BOOLEAN / NUMERIC / CATEGORICAL / TEXT</td></tr>
+            <tr><td>通过阈值</td><td class="muted">UI 层加（原生无）</td><td>score config / 下游</td></tr>
+            <tr><td>挂到</td><td class="mono">dataset / case / report evaluators</td><td>trace / observation / dataset-run</td></tr>
+            <tr><td>结果</td><td class="mono">EvaluationReport(scores/labels/assertions)</td><td>scores + Compare 视图</td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">"可管理化" = 上面这张表单在 UI 里填 → 生成 Pydantic Evals 定义（跑评估时执行）+ 登记到 Langfuse（存储/自动跑/对比）。老新版本用<b>同一套评估器</b>，对比才公平。</p>
+      </section>
+
+      <!-- 环境/沙箱：可配置 + 运行中实例 -->
+      <section id="view-environments" hidden>
+        <h2 class="page">环境 / 沙箱</h2>
+        <p class="sub">沙箱配置<b>可复用可选择</b>；运行 / 评估时从配置里选一套拉起</p>
+        <div class="section-title"><h3>沙箱配置（可选择）</h3><button class="btn primary" onclick="openEnv()">+ 新建配置</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>配置名</th><th>隔离级别</th><th>资源</th><th>默认 TTL</th><th>流量</th><th>说明</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>默认-轻量</b></td><td>namespace + NetworkPolicy</td><td class="mono">2c / 4g</td><td>2h</td><td>不切分</td><td class="muted">多数评估用</td><td><button class="btn sm" onclick="openEnv()">编辑</button></td></tr>
+            <tr><td><b>强隔离</b></td><td>vCluster</td><td class="mono">4c / 8g</td><td>2h</td><td>v1/v2 各 50%</td><td class="muted">像独立集群</td><td><button class="btn sm" onclick="openEnv()">编辑</button></td></tr>
+            <tr><td><b>高危工具</b></td><td>Kata / gVisor</td><td class="mono">2c / 4g</td><td>1h</td><td>—</td><td class="muted">跑不可信工具</td><td><button class="btn sm" onclick="openEnv()">编辑</button></td></tr>
+          </tbody>
+        </table></div>
+        <div class="section-title"><h3>运行中实例</h3></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>实例</th><th>配置</th><th>版本</th><th>用于</th><th>TTL</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">release-insur-v1</td><td>默认-轻量</td><td>v1</td><td>评估 #R-1041</td><td>1h58</td><td><button class="btn sm">销毁</button></td></tr>
+            <tr><td class="mono">release-insur-v2</td><td>默认-轻量</td><td>v2</td><td>评估 #R-1042</td><td>1h58</td><td><button class="btn sm">销毁</button></td></tr>
+            <tr><td class="mono">dev-sandbox-a</td><td>强隔离</td><td>v2</td><td>单独运行 #R-1050</td><td>0h42</td><td><button class="btn sm">销毁</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">评估结束自动销毁；单独运行按 TTL 到期销毁。由 Garden 在 k8s 上编排。</p>
+      </section>
+
+      <!-- 运行记录 -->
+      <section id="view-runs" hidden>
+        <h2 class="page">运行记录</h2>
+        <p class="sub">一次运行 = 选一套环境/沙箱 → 拉起 → 跑，产出<b>日志 + 轨迹</b>。可<b>单独运行</b>（自测不评分），也可由评估产生。</p>
+        <div class="section-title"><h3>全部运行</h3><button class="btn primary" onclick="openRun()">+ 新建运行（单独）</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>运行</th><th>类型</th><th>版本</th><th>环境 / 沙箱</th><th>状态</th><th>时长</th><th>关联评估</th></tr></thead>
+          <tbody>
+            <tr class="click" onclick="go('run')"><td class="mono">#R-1042</td><td><span class="pill new">评估运行</span></td><td>v2</td><td class="mono">release-insur-v2</td><td><span class="pill ok">✓ 完成</span></td><td>6m</td><td>保险报价重构·候选</td></tr>
+            <tr class="click" onclick="go('run')"><td class="mono">#R-1041</td><td><span class="pill new">评估运行</span></td><td>v1</td><td class="mono">release-insur-v1</td><td><span class="pill ok">✓ 完成</span></td><td>5m</td><td>保险报价重构·基线</td></tr>
+            <tr class="click" onclick="go('run')"><td class="mono">#R-1050</td><td><span class="pill neutral">单独运行</span></td><td>v2</td><td class="mono">dev-sandbox-a</td><td><span class="pill run">● 运行中</span></td><td class="muted">—</td><td class="muted">—（自测）</td></tr>
+            <tr class="click" onclick="go('run')"><td class="mono">#R-1039</td><td><span class="pill neutral">单独运行</span></td><td>v1</td><td class="mono">dev-sandbox-b</td><td><span class="pill ok">✓ 完成</span></td><td>8m</td><td class="muted">—</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <!-- 运行记录详情（日志 / 轨迹 / 环境） -->
+      <section id="view-run" hidden>
+        <h2 class="page">运行记录 <span class="mono">#R-1042</span> <span class="pill new">评估运行</span> <span class="pill run">● 运行中</span></h2>
+        <p class="sub">系统版本 v2 · 环境 <span class="mono">release-insur-v2</span> · 由评估「保险报价重构·候选」产生 · 流水线 Temporal 编排</p>
+        <div class="tabs">
+          <div class="tab active" onclick="runTab(this,'ov')">概览</div>
+          <div class="tab" onclick="runTab(this,'log')">日志</div>
+          <div class="tab" onclick="runTab(this,'trace')">轨迹 (trace)</div>
+          <div class="tab" onclick="runTab(this,'env')">环境</div>
+        </div>
+
+        <div class="runtab" data-rt="ov">
+          <div class="card" style="padding:18px">
+            <div class="pipe">
+              <span class="step done"><span class="dot"></span>取 tag / 渲染 manifest</span>
+              <span class="step done"><span class="dot"></span>建沙箱</span>
+              <span class="step done"><span class="dot"></span>部署 5/5</span>
+              <span class="step run"><span class="dot"></span>跑用例 <b id="caseN">128</b>/178</span>
+              <span class="step todo"><span class="dot"></span>评分</span>
+              <span class="step todo"><span class="dot"></span>出结果</span>
+              <span class="step todo"><span class="dot"></span>销毁</span>
+            </div>
+            <div class="bar"><i id="barfill"></i></div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px" class="muted">
+              <span id="pct">72% · 预计剩 3 分钟</span>
+              <span><button class="btn sm">暂停</button> <button class="btn sm">中止</button></span>
+            </div>
+          </div>
+          <p class="hint">仅统计对 v1/v2 都适用的 178 条用例（专属用例已排除）。</p>
+          <div style="margin-top:12px"><button class="btn primary" onclick="go('comparison')">跑完 → 看评估结果对比</button></div>
+        </div>
+
+        <div class="runtab" data-rt="log" hidden>
+          <div class="logbox"><span class="m">10:02:11</span> <span class="g">✓</span> render manifest (2新+3旧) from Harbor tags
+<span class="m">10:02:19</span> <span class="g">✓</span> garden deploy ns/release-insur-v2 …
+<span class="m">10:03:04</span> <span class="g">✓</span> quote-engine <span class="b">2.2.0</span> ready · dialog-agent <span class="b">1.0.0</span> ready
+<span class="m">10:03:05</span> <span class="g">✓</span> intent/store/memory (旧) ready — 5/5
+<span class="m">10:03:10</span> <span class="y">▶</span> run suite 保险200 (适用 178)…
+<span class="m">10:05:41</span> <span class="y">▶</span> case #128 「多车型比价」 running…
+<span class="m">10:05:42</span> <span class="m">   OTel span exported → Langfuse</span></div>
+        </div>
+
+        <div class="runtab" data-rt="trace" hidden>
+          <p class="hint">全链路轨迹（OTel 跨 5 服务传播 → Langfuse）。展开可在 Langfuse 打开完整 trace。</p>
+          <div class="tbl-wrap trace">
+            <div class="sp"><span class="nm">▸ POST /quote  (入口)</span><span class="du">2.41s</span></div>
+            <div class="sp"><span class="nm">&nbsp;&nbsp;├ intent-service.classify</span><span class="du">180ms</span></div>
+            <div class="sp"><span class="nm">&nbsp;&nbsp;├ quote-engine.calc <span class="tag v">2.2.0</span></span><span class="du">1.02s</span></div>
+            <div class="sp"><span class="nm">&nbsp;&nbsp;├ dialog-agent.explain <span class="tag v">1.0.0</span> · LLM</span><span class="du">0.94s</span></div>
+            <div class="sp"><span class="nm">&nbsp;&nbsp;└ memory-service.write</span><span class="du">70ms</span></div>
+          </div>
+          <p class="hint"><a href="#">在 Langfuse 打开该 trace ↗</a></p>
+        </div>
+
+        <div class="runtab" data-rt="env" hidden>
+          <div class="card" style="padding:16px">
+            <div class="kv">
+              <div class="k">实例</div><div class="mono">release-insur-v2</div>
+              <div class="k">沙箱配置</div><div>默认-轻量（namespace + NetworkPolicy）</div>
+              <div class="k">系统版本</div><div>v2（quote-engine 2.2.0、dialog-agent 1.0.0，其余旧）</div>
+              <div class="k">资源 / TTL</div><div class="mono">2c / 4g · 1h58 剩余</div>
+              <div class="k">销毁策略</div><div>评估结束自动销毁 (ephemeral)</div>
+            </div>
+            <div style="margin-top:12px"><button class="btn sm">强制销毁</button></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 评估（任务列表） -->
+      <section id="view-evaluations" hidden>
+        <h2 class="page">评估</h2>
+        <p class="sub">每个评估任务 = <b>系统版本 × 用例集 × 环境</b> → 一定带一条<b>运行记录</b> → 评分 → 任务结果（结果可拿去对比）</p>
+        <div class="section-title"><h3>评估任务</h3><button class="btn primary" onclick="openWizard()">✅ 发起评估</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>评估任务</th><th>版本</th><th>用例集</th><th>环境</th><th>状态</th><th>结果</th><th>运行记录</th><th></th></tr></thead>
+          <tbody>
+            <tr class="click" onclick="go('comparison')"><td><b>保险报价重构·候选</b></td><td>v2</td><td>保险(适用178)</td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono"><a href="#" onclick="go('run');return false;">#R-1042</a></td><td><button class="btn sm">对比</button></td></tr>
+            <tr class="click" onclick="go('comparison')"><td><b>保险报价重构·基线</b></td><td>v1</td><td>保险(适用178)</td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 82%</td><td class="mono"><a href="#" onclick="go('run');return false;">#R-1041</a></td><td><button class="btn sm">对比</button></td></tr>
+            <tr class="click" onclick="go('run')"><td><b>客服升级·候选</b></td><td>v5</td><td>客服 340</td><td class="mono">强隔离</td><td><span class="pill run">● 运行中</span></td><td class="muted">64%…</td><td class="mono">#R-1050</td><td><button class="btn sm">查看</button></td></tr>
+            <tr><td><b>项目推荐·候选</b></td><td>v3</td><td>推荐 90</td><td class="muted">—</td><td><span class="pill neutral">草稿</span></td><td class="muted">—</td><td class="muted">—</td><td><button class="btn sm" onclick="openWizard()">配置</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">要"新 vs 老"？发起两个评估任务（v1、v2），到「评估对比」选两个结果对比。发布评估向导可一键建两个 + 直接开对比。</p>
+      </section>
+
+      <!-- 评估对比（对两个评估结果） -->
+      <section id="view-comparison" hidden>
+        <h2 class="page">评估对比</h2>
+        <p class="sub">对比两个<b>评估结果</b>（先各自评估、再对比）</p>
+        <div class="cmp-pick">
+          <div>
+            <div class="hint" style="margin:0 0 4px">基线结果</div>
+            <select style="width:260px"><option>保险报价重构·基线 · v1 · #R-1041</option></select>
+          </div>
+          <div class="vs">VS</div>
+          <div>
+            <div class="hint" style="margin:0 0 4px">候选结果</div>
+            <select style="width:260px"><option>保险报价重构·候选 · v2 · #R-1042</option></select>
+          </div>
+          <button class="btn primary" style="margin-left:auto">对比</button>
+        </div>
+        <div class="note" style="margin-top:14px">⚖️ 用例集 200 条中，<b>v1/v2 都适用的 178 条</b>参与对比；v2 专属 12 条、v1 专属 10 条不计入（在各自结果里单独看）。</div>
+
+        <div class="section-title"><h3>聚合指标</h3><button class="btn">导出报告</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>指标</th><th>v1 基线</th><th>v2 候选</th><th>变化</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>通过率</td><td>82%</td><td><b>86%</b></td><td><span class="delta up">▲ +4pt</span></td><td><span class="pill ok">改善</span></td></tr>
+            <tr><td>结果质量 (LLM-judge)</td><td>3.9</td><td><b>4.2</b></td><td><span class="delta up">▲ +0.3</span></td><td><span class="pill ok">改善</span></td></tr>
+            <tr><td>工具调用正确率</td><td>91%</td><td><b>95%</b></td><td><span class="delta up">▲ +4pt</span></td><td><span class="pill ok">改善</span></td></tr>
+            <tr><td>P95 延迟</td><td>2.1s</td><td><b>2.6s</b></td><td><span class="delta down">▼ +0.5s</span></td><td><span class="pill warn">变慢</span></td></tr>
+            <tr><td>成本 / 用例</td><td>¥0.011</td><td><b>¥0.013</b></td><td><span class="delta down">▼ +18%</span></td><td><span class="pill warn">变贵</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <div class="section-title"><h3>逐用例</h3><span class="muted">改善 <b class="up">22</b> ↑ · 回归 <b class="bad">8</b> ↓ · 持平 148</span></div>
+        <div class="filterbar">
+          <span class="chip active" onclick="filterCases(this,'all')">全部</span>
+          <span class="chip" onclick="filterCases(this,'bad')">仅回归 8</span>
+          <span class="chip" onclick="filterCases(this,'ok')">仅改善 22</span>
+        </div>
+        <div class="tbl-wrap"><table id="caseTbl">
+          <thead><tr><th>#</th><th>用例</th><th>v1</th><th>v2</th><th>Δ</th><th>说明</th><th></th></tr></thead>
+          <tbody>
+            <tr data-k="ok"><td>17</td><td>新能源车型报价</td><td><span class="pill bad">✗</span></td><td><span class="pill ok">✓</span></td><td><span class="pill ok">改善</span></td><td class="muted">金额校验 ✗→✓</td><td><button class="btn sm" onclick="toggleDetail('d17')">展开</button></td></tr>
+            <tr id="d17" class="detail" hidden><td></td><td colspan="6">
+              <div class="diff">
+                <div class="col v1"><h5>v1 输出</h5><div class="body">车型识别为「燃油车」，保费 ¥3,820（车型分类错误）。</div></div>
+                <div class="col v2"><h5>v2 输出</h5><div class="body">识别「新能源车」，调用 quote-engine 2.2.0，保费 ¥4,260，与规则引擎一致 ✓。</div></div>
+              </div>
+              <div class="hint">评估器：金额校验(code) ✗→✓ · 轨迹：<a href="#" onclick="go('run');return false;">运行 #R-1041</a>(v1) ┃ <a href="#" onclick="go('run');return false;">#R-1042</a>(v2)</div>
+            </td></tr>
+
+            <tr data-k="bad"><td>63</td><td>多车型比价</td><td><span class="pill ok">✓</span></td><td><span class="pill bad">✗</span></td><td><span class="pill bad">回归</span></td><td class="muted">judge 4.5→2.1 幻觉</td><td><button class="btn sm" onclick="toggleDetail('d63')">展开</button></td></tr>
+            <tr id="d63" class="detail" hidden><td></td><td colspan="6">
+              <div class="diff">
+                <div class="col v1"><h5>v1 输出</h5><div class="body">逐条列出 3 款车型保费与差额，条款解释准确。</div></div>
+                <div class="col v2"><h5>v2 输出</h5><div class="body">比价正确，但在条款解释处声称「新能源车享 30% 保费减免」——该减免规则不存在。</div></div>
+              </div>
+              <div class="judge">⚠️ LLM-judge 4.5 → 2.1：v2 在条款解释处<b>生成了不存在的减免（幻觉）</b>。建议回灌为回归用例，修 dialog-agent 1.0.0 的条款提示。</div>
+              <div class="hint">轨迹：<a href="#" onclick="go('run');return false;">运行 #R-1041</a>(v1) ┃ <a href="#" onclick="go('run');return false;">#R-1042</a>(v2) · <a href="#">加入回归集</a></div>
+            </td></tr>
+
+            <tr data-k="ok"><td>44</td><td>过户后保单变更</td><td><span class="pill bad">✗</span></td><td><span class="pill ok">✓</span></td><td><span class="pill ok">改善</span></td><td class="muted">工具调用修复</td><td></td></tr>
+            <tr data-k="flat"><td>88</td><td>含优惠叠加报价</td><td><span class="pill ok">✓</span></td><td><span class="pill ok">✓</span></td><td><span class="pill neutral">持平</span></td><td class="muted">—</td><td></td></tr>
+            <tr data-k="bad"><td>91</td><td>历史出险影响保费</td><td><span class="pill ok">✓</span></td><td><span class="pill bad">✗</span></td><td><span class="pill bad">回归</span></td><td class="muted">延迟超阈值</td><td></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">数据来自 Langfuse dataset run 对比；关联运行记录 <span class="mono">#R-1041</span> / <span class="mono">#R-1042</span>。此页为门户 embed 的薄壳视图。</p>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- 定义评估器 -->
+<div class="modal" id="evalmodal">
+  <div class="dialog" style="width:900px">
+    <div class="dialog-h"><b>定义评估器</b> <span class="muted" style="font-size:12px;font-weight:400">选打分方式 → 填字段 → 生成 Pydantic Evals 定义</span><button class="btn sm" onclick="closeEvalDef()">✕</button></div>
+    <div class="dialog-b">
+      <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:20px">
+        <!-- 左：表单 -->
+        <div>
+          <div class="field"><label>名称 (evaluation_name)</label><input type="text" value="金额校验"></div>
+          <div class="field"><label>打分方式</label>
+            <div class="segmented" id="ekseg">
+              <button class="seg active" onclick="evalKind(this,'builtin')">内置代码</button>
+              <button class="seg" onclick="evalKind(this,'custom')">自定义代码</button>
+              <button class="seg" onclick="evalKind(this,'judge')">LLM 评委</button>
+            </div>
+          </div>
+
+          <div class="ekind" data-k="builtin">
+            <div class="field"><label>内置评估器</label>
+              <select>
+                <option>EqualsExpected — 输出 == 期望</option>
+                <option>Equals — 输出 == 指定值</option>
+                <option>Contains — 输出包含子串 / 成员</option>
+                <option>IsInstance — 输出类型匹配</option>
+                <option>MaxDuration — 耗时 ≤ 阈值</option>
+                <option>HasMatchingSpan — 轨迹里存在某 span（如调了某工具）</option>
+              </select>
+            </div>
+            <div class="field"><label>参数</label><input type="text" value="（EqualsExpected 无参数）"></div>
+          </div>
+
+          <div class="ekind" data-k="custom" hidden>
+            <div class="field"><label>evaluate(ctx) 代码</label>
+              <textarea>def evaluate(self, ctx):
+    return ctx.output["premium"] == ctx.expected_output["premium"]</textarea>
+            </div>
+          </div>
+
+          <div class="ekind" data-k="judge" hidden>
+            <div class="field"><label>rubric（打分标准，可用 {{input}} {{output}}）</label>
+              <textarea>只依据真实条款，不得编造优惠/减免；1=严重编造，5=完全准确</textarea>
+            </div>
+            <div class="row-flex">
+              <div class="field"><label>评委模型</label><select><option>openai:gpt-5.2（默认）</option><option>anthropic:claude-opus-4-8</option><option>本地模型</option></select></div>
+              <div class="field"><label>附带</label><select><option>喂入 input（include_input）</option><option>只看 output</option></select></div>
+            </div>
+          </div>
+
+          <div class="field"><label>读取输入（EvaluatorContext 字段）</label>
+            <div class="row-flex">
+              <select><option>output（实际输出）</option><option>expected_output（期望）</option><option>inputs（用例输入）</option><option>metadata</option><option>duration（耗时）</option><option>span_tree（轨迹）</option></select>
+              <input type="text" placeholder="JSONPath（可选）如 $.premium">
+            </div>
+          </div>
+          <div class="field"><label>输出类型 &amp; 通过阈值</label>
+            <div class="row-flex">
+              <select><option>assertion — 通过/不通过 (bool)</option><option>score — 数值</option><option>label — 类别 (字符串)</option></select>
+              <input type="text" placeholder="通过阈值（如 ≥ 4；bool 免填）">
+            </div>
+          </div>
+          <div class="field"><label>挂到</label>
+            <select><option>整个用例集（dataset 级）</option><option>指定用例（case 级）</option><option>聚合报告（report 级）</option></select>
+          </div>
+        </div>
+
+        <!-- 右：生成的定义 -->
+        <div>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600">生成的定义（底层就是 Pydantic Evals）</label>
+          <div class="codeblk" id="evalPreview"></div>
+          <div class="note" style="margin-top:12px">保存后：① 登记到 <b>Langfuse</b>（可管理 / 自动跑生产流量 / dataset run 对比）；② 运行评估时作为 <b>pydantic-evals Evaluator</b> 执行。</div>
+        </div>
+      </div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeEvalDef()">取消</button><button class="btn primary" onclick="closeEvalDef()">保存评估器</button></div>
+  </div>
+</div>
+
+<!-- 模块 Git 配置 -->
+<div class="modal" id="modmodal">
+  <div class="dialog" style="width:520px">
+    <div class="dialog-h"><b>模块 · Git 配置</b><button class="btn sm" onclick="closeModule()">✕</button></div>
+    <div class="dialog-b">
+      <div class="field"><label>模块名</label><input type="text" value="quote-engine"></div>
+      <div class="field"><label>Git 仓库地址</label><input type="text" value="git@git.co/insur/quote.git"></div>
+      <div class="row-flex">
+        <div class="field"><label>默认分支</label><input type="text" value="main"></div>
+        <div class="field"><label>发布分支 / tag 规则</label><input type="text" value="release/*"></div>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>Harbor 镜像</label><input type="text" value="registry/quote"></div>
+        <div class="field"><label>Dockerfile 路径</label><input type="text" value="./Dockerfile"></div>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>负责人</label><input type="text" value="张三"></div>
+        <div class="field"><label>健康检查</label><input type="text" value="/healthz"></div>
+      </div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeModule()">取消</button><button class="btn primary" onclick="closeModule()">保存</button></div>
+  </div>
+</div>
+
+<!-- 沙箱配置 -->
+<div class="modal" id="envmodal">
+  <div class="dialog" style="width:520px">
+    <div class="dialog-h"><b>沙箱配置</b><button class="btn sm" onclick="closeEnv()">✕</button></div>
+    <div class="dialog-b">
+      <div class="field"><label>配置名</label><input type="text" value="默认-轻量"></div>
+      <div class="field"><label>隔离级别</label>
+        <select><option>namespace + NetworkPolicy（默认，最轻）</option><option>vCluster（强隔离，每版本一个虚拟 k8s）</option><option>Kata / gVisor（跑高危工具）</option></select>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>CPU</label><input type="text" value="2"></div>
+        <div class="field"><label>内存(G)</label><input type="text" value="4"></div>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>默认 TTL</label><select><option>2 小时</option><option>4 小时</option><option>1 小时</option></select></div>
+        <div class="field"><label>流量 (Istio)</label><select><option>不切分</option><option>v1/v2 各 50%</option></select></div>
+      </div>
+      <p class="hint">隔离原语来自平台底座（k8s / Garden）；此处只是可复用的配置。</p>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeEnv()">取消</button><button class="btn primary" onclick="closeEnv()">保存</button></div>
+  </div>
+</div>
+
+<!-- 新建运行（单独） -->
+<div class="modal" id="runmodal">
+  <div class="dialog" style="width:520px">
+    <div class="dialog-h"><b>新建运行（单独，不评估）</b><button class="btn sm" onclick="closeRun()">✕</button></div>
+    <div class="dialog-b">
+      <div class="field"><label>系统版本</label><select><option>v2 · 保险报价重构（草稿）</option><option>v1 · 当前生产</option></select></div>
+      <div class="field"><label>环境 / 沙箱配置</label><select><option>强隔离（vCluster）</option><option>默认-轻量（namespace + NetworkPolicy）</option><option>高危工具（Kata/gVisor）</option></select></div>
+      <div class="field"><label>TTL</label><select><option>2 小时（到期自动销毁）</option><option>4 小时</option></select></div>
+      <div class="note">单独运行只拉起环境供你自测，<b>不跑用例、不评分</b>；仍会生成运行记录（日志 / 轨迹）。</div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeRun()">取消</button><button class="btn primary" onclick="closeRun();go('run');animateRun()">🏃 启动运行</button></div>
+  </div>
+</div>
+
+<!-- 发起评估向导 -->
+<div class="modal" id="wizard">
+  <div class="dialog">
+    <div class="dialog-h"><b>发起评估</b><button class="btn sm" onclick="closeWizard()">✕</button></div>
+    <div class="steps" id="wsteps">
+      <span class="s active">① 选版本</span><span class="s">② 用例集</span><span class="s">③ 环境/沙箱</span><span class="s">④ 确认启动</span>
+    </div>
+    <div class="dialog-b">
+      <div class="wstep" data-step="1">
+        <div class="field"><label>评估模式</label>
+          <select><option>对比评估（同时建 基线v1 + 候选v2 两个评估任务，跑完自动开对比）</option><option>单版本评估（只评一个版本）</option></select>
+        </div>
+        <div class="row-flex">
+          <div class="field"><label>基线（老）</label><select><option>v1（当前生产）</option></select></div>
+          <div class="field"><label>候选（新）</label><select><option>v2 · 保险报价重构（草稿）</option><option>新建…</option></select></div>
+        </div>
+        <div class="field"><label>服务组合</label>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>服务</th><th>v1 基线</th><th>v2 候选</th></tr></thead>
+            <tbody>
+              <tr><td>intent-service</td><td class="mono">1.4.2</td><td class="mono">1.4.2 <span class="muted">(旧)</span></td></tr>
+              <tr><td>quote-engine</td><td class="mono">2.1.0</td><td class="mono">2.2.0 <span class="pill new">🔵新</span></td></tr>
+              <tr><td>store-service</td><td class="mono">3.0.1</td><td class="mono">3.0.1 <span class="muted">(旧)</span></td></tr>
+              <tr><td>dialog-agent</td><td class="mono">0.9.5</td><td class="mono">1.0.0 <span class="pill new">🔵新</span></td></tr>
+              <tr><td>memory-service</td><td class="mono">1.2.0</td><td class="mono">1.2.0 <span class="muted">(旧)</span></td></tr>
+            </tbody>
+          </table></div>
+          <p class="hint">2 新 + 3 旧</p>
+        </div>
+      </div>
+      <div class="wstep" data-step="2" hidden>
+        <div class="field"><label>用例集</label><select><option>保险 200 条（含高风险/边缘）</option><option>保险冒烟 30 条</option></select></div>
+        <div class="note">对比评估只统计 <b>v1/v2 都适用的 178 条</b>；专属用例单列不计入对比。</div>
+        <div class="field"><label>评估器（老新共用）</label>
+          <div><span class="tag">金额校验 (code)</span><span class="tag">条款解释 (judge)</span><span class="tag">工具调用 (code)</span><span class="tag">注入检测 (code)</span></div>
+        </div>
+      </div>
+      <div class="wstep" data-step="3" hidden>
+        <div class="field"><label>选择环境 / 沙箱配置</label>
+          <select><option>默认-轻量（namespace + NetworkPolicy · 2c/4g）</option><option>强隔离（vCluster · 4c/8g）</option><option>高危工具（Kata / gVisor）</option></select>
+        </div>
+        <div class="row-flex">
+          <div class="field"><label>TTL（覆盖）</label><select><option>2 小时（跑完自动销毁）</option><option>4 小时</option></select></div>
+          <div class="field"><label>流量 (Istio)</label><select><option>不切分</option><option>v1/v2 各 50%</option></select></div>
+        </div>
+        <p class="hint">配置来自「环境 / 沙箱」；这里选一套即可，也可临时覆盖。</p>
+      </div>
+      <div class="wstep" data-step="4" hidden>
+        <p><b>确认启动</b></p>
+        <div class="tbl-wrap"><table>
+          <tbody>
+            <tr><td class="muted">模式</td><td>对比评估 → 建 2 个评估任务（v1、v2）</td></tr>
+            <tr><td class="muted">用例集</td><td>保险 200 条（适用 178）· 4 个评估器</td></tr>
+            <tr><td class="muted">环境</td><td>默认-轻量 · TTL 2h</td></tr>
+            <tr><td class="muted">每个评估</td><td>= 一次运行记录（日志/轨迹）+ 评分结果</td></tr>
+            <tr><td class="muted">流水线</td><td>Temporal：建 env → 部署 → 跑用例 → 评分 → 出结果 → 销毁</td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">启动后到「运行记录」看实时流水线；跑完到「评估对比」看结论。</p>
+      </div>
+    </div>
+    <div class="dialog-f">
+      <button class="btn" id="wback" onclick="wnav(-1)" hidden>← 上一步</button>
+      <span style="flex:1"></span>
+      <button class="btn primary" id="wnext" onclick="wnav(1)">下一步 →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 两层：全局(global) / 系统(system)
+  var gTitles={overview:'全局概览',systems:'系统管理',settings:'平台设置 / 治理'};
+  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',datasets:'用例库',evaluators:'评估器',environments:'环境 / 沙箱',runs:'运行记录',run:'运行记录详情',evaluations:'评估',comparison:'评估对比',settings:'系统设置'};
+  var curSys='保险报价系统', mode='global';
+
+  function setMode(m){
+    mode=m;
+    document.getElementById('nav-global').hidden=(m!=='global');
+    document.getElementById('nav-system').hidden=(m!=='system');
+    if(m==='global') go('systems');
+  }
+  function go(view){
+    document.querySelectorAll('section[id^=view-]').forEach(function(s){s.hidden=true});
+    var el=document.getElementById('view-'+view); if(el) el.hidden=false;
+    var navId=(mode==='system')?'#nav-system':'#nav-global';
+    document.querySelectorAll('.nav a').forEach(function(a){a.classList.remove('active')});
+    var link=document.querySelector(navId+' a[data-view="'+view+'"]'); if(link) link.classList.add('active');
+    document.getElementById('crumb').innerHTML = (mode==='system')
+      ? '全局 <span>/ '+curSys+' / '+(sTitles[view]||'')+'</span>'
+      : (gTitles[view]||'');
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('.nav a[data-view]').forEach(function(a){a.onclick=function(){go(a.dataset.view)}});
+
+  // 全局 → 系统
+  function openSystem(name){
+    curSys=name;
+    var a=document.getElementById('sysPick'); if(a) a.textContent=name;
+    var b=document.getElementById('sysTitleO'); if(b) b.textContent=name;
+    setMode('system'); go('sys-overview');
+  }
+  function openSystemTo(name,view){ openSystem(name); go(view); }
+  function openSystemNew(){ openSystem('新系统（草稿）'); }
+
+  // 弹窗
+  function openModule(){document.getElementById('modmodal').classList.add('open')}
+  function closeModule(){document.getElementById('modmodal').classList.remove('open')}
+  function openEnv(){document.getElementById('envmodal').classList.add('open')}
+  function closeEnv(){document.getElementById('envmodal').classList.remove('open')}
+  function openRun(){document.getElementById('runmodal').classList.add('open')}
+  function closeRun(){document.getElementById('runmodal').classList.remove('open')}
+  // 定义评估器
+  var evalPreviews={
+    builtin:'# YAML（EvaluatorSpec）——挂到用例集 / 单个用例\nevaluators:\n- EqualsExpected\n# 带参数：\n- MaxDuration: 3.0\n- HasMatchingSpan: {query: {name_contains: "tool:quote-engine"}}',
+    custom:'from dataclasses import dataclass\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext\n\n@dataclass\nclass 金额校验(Evaluator):\n    def evaluate(self, ctx: EvaluatorContext) -> bool:\n        return ctx.output["premium"] == ctx.expected_output["premium"]\n# bool → assertion（通过 / 不通过）',
+    judge:'from pydantic_evals.evaluators import LLMJudge\n\nLLMJudge(\n    rubric="只依据真实条款，不得编造优惠/减免；1-5 分",\n    model="openai:gpt-5.2",\n    include_input=True,\n    assertion={"include_reason": True},  # 通过/不通过 + 理由\n    score={"evaluation_name": "条款质量"},  # 另附 0-1 分\n)'
+  };
+  function openEvalDef(){document.getElementById('evalmodal').classList.add('open'); evalKind(document.querySelector('#ekseg .seg'),'builtin');}
+  function closeEvalDef(){document.getElementById('evalmodal').classList.remove('open')}
+  function evalKind(el,k){
+    document.querySelectorAll('#ekseg .seg').forEach(function(s){s.classList.remove('active')}); el.classList.add('active');
+    document.querySelectorAll('#evalmodal .ekind').forEach(function(p){p.hidden=p.dataset.k!==k});
+    document.getElementById('evalPreview').textContent=evalPreviews[k];
+  }
+
+  // 运行详情 tab
+  function runTab(el,rt){
+    document.querySelectorAll('#view-run .tab').forEach(function(t){t.classList.remove('active')}); el.classList.add('active');
+    document.querySelectorAll('#view-run .runtab').forEach(function(t){t.hidden=t.dataset.rt!==rt});
+  }
+
+  // 向导
+  var step=1;
+  function openWizard(){step=1;renderStep();document.getElementById('wizard').classList.add('open')}
+  function closeWizard(){document.getElementById('wizard').classList.remove('open')}
+  function renderStep(){
+    document.querySelectorAll('.wstep').forEach(function(s){s.hidden=(+s.dataset.step!==step)});
+    document.querySelectorAll('#wsteps .s').forEach(function(s,i){s.classList.toggle('active',i+1===step);s.classList.toggle('done',i+1<step)});
+    document.getElementById('wback').hidden = step===1;
+    document.getElementById('wnext').textContent = step===4 ? '🚀 启动评估' : '下一步 →';
+  }
+  function wnav(d){
+    if(step===4 && d===1){ closeWizard(); go('run'); animateRun(); return; }
+    step=Math.max(1,Math.min(4,step+d)); renderStep();
+  }
+
+  // 运行进度动画
+  function animateRun(){
+    var n=128,fill=document.getElementById('barfill'),cn=document.getElementById('caseN'),pct=document.getElementById('pct');
+    var t=setInterval(function(){
+      n+=6; if(n>=178){n=178;clearInterval(t);pct.textContent='跑用例完成 · 进入评分…'}
+      var p=Math.round(n/178*100);
+      fill.style.width=p+'%'; if(cn)cn.textContent=n; if(n<178)pct.textContent=p+'% · 预计剩 '+Math.max(1,Math.round((178-n)/20))+' 分钟';
+    },400);
+  }
+
+  // 对比筛选 / 展开
+  function filterCases(chip,k){
+    document.querySelectorAll('#view-comparison .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
+    document.querySelectorAll('#caseTbl tbody tr[data-k]').forEach(function(tr){
+      var show=(k==='all')||(tr.dataset.k===k); tr.hidden=!show;
+      var det=tr.nextElementSibling; if(det&&det.classList.contains('detail')) det.hidden=true;
+    });
+  }
+  function toggleDetail(id){var d=document.getElementById(id); if(d) d.hidden=!d.hidden}
+
+  go('overview'); // 初始进入全局层
+</script>
+</body>
+</html>
