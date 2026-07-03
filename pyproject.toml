@@ -11,10 +11,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# 评估执行（框架锁定 pydantic-ai）
-evals = ["pydantic-ai", "pydantic-evals"]
-# 开源集成
-integrations = ["langfuse", "temporalio"]
+# 评估引擎（推荐、主干）：Langfuse —— 引擎 + 存储 + 老新对比 + 追踪
+langfuse = ["langfuse>=2"]
+# 可选 harness（框架无关，按团队习惯选；分数回灌 Langfuse）
+deepeval = ["deepeval"]                # pytest 风格
+pydantic-evals = ["pydantic-evals"]    # 仅 pydantic-ai 项目的可选后端
+# 发布评估流水线编排
+temporal = ["temporalio"]
 dev = ["pytest>=8", "ruff>=0.4"]
 
 [build-system]
