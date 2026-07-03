@@ -8,6 +8,8 @@
 
 **框架无关**：被评系统当黑盒（从入口拿 `输入→输出` + OTel 轨迹），无论它用 **pydantic-ai、LangGraph** 还是任意 HTTP 服务都能评。
 
+**技术栈**：前端 **React + TypeScript + Vite**（`web/`）；后端 **Python / FastAPI**（`src/`）为主，可含 **Java** 服务——平台语言/框架无关，服务间走 REST/OTel。
+
 ---
 
 ## 它解决什么
@@ -54,7 +56,8 @@ Comparison  = 两个 EvalResult 的对比(只统计两版本都适用的用例)
 ## 目录
 
 ```
-prototype/            高保真可点击原型（当前 UI，浏览器直接打开）
+web/                  前端 React + TypeScript + Vite（连 FastAPI /api）
+prototype/            高保真可点击原型（设计基准，浏览器直接打开）
 docs/                 设计与调研文档（架构 / 选型 / 原型设计 / SOP）
 examples/eval_demo.py 离线跑通评估内核（本地兜底，零依赖）
 src/eddplatform/
@@ -81,6 +84,13 @@ pytest
 # 生产评估引擎（推荐）：Langfuse
 pip install -e '.[langfuse]'
 export LANGFUSE_HOST=... LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=...
+```
+
+前端（React + TypeScript + Vite）：
+
+```bash
+cd web && npm install
+npm run dev          # http://localhost:5173（/api 自动代理到 :8000 的 FastAPI）
 ```
 
 > 原型也可脱离后端，直接双击 `prototype/index.html` 打开。
