@@ -81,9 +81,13 @@ python examples/eval_demo.py            # 离线跑通评估内核（无需 Lang
 uvicorn eddplatform.api.app:app --reload  # http://127.0.0.1:8000 看原型
 pytest
 
-# 生产评估引擎（推荐）：Langfuse
+# 评估引擎（推荐）：Langfuse —— 本地自托管一键起（见 deploy/langfuse/）
 pip install -e '.[langfuse]'
-export LANGFUSE_HOST=... LANGFUSE_PUBLIC_KEY=... LANGFUSE_SECRET_KEY=...
+( cd deploy/langfuse && cp -n .env.example .env && docker compose up -d )   # web: http://localhost:3100
+export LANGFUSE_HOST=http://localhost:3100 \
+       LANGFUSE_PUBLIC_KEY=pk-lf-eddplatform-local \
+       LANGFUSE_SECRET_KEY=sk-lf-eddplatform-local
+python examples/langfuse_run.py     # 端到端：sync 用例 → 跑 v1/v2 → 到 Langfuse Compare 看对比
 ```
 
 前端（React + TypeScript + Vite）：
