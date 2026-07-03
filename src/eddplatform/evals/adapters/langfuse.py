@@ -82,6 +82,15 @@ def run_version(dataset_name: str, run_name: str, system: System, evaluators: li
     return result
 
 
+def delete_run(dataset_name: str, run_name: str) -> None:
+    """删掉同名 dataset run（best-effort），让流程可重复执行。"""
+    lf = _client()
+    try:
+        lf.delete_dataset_run(dataset_name=dataset_name, run_name=run_name)
+    except Exception:
+        pass
+
+
 def compare_hint(host: str, dataset_name: str, baseline_run: str, candidate_run: str) -> str:
     """对比在 Langfuse UI：Datasets → 选两个 run → Compare（baseline vs candidate，绿/红增减）。"""
     return (

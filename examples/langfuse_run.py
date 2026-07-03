@@ -46,11 +46,17 @@ def system_v2(inputs):
     return {"premium": 5200 if inputs.get("claims") else 3100}
 
 
-# --- 评估器（v4 evaluator 函数：返回 {name, value, comment}）---------------
+# --- 评估器（v4 evaluator 函数：返回 Evaluation 对象）----------------------
+from langfuse.experiment import Evaluation  # noqa: E402
+
+
 def amount_check(*, input, output, expected_output, metadata=None, **kwargs):
     got = output.get("premium") if isinstance(output, dict) else None
     exp = expected_output.get("premium") if isinstance(expected_output, dict) else None
-    return {"name": "金额校验", "value": got == exp, "comment": f"{got} vs 期望 {exp}"}
+    return Evaluation(
+        name="金额校验", value=(got == exp), data_type="BOOLEAN",
+        comment=f"{got} vs 期望 {exp}",
+    )
 
 
 EVALUATORS = [amount_check]
@@ -61,6 +67,9 @@ def main():
     print(f"Langfuse: {host}")
     lf.sync_dataset(DATASET)
     print(f"✓ 已 sync dataset「{DATASET.name}」({len(DATASET.cases)} 用例)")
+
+    for rn in ("insurance-v1", "insurance-v2"):   # 让流程可重复执行
+        lf.delete_run(DATASET.name, rn)
 
     r1 = lf.run_version(DATASET.name, "insurance-v1", system_v1, EVALUATORS)
     print(f"✓ v1 run 完成: insurance-v1  (通过率 {_pass_rate(r1)})")
