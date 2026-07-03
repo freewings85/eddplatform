@@ -321,7 +321,7 @@
 
       <section id="view-evaluators" hidden>
         <h2 class="page">评估器（给用例打分 / 判定的规则）</h2>
-        <p class="sub">用例跑完有个输出，"评估器"就是判断这个输出<b>算不算通过</b>的规则；底层 = Pydantic Evals 的 Evaluator，管理层 = Langfuse</p>
+        <p class="sub">用例跑完有个输出，"评估器"就是判断这个输出<b>算不算通过</b>的规则；引擎复用 <b>Langfuse</b>（框架无关，不自研），下面的代码写法是可选后端(pydantic-ai 项目)</p>
         <div class="note">
           🔁 打分流程：<b>用例输入</b> → 系统跑出 <b>输出 + 轨迹(ctx)</b> → <b>评估器 evaluate(ctx)</b> → 返回值自动归类：<b>bool→通过/不通过</b>、<b>数值→分数</b>、<b>字符串→标签</b>。一条用例可挂多个评估器，全过才算过。
         </div>
@@ -335,7 +335,7 @@
             <p class="muted" style="margin:8px 0 0">让模型按 <b>rubric</b> 打分，处理<b>主观</b>问题（幻觉/语气）。默认出"通过+理由"，可再附 0-1 分。⚠️ 需<b>人工校准</b>。</p>
           </div>
         </div>
-        <p class="hint chips" style="margin:12px 0 0">Pydantic Evals 内置可直接选：
+        <p class="hint chips" style="margin:12px 0 0">可选后端(pydantic-ai) 内置评估器：
           <span class="tag">EqualsExpected</span><span class="tag">Equals</span><span class="tag">Contains</span><span class="tag">IsInstance</span><span class="tag">MaxDuration</span><span class="tag">HasMatchingSpan</span><span class="tag">LLMJudge</span>
           <span class="muted">（Python 评估器已被移除，不提供）</span>
         </p>
@@ -385,7 +385,7 @@ evaluators:
           </tbody>
         </table></div>
 
-        <div class="section-title"><h3>字段映射：我们的 UI ↔ Pydantic Evals ↔ Langfuse</h3></div>
+        <div class="section-title"><h3>字段映射：我们的 UI ↔ Langfuse(引擎) ↔ Pydantic Evals(可选后端)</h3></div>
         <div class="tbl-wrap"><table>
           <thead><tr><th>UI 字段</th><th>Pydantic Evals（执行）</th><th>Langfuse（管理/存储）</th></tr></thead>
           <tbody>
@@ -400,7 +400,7 @@ evaluators:
             <tr><td>结果</td><td class="mono">EvaluationReport(scores/labels/assertions)</td><td>scores + Compare 视图</td></tr>
           </tbody>
         </table></div>
-        <p class="hint">"可管理化" = 上面这张表单在 UI 里填 → 生成 Pydantic Evals 定义（跑评估时执行）+ 登记到 Langfuse（存储/自动跑/对比）。老新版本用<b>同一套评估器</b>，对比才公平。</p>
+        <p class="hint">"可管理化" = 上面这张表单在 UI 里填 → 登记为 <b>Langfuse</b> 评估器（引擎：存储/打分/对比）；pydantic-ai 项目也可落成 Pydantic Evals 定义。老新版本用<b>同一套评估器</b>，对比才公平。</p>
       </section>
 
       <!-- 环境/沙箱：可配置 + 运行中实例 -->
@@ -666,9 +666,9 @@ evaluators:
 
         <!-- 右：生成的定义 -->
         <div>
-          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600">生成的定义（底层就是 Pydantic Evals）</label>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600">生成的定义（登记为 Langfuse 评估器；pydantic-ai 项目可选 pydantic-evals）</label>
           <div class="codeblk" id="evalPreview"></div>
-          <div class="note" style="margin-top:12px">保存后：① 登记到 <b>Langfuse</b>（可管理 / 自动跑生产流量 / dataset run 对比）；② 运行评估时作为 <b>pydantic-evals Evaluator</b> 执行。</div>
+          <div class="note" style="margin-top:12px">保存后：① 登记到 <b>Langfuse</b>（引擎：可管理 / 自动跑生产流量 / dataset run 对比）；② 可选：pydantic-ai 项目落成 <b>pydantic-evals Evaluator</b> 执行。</div>
         </div>
       </div>
     </div>
