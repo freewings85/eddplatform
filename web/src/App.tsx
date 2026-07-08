@@ -353,6 +353,7 @@ function Evaluators({ sysId }: { sysId: string }) {
           <thead>
             <tr>
               <th>评估器</th>
+              <th>维度</th>
               <th>定义方式</th>
               <th>读取</th>
               <th>输出</th>
@@ -364,6 +365,13 @@ function Evaluators({ sysId }: { sysId: string }) {
               <tr key={e.name}>
                 <td>
                   <b>{e.name}</b>
+                </td>
+                <td>
+                  {e.dimension ? (
+                    <span className="tag">{e.dimension}</span>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
                 <td>
                   <Pill kind={e.kind === "llm_judge" ? "new" : undefined}>

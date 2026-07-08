@@ -24,6 +24,27 @@ Evaluator = Callable[..., Any]
 System = Callable[[Any], Any]  # 被评系统入口：input -> output（黑盒）
 
 
+def signal_gate(name: str, key: str, threshold: float, mode: str = "max") -> Evaluator:
+    """信号类门禁 → Boolean Score 的 v4 evaluator 工厂（延迟/TTFT/成本这类可观测指标）。
+
+    从 output 或 metadata 取 ``key`` 的值，与 ``threshold`` 比较：
+    ``mode="max"`` 值 ≤ 阈值算达标（越小越好，如延迟/TTFT/成本）；
+    ``mode="min"`` 值 ≥ 阈值算达标（越大越好）。
+    返回 dict（run_experiment 会转成随 dataset run 的 Boolean Score，进 Compare）。
+    不依赖 langfuse，可离线单测。
+    """
+
+    def _ev(*, input=None, output=None, expected_output=None, metadata=None, **kwargs):
+        src = {**(output if isinstance(output, dict) else {}), **(metadata or {})}
+        val = src.get(key)
+        ok = val is not None and (val <= threshold if mode == "max" else val >= threshold)
+        sign = "≤" if mode == "max" else "≥"
+        return {"name": name, "value": bool(ok), "data_type": "BOOLEAN",
+                "comment": f"{key}={val} {sign} {threshold}"}
+
+    return _ev
+
+
 def available() -> bool:
     try:
         import langfuse  # noqa: F401

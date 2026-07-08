@@ -42,6 +42,10 @@ class EvalContext:
     duration_s: float = 0.0
     spans: list[dict] = field(default_factory=list)      # OTel 轨迹（简化：{name, duration_ms, ...}）
     attributes: dict = field(default_factory=dict)
+    # 信号类原料（来自 trace / target；本地兜底可空）：
+    ttft_s: float | None = None                          # 首 token 时延
+    usage: dict = field(default_factory=dict)            # {input, output, total} tokens
+    cost: float | None = None                            # 花费（币值）
 
 
 @dataclass
@@ -135,6 +139,59 @@ class SpanPresent:
 
 
 @dataclass
+class MinimalToolChain:
+    """轨迹质量：工具调用数 ≤ max_calls，且（可选）不重复——评"最小调用链路"。
+
+    工具 span 判定：span.kind == tool_span_marker 或 marker 是 span.name 的子串。
+    """
+
+    name: str
+    max_calls: int = 2
+    no_duplicate: bool = True
+    tool_span_marker: str = "tool"
+
+    def _tool_spans(self, spans: list[dict]) -> list[dict]:
+        return [s for s in spans
+                if s.get("kind") == self.tool_span_marker
+                or self.tool_span_marker in s.get("name", "")]
+
+    def evaluate(self, ctx: EvalContext) -> Outcome:
+        tools = self._tool_spans(ctx.spans)
+        names = [t.get("name", "") for t in tools]
+        ok = len(tools) <= self.max_calls
+        if self.no_duplicate:
+            ok = ok and len(set(names)) == len(names)
+        reason = f"{len(tools)} 次工具调用（上限 {self.max_calls}）"
+        return Outcome(self.name, OutputType.ASSERTION, ok, ok, reason)
+
+
+@dataclass
+class MaxTTFT:
+    """信号类门禁：首 token 时延 ttft_s ≤ seconds。未采集(None) → 不达标。"""
+
+    name: str
+    seconds: float
+
+    def evaluate(self, ctx: EvalContext) -> Outcome:
+        ok = ctx.ttft_s is not None and ctx.ttft_s <= self.seconds
+        got = "未采集" if ctx.ttft_s is None else f"{ctx.ttft_s:.2f}s"
+        return Outcome(self.name, OutputType.ASSERTION, ok, ok, f"TTFT {got} ≤ {self.seconds}s")
+
+
+@dataclass
+class MaxCost:
+    """信号类门禁：花费 cost ≤ budget。未采集(None) → 不达标。"""
+
+    name: str
+    budget: float
+
+    def evaluate(self, ctx: EvalContext) -> Outcome:
+        ok = ctx.cost is not None and ctx.cost <= self.budget
+        got = "未采集" if ctx.cost is None else f"{ctx.cost:g}"
+        return Outcome(self.name, OutputType.ASSERTION, ok, ok, f"成本 {got} ≤ {self.budget:g}")
+
+
+@dataclass
 class LLMJudge:
     """LLM 评委：按 rubric 打分（框架/厂商无关，模型调用走可插拔 client）。"""
 
@@ -163,7 +220,8 @@ def _no_judge_client(*_args, **_kwargs):
 
 # --------------------------------------------------------------------------- 从 EvaluatorDef 装配
 _BUILTINS = {"EqualsExpected": EqualsExpected, "Contains": Contains,
-             "MaxDuration": MaxDuration, "HasMatchingSpan": SpanPresent}
+             "MaxDuration": MaxDuration, "HasMatchingSpan": SpanPresent,
+             "MinimalToolChain": MinimalToolChain, "MaxTTFT": MaxTTFT, "MaxCost": MaxCost}
 
 
 def build_evaluator(d: EvaluatorDef, judge_client: JudgeClient | None = None) -> Evaluator:
@@ -178,6 +236,13 @@ def build_evaluator(d: EvaluatorDef, judge_client: JudgeClient | None = None) ->
             return SpanPresent(name=d.name, name_contains=d.rule or "")
         if d.builtin_type == "Contains":
             return Contains(name=d.name, needle=d.rule or "", path=d.json_path)
+        if d.builtin_type == "MinimalToolChain":
+            return MinimalToolChain(name=d.name, max_calls=int(d.threshold or 2),
+                                    tool_span_marker=d.rule or "tool")
+        if d.builtin_type == "MaxTTFT":
+            return MaxTTFT(name=d.name, seconds=d.threshold or 0.8)
+        if d.builtin_type == "MaxCost":
+            return MaxCost(name=d.name, budget=d.threshold or 0.02)
         return EqualsExpected(name=d.name, path=d.json_path)
     # CUSTOM_CODE：脚手架里退化为 EqualsExpected；真实项目在此挂自定义可调用
     return EqualsExpected(name=d.name, path=d.json_path)

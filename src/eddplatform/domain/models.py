@@ -77,6 +77,9 @@ class ContextField(str, Enum):
     METADATA = "metadata"
     DURATION = "duration"
     SPAN_TREE = "span_tree"
+    TTFT = "ttft"                 # 首 token 时延（信号类）
+    USAGE = "usage"              # token usage（信号类）
+    COST = "cost"                # 花费（信号类）
 
 
 class EvaluatorScope(str, Enum):
@@ -211,6 +214,7 @@ class EvaluatorDef(BaseModel):
     threshold: float | None = None        # 通过阈值(UI 层; pydantic-evals 原生无)
     scope: EvaluatorScope = EvaluatorScope.DATASET
     case_refs: list[str] = []             # 挂到哪些用例
+    dimension: str | None = None          # 维度分组(正确性/文字质量/轨迹/延迟/TTFT/成本), 仅 UI/报告用
 
 
 # --------------------------------------------------------------------------- 运行 / 结果 / 评估

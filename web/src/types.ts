@@ -70,6 +70,7 @@ export interface EvaluatorDef {
   input_field: string;
   output_type: string;
   threshold?: number | null;
+  dimension?: string | null;
   case_refs: string[];
 }
 
