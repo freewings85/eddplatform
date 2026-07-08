@@ -21,6 +21,7 @@ from eddplatform.domain.models import (
     MetricDelta,
     Module,
     OutputType,
+    Requirement,
     RunRecord,
     RunStatus,
     RunType,
@@ -29,6 +30,7 @@ from eddplatform.domain.models import (
     SystemVersion,
     VersionStatus,
 )
+from eddplatform.evals.engine import rollup_by_requirement
 
 # --- 系统与模块 ------------------------------------------------------------
 INSURANCE_MODULES = [
@@ -62,7 +64,8 @@ VERSIONS = [
                   module_pins={"intent-service": "1.4.2", "quote-engine": "2.2.0",
                                "dialog-agent": "1.0.0", "store-service": "3.0.1",
                                "memory-service": "1.2.0"},
-                  status=VersionStatus.DRAFT, note="保险报价重构：2 新 + 3 旧"),
+                  status=VersionStatus.DRAFT, note="保险报价重构：2 新 + 3 旧",
+                  requirement_ids=["R-101", "R-102"]),   # v2 声称交付的需求
 ]
 
 # --- 沙箱配置与运行中实例 --------------------------------------------------
@@ -88,17 +91,32 @@ DATASET = Dataset(
     cases=[
         Case(id="17", name="新能源车型报价", inputs="新能源车报价请求",
              expected_output={"premium": 4260}, case_version="v3",
-             applicable_versions=["v1", "v2", "v3"], evaluator_names=["金额校验", "工具调用正确"]),
+             applicable_versions=["v1", "v2", "v3"], evaluator_names=["金额校验", "工具调用正确"],
+             requirement_ids=["R-101"]),
         Case(id="63", name="多车型比价", inputs="三款车型比价", case_version="v2",
-             applicable_versions=["v1", "v2"], evaluator_names=["条款解释"]),
+             applicable_versions=["v1", "v2"], evaluator_names=["条款解释"],
+             requirement_ids=["R-102"]),
         Case(id="88", name="含优惠叠加报价", inputs="优惠叠加", expected_output={"premium": 3100},
-             case_version="v1", applicable_versions=[], evaluator_names=["金额校验"]),
+             case_version="v1", applicable_versions=[], evaluator_names=["金额校验"],
+             requirement_ids=["R-101"]),
         Case(id="91", name="历史出险影响保费", inputs="有出险记录", case_version="v4",
-             applicable_versions=["v1", "v2"], evaluator_names=["金额校验", "延迟阈值"]),
+             applicable_versions=["v1", "v2"], evaluator_names=["金额校验", "延迟阈值"],
+             requirement_ids=["R-103"]),
         Case(id="102", name="新能源专属补贴校验", inputs="补贴校验", case_version="v1",
-             applicable_versions=["v2"], evaluator_names=["金额校验"]),  # 仅 v2 专属
+             applicable_versions=["v2"], evaluator_names=["金额校验"],
+             requirement_ids=["R-101"]),  # 仅 v2 专属
     ],
 )
+
+# --- 需求（追溯锚点；详情在 Jira）-----------------------------------------
+REQUIREMENTS = [
+    Requirement(id="R-101", system_id="insurance", title="新能源车型报价修复",
+                external_key="PROJ-2043", external_url="https://jira.local/browse/PROJ-2043"),
+    Requirement(id="R-102", system_id="insurance", title="条款解释防幻觉",
+                external_key="PROJ-2044", external_url="https://jira.local/browse/PROJ-2044"),
+    Requirement(id="R-103", system_id="insurance", title="保费计算延迟优化",
+                external_key="PROJ-2051", external_url="https://jira.local/browse/PROJ-2051"),
+]
 
 # --- 评估器定义（对齐 Pydantic Evals / Langfuse）--------------------------
 EVALUATORS = [
@@ -132,13 +150,24 @@ RUNS = [
 ]
 
 # --- 评估任务与结果 --------------------------------------------------------
+# 逐用例结果（用于需求级 rollup 演示）：v1 挂 #17，v2 修好 #17 但 #63/#91 回归
+_BASELINE_RESULT = EvalResult(pass_rate=0.82, metrics={"judge": 3.9}, case_results=[
+    CaseResult(case_id="17", passed=False), CaseResult(case_id="88", passed=True),
+    CaseResult(case_id="63", passed=True), CaseResult(case_id="91", passed=True),
+])
+_CANDIDATE_RESULT = EvalResult(pass_rate=0.86, metrics={"judge": 4.2}, case_results=[
+    CaseResult(case_id="17", passed=True), CaseResult(case_id="88", passed=True),
+    CaseResult(case_id="63", passed=False), CaseResult(case_id="91", passed=False),
+    CaseResult(case_id="102", passed=True),
+])
+
 EVALUATIONS = [
     Evaluation(id="E-2000", name="保险报价重构·基线", system_id="insurance", version_label="v1",
                dataset_name="保险报价", sandbox_config="默认-轻量", run_id="R-1041",
-               status=EvalStatus.COMPLETED, result=EvalResult(pass_rate=0.82, metrics={"judge": 3.9})),
+               status=EvalStatus.COMPLETED, result=_BASELINE_RESULT),
     Evaluation(id="E-2001", name="保险报价重构·候选", system_id="insurance", version_label="v2",
                dataset_name="保险报价", sandbox_config="默认-轻量", run_id="R-1042",
-               status=EvalStatus.COMPLETED, result=EvalResult(pass_rate=0.86, metrics={"judge": 4.2})),
+               status=EvalStatus.COMPLETED, result=_CANDIDATE_RESULT),
 ]
 
 COMPARISON = Comparison(
@@ -151,6 +180,8 @@ COMPARISON = Comparison(
         MetricDelta(metric="P95延迟(s)", baseline=2.1, candidate=2.6),
         MetricDelta(metric="成本/用例(元)", baseline=0.011, candidate=0.013),
     ],
+    by_requirement=rollup_by_requirement(_BASELINE_RESULT, _CANDIDATE_RESULT,
+                                          DATASET.cases, REQUIREMENTS),
 )
 
 

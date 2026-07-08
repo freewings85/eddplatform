@@ -116,6 +116,7 @@ class SystemVersion(BaseModel):
     module_pins: dict[str, str]       # module name -> tag/commit
     status: VersionStatus = VersionStatus.DRAFT
     note: str | None = None
+    requirement_ids: list[str] = []   # 该版本交付哪些需求（追溯到 Requirement.id）
 
 
 # --------------------------------------------------------------------------- 环境 / 沙箱
@@ -154,6 +155,7 @@ class Case(BaseModel):
     case_version: str = "v1"
     applicable_versions: list[str] = []   # 空 = 全部版本通用
     evaluator_names: list[str] = []
+    requirement_ids: list[str] = []        # 这条用例验收哪些需求（多对多标签）
     enabled: bool = True
 
     def applies_to(self, version_label: str) -> bool:
@@ -172,6 +174,21 @@ class Dataset(BaseModel):
             c for c in self.cases
             if c.enabled and c.applies_to(version_a) and c.applies_to(version_b)
         ]
+
+
+# --------------------------------------------------------------------------- 需求（追溯锚点）
+class Requirement(BaseModel):
+    """薄追溯锚点：详情（描述/状态/流转）在 Jira（唯一真相源），平台只存刚够
+    显示与挂接的字段。不带状态——状态以 Jira 为准。见 docs/superpowers/specs/。
+    """
+
+    id: str                               # 平台内部 id，如 R-101
+    system_id: str
+    title: str
+    description: str | None = None        # 建时填，可用于推送到 Jira
+    external_key: str | None = None       # Jira 号，如 PROJ-2043
+    external_url: str | None = None       # 直接跳 Jira
+    note: str | None = None
 
 
 # --------------------------------------------------------------------------- 评估器
@@ -252,6 +269,35 @@ class MetricDelta(BaseModel):
         return self.candidate - self.baseline
 
 
+class RequirementRollup(BaseModel):
+    """把用例级结果卷到需求级：达标=验收用例在该版本全部通过（只算两版共有用例）。"""
+
+    requirement_id: str
+    title: str
+    external_key: str | None = None
+    total_cases: int                      # 两版都适用的验收用例数
+    baseline_passed: int
+    candidate_passed: int
+
+    @property
+    def baseline_met(self) -> bool:
+        return self.total_cases > 0 and self.baseline_passed == self.total_cases
+
+    @property
+    def candidate_met(self) -> bool:
+        return self.total_cases > 0 and self.candidate_passed == self.total_cases
+
+    @property
+    def verdict(self) -> str:
+        if self.candidate_met and not self.baseline_met:
+            return "达标"                  # 未达 → 达
+        if self.baseline_met and not self.candidate_met:
+            return "回归"                  # 达 → 未达
+        if self.baseline_met and self.candidate_met:
+            return "保持"
+        return "仍未达标"
+
+
 class Comparison(BaseModel):
     """两个评估结果的对比（先各自评估、再对比）。"""
 
@@ -262,3 +308,4 @@ class Comparison(BaseModel):
     regressed: int = 0
     unchanged: int = 0
     metrics: list[MetricDelta] = Field(default_factory=list)
+    by_requirement: list[RequirementRollup] = Field(default_factory=list)

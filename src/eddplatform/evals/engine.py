@@ -26,6 +26,8 @@ from eddplatform.domain.models import (
     EvaluatorKind,
     MetricDelta,
     OutputType,
+    Requirement,
+    RequirementRollup,
 )
 
 # --------------------------------------------------------------------------- 上下文 / 结果
@@ -216,6 +218,37 @@ def run(
     metrics["avg_duration_s"] = dur_sum / n
     pass_rate = sum(r.passed for r in results) / n
     return EvalResult(pass_rate=pass_rate, metrics=metrics, case_results=results)
+
+
+def rollup_by_requirement(
+    baseline: EvalResult,
+    candidate: EvalResult,
+    cases: Sequence[Case],
+    requirements: Sequence[Requirement],
+) -> list[RequirementRollup]:
+    """把用例级结果按 case.requirement_ids 卷到需求级；只算两版都跑过的用例。
+
+    达标 = 该需求的验收用例在该版本全部通过。返回顺序随 ``requirements``，
+    跳过没有共有验收用例的需求。
+    """
+    base = {r.case_id: r for r in baseline.case_results}
+    cand = {r.case_id: r for r in candidate.case_results}
+    common = base.keys() & cand.keys()
+    case_by_id = {c.id: c for c in cases}
+
+    out: list[RequirementRollup] = []
+    for req in requirements:
+        cids = [cid for cid in common
+                if req.id in getattr(case_by_id.get(cid), "requirement_ids", [])]
+        if not cids:
+            continue
+        out.append(RequirementRollup(
+            requirement_id=req.id, title=req.title, external_key=req.external_key,
+            total_cases=len(cids),
+            baseline_passed=sum(1 for cid in cids if base[cid].passed),
+            candidate_passed=sum(1 for cid in cids if cand[cid].passed),
+        ))
+    return out
 
 
 def compare(baseline: EvalResult, candidate: EvalResult) -> Comparison:
