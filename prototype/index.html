@@ -366,7 +366,7 @@
           <span class="muted">（Python 评估器已被移除，不提供）</span>
         </p>
 
-        <div class="section-title"><h3>本系统的评估器</h3><button class="btn primary" onclick="openEvalDef()">+ 定义评估器</button></div>
+        <div class="section-title"><h3>本系统的评估器</h3><span><button class="btn" onclick="go('eval-guide')">📖 Langfuse 评估标准指南</button> <button class="btn primary" onclick="openEvalDef()">+ 定义评估器</button></span></div>
         <div class="tbl-wrap"><table>
           <thead><tr><th>评估器</th><th>定义方式</th><th>读取 (ctx)</th><th>输出</th><th>通过阈值</th><th>用在用例</th><th></th></tr></thead>
           <tbody>
@@ -427,6 +427,133 @@ evaluators:
           </tbody>
         </table></div>
         <p class="hint">"可管理化" = 上面这张表单在 UI 里填 → 登记为 <b>Langfuse</b> 评估器（引擎：存储/打分/对比）；pydantic-ai 项目也可落成 Pydantic Evals 定义。老新版本用<b>同一套评估器</b>，对比才公平。</p>
+      </section>
+
+      <!-- Langfuse 评估标准指南（子页，从评估器页进） -->
+      <section id="view-eval-guide" hidden>
+        <a class="btn sm" onclick="go('evaluators')" style="cursor:pointer">← 返回评估器</a>
+        <h2 class="page" style="margin-top:12px">评估标准怎么设（对齐 Langfuse 语义）</h2>
+        <p class="sub">我们的评估引擎就是 <b>Langfuse</b>（不自研）。这页把「我们要评的维度」逐一对应到「在 Langfuse 里怎么设、能不能设」，配示例 + 官方文档，照着做即可。</p>
+
+        <div class="note">
+          🧭 <b>Langfuse 把"评估"分两层</b>：<br/>
+          <b>① 评估器 → Score</b>（你定义标准的地方）：<b>LLM-as-a-Judge</b>（主观质量）/ <b>Code evaluator</b>（确定性校验）/ <b>SDK 自定义 Score</b>。<br/>
+          <b>② 可观测指标</b>（自动采集，不用定义）：延迟 / 成本 / token / <b>TTFT</b> 自动挂在 trace/observation 上，用 Dashboard / Metrics API 看聚合；要把它变成"通过/不通过门禁"，就用 <b>SDK 自定义 Score</b> 回灌一条。
+        </div>
+
+        <div class="row-flex" style="margin-bottom:6px">
+          <div class="card" style="padding:14px 16px">
+            <div><span class="pill new">① 评估器 → Score</span></div>
+            <p class="muted" style="margin:8px 0 0"><b>LLM-as-a-Judge</b>：写 rubric 让模型打分（主观：质量/幻觉/语气）。<b>Code evaluator</b>：Python 函数确定性校验（exact match / JSON schema / 工具调用 / 自定义规则，2s 内跑完）。均可跑在 <b>experiment / trace / 单个 observation</b> 上。</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <div><span class="pill neutral">② 可观测指标</span></div>
+            <p class="muted" style="margin:8px 0 0"><b>延迟 / 成本 / token / TTFT</b> 由 Langfuse 自动采集（TTFT 需 emit <span class="mono">completion_start_time</span>）。看聚合走 <b>Metrics API / Latency & Cost Dashboard</b>；要做成发布门禁 → <b>SDK <span class="mono">create_score</span></b> 回灌一条 Boolean。</p>
+          </div>
+        </div>
+        <p class="hint chips" style="margin:10px 0 0">Score 数据类型（4 种）：
+          <span class="tag">Numeric 数值</span><span class="tag">Categorical 类别</span><span class="tag">Boolean 布尔</span><span class="tag">Text 文本</span>
+          <a class="mono" href="https://langfuse.com/docs/evaluation/scores/data-model" target="_blank" rel="noopener">Score 数据模型 ↗</a>
+        </p>
+
+        <div class="section-title"><h3>我们的维度 → 在 Langfuse 里怎么设</h3></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>我们要评的维度</th><th>在 Langfuse 里用什么</th><th>数据来源</th><th>能做?</th><th>官方文档</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>结果正确性</b><div class="muted" style="font-size:12px">有标准答案（金额=规则引擎）</div></td>
+              <td>Code evaluator（exact match / JSON schema）</td>
+              <td class="mono">output vs expected</td>
+              <td><span class="pill ok">✅ 原生</span></td>
+              <td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators" target="_blank" rel="noopener">Code evaluators ↗</a></td>
+            </tr>
+            <tr>
+              <td><b>输出文字质量</b><div class="muted" style="font-size:12px">条款解释无幻觉 / 语气</div></td>
+              <td>LLM-as-a-Judge（写 rubric，输出 Numeric/Categorical）</td>
+              <td class="mono">output（+ input）</td>
+              <td><span class="pill ok">✅ 原生一键</span></td>
+              <td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener">LLM-as-a-Judge ↗</a></td>
+            </tr>
+            <tr>
+              <td><b>轨迹质量 / 最小链路</b><div class="muted" style="font-size:12px">工具调用对不对、有无冗余、步数</div></td>
+              <td>Code evaluator over observations（工具调用校验 / 自定义规则）+ observation-level eval</td>
+              <td class="mono">observation 树</td>
+              <td><span class="pill warn">⚠️ 能做·需自写 code</span></td>
+              <td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators" target="_blank" rel="noopener">Code evaluators ↗</a></td>
+            </tr>
+            <tr>
+              <td><b>速度 / 延迟</b><div class="muted" style="font-size:12px">总耗时、P95</div></td>
+              <td>指标自动采集；要门禁 → SDK <span class="mono">create_score</span> 读 latency 回灌 Boolean</td>
+              <td class="mono">trace / observation latency</td>
+              <td><span class="pill ok">✅ 指标原生</span> <span class="pill neutral">门禁需回灌</span></td>
+              <td><a href="https://langfuse.com/docs/metrics/features/metrics-api" target="_blank" rel="noopener">Metrics API ↗</a></td>
+            </tr>
+            <tr>
+              <td><b>TTFT</b><div class="muted" style="font-size:12px">首 token 时延</div></td>
+              <td>需被评系统 emit <span class="mono">completion_start_time</span>（流式）；自动算 TTFT；门禁 → SDK Score</td>
+              <td class="mono">generation.completion_start_time</td>
+              <td><span class="pill warn">⚠️ 需先 emit</span></td>
+              <td><a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener">Token & Cost / TTFT ↗</a></td>
+            </tr>
+            <tr>
+              <td><b>成本 / 用例</b><div class="muted" style="font-size:12px">token 花费</div></td>
+              <td>从 usage 自动算；Cost Dashboard；门禁 → SDK Score</td>
+              <td class="mono">generation.usage</td>
+              <td><span class="pill ok">✅ 指标原生</span> <span class="pill neutral">门禁需回灌</span></td>
+              <td><a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener">Token & Cost tracking ↗</a></td>
+            </tr>
+          </tbody>
+        </table></div>
+        <p class="hint">口径：<b>质量类维度</b>（正确性/文字/轨迹）= Langfuse <b>评估器→Score</b>；<b>信号类维度</b>（延迟/TTFT/成本）= Langfuse <b>可观测指标</b>，自动采、看 dashboard，要卡发布就回灌一条 Boolean Score。</p>
+
+        <div class="section-title"><h3>示例</h3></div>
+        <p class="hint" style="margin-top:0">① LLM-as-a-Judge rubric（在 Langfuse UI「+ Set up Evaluator」里填，<span class="mono">{{变量}}</span> 映射到 trace 字段）</p>
+        <div class="codeblk">评估「条款解释」质量（输出 Numeric 1-5）：
+
+Rate the accuracy of this insurance answer.
+{{input}}  was the user's question.
+{{output}} was the assistant's answer.
+Score 1 if it fabricates any discount/rule, 3 if partially correct,
+5 if fully accurate and grounded in real policy terms.
+
+# 变量映射：{{input}}→observation input，{{output}}→observation output
+# 嵌套取值用 JSONPath，如 $.choices[0].message.content</div>
+
+        <p class="hint">② Code evaluator（确定性校验；轨迹/最小链路在此写；跑在 experiment 或 observation 上）</p>
+        <div class="codeblk">def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+    # 结果正确性：output == 期望
+    expected = ctx.experiment.item_expected_output
+    ok = expected is not None and ctx.observation.output == expected
+
+    # 轨迹/最小链路：数工具调用 observation，去重、限步数
+    tool_calls = [o for o in ctx.observation.children if o.type == "tool"]
+    minimal = len(tool_calls) <= 2 and len({t.name for t in tool_calls}) == len(tool_calls)
+
+    return EvaluationResult(scores=[
+        Score(name="金额校验", value=ok,      data_type="BOOLEAN"),
+        Score(name="最小链路", value=minimal, data_type="BOOLEAN"),
+    ])</div>
+
+        <p class="hint">③ SDK 自定义 Score —— 把"信号类指标"做成发布门禁（延迟 / TTFT / 成本回灌 Boolean）</p>
+        <div class="codeblk"># 延迟 / TTFT / 成本不是评估器内置字段 → 读 trace 上自动采的值，回灌一条 Score
+lf.create_score(trace_id=tid, name="延迟达标", value=(latency_ms <= 3000), data_type="BOOLEAN")
+lf.create_score(trace_id=tid, name="TTFT达标", value=(ttft_ms   <= 800),  data_type="BOOLEAN")
+lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), data_type="BOOLEAN")
+# 这些 Score 和评估器打的分并列进 dataset run，Compare 视图一起看老新对比</div>
+
+        <div class="section-title"><h3>官方文档</h3></div>
+        <div class="tbl-wrap"><table>
+          <tbody>
+            <tr><td>评估总览 / 核心概念</td><td><a href="https://langfuse.com/docs/evaluation/overview" target="_blank" rel="noopener">Evaluation Overview ↗</a> · <a href="https://langfuse.com/docs/evaluation/core-concepts" target="_blank" rel="noopener">Core Concepts ↗</a></td></tr>
+            <tr><td>Score 数据模型（4 类型）</td><td><a href="https://langfuse.com/docs/evaluation/scores/data-model" target="_blank" rel="noopener">Scores Data Model ↗</a></td></tr>
+            <tr><td>LLM-as-a-Judge</td><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener">LLM-as-a-Judge ↗</a></td></tr>
+            <tr><td>Code evaluators</td><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators" target="_blank" rel="noopener">Code Evaluators ↗</a></td></tr>
+            <tr><td>SDK/API 自定义 Score</td><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/scores-via-sdk" target="_blank" rel="noopener">Scores via SDK/API ↗</a></td></tr>
+            <tr><td>数据集实验（老新对比）</td><td><a href="https://langfuse.com/docs/evaluation/experiments/datasets" target="_blank" rel="noopener">Datasets ↗</a> · <a href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk" target="_blank" rel="noopener">Experiments via SDK ↗</a></td></tr>
+            <tr><td>延迟 / 成本 / TTFT / token</td><td><a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener">Token & Cost Tracking ↗</a> · <a href="https://langfuse.com/docs/metrics/features/metrics-api" target="_blank" rel="noopener">Metrics API ↗</a></td></tr>
+          </tbody>
+        </table></div>
+        <div style="margin-top:14px"><button class="btn primary" onclick="return false">在 Langfuse 打开评估器设置 ↗</button> <span class="hint">跳到自托管实例的 Evaluators 页（<span class="mono">$LANGFUSE_HOST/evaluators</span>）</span></div>
       </section>
 
       <!-- 环境/沙箱：可配置 + 运行中实例 -->
@@ -942,7 +1069,7 @@ evaluators:
 <script>
   // 两层：全局(global) / 系统(system)
   var gTitles={overview:'全局概览',systems:'系统管理',settings:'平台设置 / 治理'};
-  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求',datasets:'用例库',evaluators:'评估器',environments:'环境 / 沙箱',runs:'运行记录',run:'运行记录详情',evaluations:'评估',comparison:'评估对比',settings:'系统设置'};
+  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求',datasets:'用例库',evaluators:'评估器','eval-guide':'Langfuse 评估标准指南',environments:'环境 / 沙箱',runs:'运行记录',run:'运行记录详情',evaluations:'评估',comparison:'评估对比',settings:'系统设置'};
   var curSys='保险报价系统', mode='global';
 
   function setMode(m){
