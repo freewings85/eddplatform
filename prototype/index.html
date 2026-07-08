@@ -173,6 +173,7 @@
       <a data-view="sys-modules">🧱 模块 &amp; Git</a>
       <a data-view="sys-versions">🧩 系统版本</a>
       <div class="sec">资产</div>
+      <a data-view="requirements">📌 需求</a>
       <a data-view="datasets">📁 用例库</a>
       <a data-view="evaluators">⚗️ 评估器</a>
       <a data-view="environments">🗄️ 环境 / 沙箱</a>
@@ -300,23 +301,48 @@
         </table></div>
       </section>
 
+      <!-- 需求（追溯锚点：详情在 Jira，平台只做挂接 + 达标汇总） -->
+      <section id="view-requirements" hidden>
+        <h2 class="page">需求 <span class="muted">(4)</span></h2>
+        <p class="sub">需求是<b>"为什么做这个版本"</b>的锚点。详情（描述 / 状态 / 流转）在 <b>Jira</b>（唯一真相源）；平台只做<b>追溯</b>——把需求挂到<b>验收用例</b>和<b>系统版本</b>，评估对比时按需求汇总达标情况。</p>
+        <div class="note">🔗 平台<b>不维护需求状态</b>（想按"未完成"筛，去 Jira 用它的筛选器）。这里能做：新建需求（可<b>推送到 Jira 建 issue</b>）/ 关联已有 Jira 号 / 按 Jira 号过滤 / 看每个需求的验收用例在新老版本的<b>达标</b>情况。</div>
+        <div class="section-title"><h3>本系统需求</h3><span><input class="search" style="width:190px" placeholder="按 Jira 号过滤，如 PROJ-2043" /> <button class="btn primary" onclick="openReq()">+ 新建需求</button></span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>需求</th><th>Jira 号</th><th>验收用例</th><th>交付版本</th><th>候选版本 (v2) 达标</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>R-101</b> 新能源车型报价修复</td><td class="mono"><a href="#" onclick="return false">PROJ-2043 ↗</a></td><td class="mono">#17 #88 #102</td><td><span class="tag v">v2</span></td><td><span class="pill ok">✅ 达标 (2/2)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
+            <tr><td><b>R-104</b> 过户后保单变更修复</td><td class="mono"><a href="#" onclick="return false">PROJ-2048 ↗</a></td><td class="mono">#44</td><td><span class="tag v">v2</span></td><td><span class="pill ok">✅ 达标 (1/1)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
+            <tr><td><b>R-102</b> 条款解释防幻觉</td><td class="mono"><a href="#" onclick="return false">PROJ-2044 ↗</a></td><td class="mono">#63</td><td><span class="tag v">v2</span></td><td><span class="pill bad">❌ 回归 (0/1)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
+            <tr><td><b>R-103</b> 保费计算延迟优化</td><td class="mono"><a href="#" onclick="return false">PROJ-2051 ↗</a></td><td class="mono">#91</td><td class="muted">—（未纳入 v2）</td><td><span class="pill bad">❌ 回归 (0/1)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">"达标" = 该需求的验收用例在候选版本<b>全部通过</b>；由评估对比<b>实时算出</b>，不写回 Jira。Jira 状态与"达标"<b>正交</b>——Jira 可能标"已完成"，但评估发现回归 → 未达标，正是平台的价值。R-102 在 v2 声称交付却回归 → 发布门禁应拦。</p>
+      </section>
+
       <!-- 用例库（有版本 + 适用系统版本） -->
       <section id="view-datasets" hidden>
         <h2 class="page">用例库 · 保险报价 <span class="muted">(200)</span></h2>
         <p class="sub">用例有<b>自身版本</b>（编辑历史）+ <b>适用系统版本</b>（多版本通用 / 某版本专属）</p>
         <div class="note">⚖️ 评估对比时，<b>只统计"被比两个版本都适用"的用例</b>；某版本专属用例（如 v2 才有的功能）会单列、不计入对比，避免不公平。</div>
+        <div class="filterbar">
+          <span class="muted" style="font-size:12.5px">按需求过滤：</span>
+          <span class="chip active" onclick="filterDS(this,'all')">全部 5</span>
+          <span class="chip" onclick="filterDS(this,'R-101')">R-101 新能源报价 3</span>
+          <span class="chip" onclick="filterDS(this,'R-102')">R-102 条款解释 1</span>
+          <span class="chip" onclick="filterDS(this,'R-103')">R-103 延迟 1</span>
+        </div>
         <div class="section-title"><h3>用例</h3><span><button class="btn">+ 导入自真实 trace</button> <button class="btn primary">+ 新建用例</button></span></div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>#</th><th>用例名</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
+        <div class="tbl-wrap"><table id="dsTbl">
+          <thead><tr><th>#</th><th>用例名</th><th>需求</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
           <tbody>
-            <tr><td>17</td><td>新能源车型报价</td><td><span class="tag v">v3</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr><td>63</td><td>多车型比价</td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">judge：无幻觉</td><td><span class="tag">工单 #4821</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr><td>88</td><td>含优惠叠加报价</td><td><span class="tag v">v1</span></td><td><span class="tag">全部版本</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr><td>91</td><td>历史出险影响保费</td><td><span class="tag v">v4</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">金额一致 + 延迟&lt;3s</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr><td>102</td><td>新能源专属补贴校验</td><td><span class="tag v">v1</span></td><td><span class="tag only">仅 v2 专属</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-101"><td>17</td><td>新能源车型报价</td><td><span class="tag">R-101</span></td><td><span class="tag v">v3</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-102"><td>63</td><td>多车型比价</td><td><span class="tag">R-102</span></td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">judge：无幻觉</td><td><span class="tag">工单 #4821</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-101"><td>88</td><td>含优惠叠加报价</td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag">全部版本</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-103"><td>91</td><td>历史出险影响保费</td><td><span class="tag">R-103</span></td><td><span class="tag v">v4</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">金额一致 + 延迟&lt;3s</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-101"><td>102</td><td>新能源专属补贴校验</td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag only">仅 v2 专属</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
           </tbody>
         </table></div>
-        <p class="hint">维护：编辑（产生用例新版本）/ 归档 / 批量导入 / 设置适用版本。评估器：金额校验(code) · 条款解释(judge) · 工具调用(code)。</p>
+        <p class="hint">一条用例可挂<b>多个需求</b>（标签，多对多）；标签同步到 Langfuse dataset item 的 metadata，Langfuse 侧也能按需求过滤。维护：编辑 / 归档 / 批量导入 / 设置适用版本。</p>
       </section>
 
       <section id="view-evaluators" hidden>
@@ -559,6 +585,18 @@ evaluators:
           </tbody>
         </table></div>
 
+        <div class="section-title"><h3>按需求</h3><span class="muted">达标 <b class="up">2</b> ✅ · 回归 <b class="bad">2</b> ❌ · 只统计两版都适用的验收用例</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>需求</th><th>Jira</th><th>验收用例（两版共有）</th><th>v1 基线</th><th>v2 候选</th><th>结论</th></tr></thead>
+          <tbody>
+            <tr><td><b>R-101</b> 新能源车型报价修复</td><td class="mono">PROJ-2043</td><td class="mono">#17 #88</td><td class="muted">1/2 未达标</td><td><b>2/2</b> 达标</td><td><span class="pill ok">✅ 达标（未达→达）</span></td></tr>
+            <tr><td><b>R-104</b> 过户后保单变更修复</td><td class="mono">PROJ-2048</td><td class="mono">#44</td><td class="muted">0/1 未达标</td><td><b>1/1</b> 达标</td><td><span class="pill ok">✅ 达标（未达→达）</span></td></tr>
+            <tr><td><b>R-102</b> 条款解释防幻觉</td><td class="mono">PROJ-2044</td><td class="mono">#63</td><td>1/1 达标</td><td><b class="bad">0/1</b> 未达标</td><td><span class="pill bad">❌ 回归（达→未达）</span></td></tr>
+            <tr><td><b>R-103</b> 保费计算延迟优化</td><td class="mono">PROJ-2051</td><td class="mono">#91</td><td>1/1 达标</td><td><b class="bad">0/1</b> 未达标</td><td><span class="pill bad">❌ 回归（达→未达）</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">"达标" = 该需求验收用例在候选版本<b>全部通过</b>（把下方逐用例结果按 <span class="mono">case.requirement_ids</span> 卷到需求级）。<b>R-102 声称在 v2 交付却回归 → 发布门禁应拦截。</b>#102 为 v2 专属用例不计入对比。</p>
+
         <div class="section-title"><h3>逐用例</h3><span class="muted">改善 <b class="up">22</b> ↑ · 回归 <b class="bad">8</b> ↓ · 持平 148</span></div>
         <div class="filterbar">
           <span class="chip active" onclick="filterCases(this,'all')">全部</span>
@@ -673,6 +711,44 @@ evaluators:
       </div>
     </div>
     <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeEvalDef()">取消</button><button class="btn primary" onclick="closeEvalDef()">保存评估器</button></div>
+  </div>
+</div>
+
+<!-- 新建需求 -->
+<div class="modal" id="reqmodal">
+  <div class="dialog" style="width:580px">
+    <div class="dialog-h"><b>新建需求</b> <span class="muted" style="font-size:12px;font-weight:400">详情留在 Jira，平台只存锚点 + 挂接</span><button class="btn sm" onclick="closeReq()">✕</button></div>
+    <div class="dialog-b">
+      <div class="field"><label>标题</label><input type="text" value="新能源车型报价修复"></div>
+      <div class="field"><label>描述（用于推送到 Jira）</label><textarea>新能源车识别错误导致报价偏差，需修正 quote-engine 车型分类逻辑，并补齐验收用例。</textarea></div>
+      <div class="field"><label>关联 Jira</label>
+        <div class="segmented" id="jseg">
+          <button class="seg active" onclick="jiraMode(this,'push')">推送到 Jira 建 issue</button>
+          <button class="seg" onclick="jiraMode(this,'link')">关联已有 Jira 号</button>
+          <button class="seg" onclick="jiraMode(this,'none')">暂不关联</button>
+        </div>
+      </div>
+      <div class="jmode" data-j="push">
+        <div class="row-flex">
+          <div class="field"><label>Jira 项目</label><select><option>PROJ · 保险平台</option></select></div>
+          <div class="field"><label>类型</label><select><option>Story</option><option>Bug</option><option>Epic</option></select></div>
+        </div>
+        <div class="note">保存后平台调用 Jira API 建 issue，<b>回填 Jira 号 &amp; 链接</b>。未配置 Jira 时此项不可用，改用「关联已有」或「暂不关联」（平台照常工作，离线/CI 无阻）。</div>
+      </div>
+      <div class="jmode" data-j="link" hidden>
+        <div class="field"><label>已有 Jira 号</label><input type="text" placeholder="如 PROJ-2043"></div>
+      </div>
+      <div class="jmode" data-j="none" hidden>
+        <div class="note">先在平台建需求，之后可随时补关联 Jira 号。</div>
+      </div>
+      <div class="field"><label>验收用例（打标签，多对多）</label>
+        <div><span class="tag">#17 新能源车型报价</span><span class="tag">#88 含优惠叠加报价</span><span class="tag">#102 新能源专属补贴校验</span><span class="tag muted" style="cursor:pointer">+ 选择用例…</span></div>
+      </div>
+      <div class="field"><label>交付版本（此版本声称交付该需求）</label>
+        <div><span class="tag v">v2</span><span class="tag muted" style="cursor:pointer">+ 选择版本…</span></div>
+      </div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeReq()">取消</button><button class="btn primary" onclick="closeReq()">保存需求</button></div>
   </div>
 </div>
 
@@ -809,7 +885,7 @@ evaluators:
 <script>
   // 两层：全局(global) / 系统(system)
   var gTitles={overview:'全局概览',systems:'系统管理',settings:'平台设置 / 治理'};
-  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',datasets:'用例库',evaluators:'评估器',environments:'环境 / 沙箱',runs:'运行记录',run:'运行记录详情',evaluations:'评估',comparison:'评估对比',settings:'系统设置'};
+  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求',datasets:'用例库',evaluators:'评估器',environments:'环境 / 沙箱',runs:'运行记录',run:'运行记录详情',evaluations:'评估',comparison:'评估对比',settings:'系统设置'};
   var curSys='保险报价系统', mode='global';
 
   function setMode(m){
@@ -848,6 +924,20 @@ evaluators:
   function closeEnv(){document.getElementById('envmodal').classList.remove('open')}
   function openRun(){document.getElementById('runmodal').classList.add('open')}
   function closeRun(){document.getElementById('runmodal').classList.remove('open')}
+  // 新建需求
+  function openReq(){document.getElementById('reqmodal').classList.add('open'); jiraMode(document.querySelector('#jseg .seg'),'push');}
+  function closeReq(){document.getElementById('reqmodal').classList.remove('open')}
+  function jiraMode(el,j){
+    document.querySelectorAll('#jseg .seg').forEach(function(s){s.classList.remove('active')}); el.classList.add('active');
+    document.querySelectorAll('#reqmodal .jmode').forEach(function(p){p.hidden=p.dataset.j!==j});
+  }
+  // 用例库按需求过滤
+  function filterDS(chip,r){
+    document.querySelectorAll('#view-datasets .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
+    document.querySelectorAll('#dsTbl tbody tr').forEach(function(tr){
+      tr.hidden=!(r==='all'||(tr.dataset.req||'').split(' ').indexOf(r)>=0);
+    });
+  }
   // 定义评估器
   var evalPreviews={
     builtin:'# YAML（EvaluatorSpec）——挂到用例集 / 单个用例\nevaluators:\n- EqualsExpected\n# 带参数：\n- MaxDuration: 3.0\n- HasMatchingSpan: {query: {name_contains: "tool:quote-engine"}}',
