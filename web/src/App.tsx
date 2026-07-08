@@ -5,6 +5,8 @@ import type {
   Dataset,
   EvaluatorDef,
   Evaluation,
+  Requirement,
+  RequirementRollup,
   RunRecord,
   System,
   SystemVersion,
@@ -38,6 +40,7 @@ const GLOBAL_NAV: Nav[] = [
 
 const SYSTEM_NAV: Nav[] = [
   { view: "sys-overview", label: "系统概览", icon: "🏠" },
+  { view: "requirements", label: "需求", icon: "📌" },
   { view: "datasets", label: "用例库", icon: "📁" },
   { view: "evaluators", label: "评估器", icon: "⚗️" },
   { view: "runs", label: "运行记录", icon: "🏃" },
@@ -125,6 +128,9 @@ export default function App() {
           )}
           {mode === "system" && sysId && view === "sys-overview" && (
             <SysOverview sysId={sysId} />
+          )}
+          {mode === "system" && sysId && view === "requirements" && (
+            <Requirements sysId={sysId} />
           )}
           {mode === "system" && sysId && view === "datasets" && (
             <Datasets sysId={sysId} />
@@ -288,6 +294,7 @@ function Datasets({ sysId }: { sysId: string }) {
             <tr>
               <th>#</th>
               <th>用例名</th>
+              <th>需求</th>
               <th>用例版本</th>
               <th>适用系统版本</th>
               <th>评估器</th>
@@ -298,6 +305,17 @@ function Datasets({ sysId }: { sysId: string }) {
               <tr key={c.id}>
                 <td>{c.id}</td>
                 <td>{c.name}</td>
+                <td>
+                  {c.requirement_ids.length === 0 ? (
+                    <span className="muted">—</span>
+                  ) : (
+                    c.requirement_ids.map((r) => (
+                      <span key={r} className="tag">
+                        {r}
+                      </span>
+                    ))
+                  )}
+                </td>
                 <td>
                   <span className="tag v">{c.case_version}</span>
                 </td>
@@ -492,9 +510,133 @@ function ComparisonView() {
               </tbody>
             </table>
           </div>
+
+          {data.by_requirement.length > 0 && (
+            <>
+              <div className="section-title">按需求</div>
+              <div className="card">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>需求</th>
+                      <th>Jira</th>
+                      <th>v1 基线</th>
+                      <th>v2 候选</th>
+                      <th>结论</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.by_requirement.map((r) => {
+                      const v = rollupVerdict(r);
+                      return (
+                        <tr key={r.requirement_id}>
+                          <td>
+                            <b>{r.requirement_id}</b> {r.title}
+                          </td>
+                          <td className="mono">{r.external_key ?? "—"}</td>
+                          <td className="muted">
+                            {r.baseline_passed}/{r.total_cases}
+                          </td>
+                          <td>
+                            <b>
+                              {r.candidate_passed}/{r.total_cases}
+                            </b>
+                          </td>
+                          <td>
+                            <Pill kind={v.kind}>{v.text}</Pill>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="hint">
+                达标 = 该需求验收用例在候选版本全部通过（用例级结果按 requirement_ids 卷到需求级）。
+              </p>
+            </>
+          )}
           <p className="hint">数据来自 FastAPI /api/comparison（示例）；生产接 Langfuse dataset run 对比。</p>
         </>
       )}
+    </>
+  );
+}
+
+/** 由 rollup 的通过数派生达标结论（API 不序列化 property，前端本地判定）。 */
+function rollupVerdict(r: RequirementRollup): { text: string; kind?: string } {
+  const bm = r.total_cases > 0 && r.baseline_passed === r.total_cases;
+  const cm = r.total_cases > 0 && r.candidate_passed === r.total_cases;
+  if (cm && !bm) return { text: "✅ 达标", kind: "ok" };
+  if (bm && !cm) return { text: "❌ 回归", kind: "bad" };
+  if (bm && cm) return { text: "保持", kind: undefined };
+  return { text: "仍未达标", kind: undefined };
+}
+
+function Requirements({ sysId }: { sysId: string }) {
+  const { data, error } = useData<Requirement[]>(
+    () => api.requirements(sysId),
+    [sysId],
+  );
+  const cmp = useData<Comparison>(api.comparison, []);
+  const rollupById = new Map(
+    (cmp.data?.by_requirement ?? []).map((r) => [r.requirement_id, r]),
+  );
+  return (
+    <>
+      <h2 className="page">需求</h2>
+      <p className="sub">
+        追溯锚点：详情在 Jira（唯一真相源），平台把需求挂到验收用例 &amp; 系统版本，评估对比按需求汇总达标
+      </p>
+      {error && <p className="err">{error}</p>}
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>需求</th>
+              <th>Jira 号</th>
+              <th>候选版本 (v2) 达标</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data ?? []).map((r) => {
+              const ro = rollupById.get(r.id);
+              const v = ro ? rollupVerdict(ro) : null;
+              return (
+                <tr key={r.id}>
+                  <td>
+                    <b>{r.id}</b> {r.title}
+                  </td>
+                  <td className="mono">
+                    {r.external_url ? (
+                      <a href={r.external_url} target="_blank" rel="noopener">
+                        {r.external_key} ↗
+                      </a>
+                    ) : (
+                      r.external_key ?? "—"
+                    )}
+                  </td>
+                  <td>
+                    {ro && v ? (
+                      <>
+                        <Pill kind={v.kind}>{v.text}</Pill>{" "}
+                        <span className="muted">
+                          ({ro.candidate_passed}/{ro.total_cases})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint">
+        "达标" = 验收用例在候选版本全部通过，由评估对比实时算出，不写回 Jira。Jira 状态与达标正交。
+      </p>
     </>
   );
 }

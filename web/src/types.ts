@@ -24,6 +24,7 @@ export interface SystemVersion {
   module_pins: Record<string, string>;
   status: string;
   note?: string | null;
+  requirement_ids: string[];
 }
 
 export interface Case {
@@ -32,7 +33,27 @@ export interface Case {
   case_version: string;
   applicable_versions: string[];
   evaluator_names: string[];
+  requirement_ids: string[];
   enabled: boolean;
+}
+
+export interface Requirement {
+  id: string;
+  system_id: string;
+  title: string;
+  description?: string | null;
+  external_key?: string | null;
+  external_url?: string | null;
+  note?: string | null;
+}
+
+export interface RequirementRollup {
+  requirement_id: string;
+  title: string;
+  external_key?: string | null;
+  total_cases: number;
+  baseline_passed: number;
+  candidate_passed: number;
 }
 
 export interface Dataset {
@@ -101,4 +122,5 @@ export interface Comparison {
   regressed: number;
   unchanged: number;
   metrics: MetricDelta[];
+  by_requirement: RequirementRollup[];
 }
