@@ -513,15 +513,72 @@ evaluators:
         </div>
 
         <div class="runtab" data-rt="trace" hidden>
-          <p class="hint">全链路轨迹（OTel 跨 5 服务传播 → Langfuse）。展开可在 Langfuse 打开完整 trace。</p>
-          <div class="tbl-wrap trace">
-            <div class="sp"><span class="nm">▸ POST /quote  (入口)</span><span class="du">2.41s</span></div>
-            <div class="sp"><span class="nm">&nbsp;&nbsp;├ intent-service.classify</span><span class="du">180ms</span></div>
-            <div class="sp"><span class="nm">&nbsp;&nbsp;├ quote-engine.calc <span class="tag v">2.2.0</span></span><span class="du">1.02s</span></div>
-            <div class="sp"><span class="nm">&nbsp;&nbsp;├ dialog-agent.explain <span class="tag v">1.0.0</span> · LLM</span><span class="du">0.94s</span></div>
-            <div class="sp"><span class="nm">&nbsp;&nbsp;└ memory-service.write</span><span class="du">70ms</span></div>
+          <p class="hint">本运行 = 对 <b>178 条用例</b>各跑一遍 → <b>178 棵全链路轨迹</b>（OTel 跨 5 服务传播 → Langfuse）。<b>一条用例一棵 span 树</b>，不是单条 trace。</p>
+          <div class="cmp-pick" style="gap:12px;margin:6px 0 12px">
+            <div>
+              <div class="hint" style="margin:0 0 3px">按<b>运行记录</b>跳转（带运行过滤）</div>
+              <button class="btn primary" onclick="return false">在 Langfuse 打开本运行全部轨迹 ↗</button>
+            </div>
+            <span class="hint" style="margin:0">过滤条件带过去：dataset run = <span class="mono">insurance-v2</span> · 178 条</span>
+            <span style="flex:1"></span>
+            <div class="filterbar" style="margin:0">
+              <span class="chip active" onclick="filterTrace(this,'all')">全部 178</span>
+              <span class="chip" onclick="filterTrace(this,'bad')">仅失败 8</span>
+            </div>
           </div>
-          <p class="hint"><a href="#">在 Langfuse 打开该 trace ↗</a></p>
+          <div class="tbl-wrap"><table id="traceTbl">
+            <thead><tr><th>用例</th><th>需求</th><th>结果</th><th>耗时</th><th>span</th><th>轨迹</th></tr></thead>
+            <tbody>
+              <tr data-k="ok"><td>#17 新能源车型报价</td><td><span class="tag">R-101</span></td><td><span class="pill ok">✓</span></td><td class="mono">2.41s</td><td class="mono">5</td><td><button class="btn sm" onclick="toggleDetail('t17')">展开 span 树</button> <a href="#" onclick="return false">Langfuse ↗</a></td></tr>
+              <tr id="t17" class="detail" hidden><td colspan="6">
+                <div class="tbl-wrap trace" style="box-shadow:none">
+                  <div class="sp"><span class="nm">▸ POST /quote  (入口)</span><span class="du">2.41s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ intent-service.classify</span><span class="du">180ms</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ quote-engine.calc <span class="tag v">2.2.0</span></span><span class="du">1.02s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ dialog-agent.explain <span class="tag v">1.0.0</span> · LLM</span><span class="du">0.94s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;└ memory-service.write</span><span class="du">70ms</span></div>
+                </div>
+                <p class="hint" style="margin-top:8px"><a href="#" onclick="return false">在 Langfuse 打开<b>该用例</b> trace ↗</a> · 带用例过滤：run <span class="mono">insurance-v2</span> / item <span class="mono">#17</span></p>
+              </td></tr>
+
+              <tr data-k="bad"><td>#63 多车型比价</td><td><span class="tag">R-102</span></td><td><span class="pill bad">✗</span></td><td class="mono">3.10s</td><td class="mono">6</td><td><button class="btn sm" onclick="toggleDetail('t63')">展开 span 树</button> <a href="#" onclick="return false">Langfuse ↗</a></td></tr>
+              <tr id="t63" class="detail" hidden><td colspan="6">
+                <div class="tbl-wrap trace" style="box-shadow:none">
+                  <div class="sp"><span class="nm">▸ POST /quote  (入口)</span><span class="du">3.10s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ intent-service.classify</span><span class="du">190ms</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ quote-engine.calc <span class="tag v">2.2.0</span></span><span class="du">1.05s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ dialog-agent.explain <span class="tag v">1.0.0</span> · LLM <span class="pill bad">幻觉</span></span><span class="du">1.60s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;└ memory-service.write</span><span class="du">70ms</span></div>
+                </div>
+                <p class="hint" style="margin-top:8px"><a href="#" onclick="return false">在 Langfuse 打开<b>该用例</b> trace ↗</a> · 带用例过滤：run <span class="mono">insurance-v2</span> / item <span class="mono">#63</span></p>
+              </td></tr>
+
+              <tr data-k="bad"><td>#91 历史出险影响保费</td><td><span class="tag">R-103</span></td><td><span class="pill bad">✗</span></td><td class="mono">3.20s</td><td class="mono">5</td><td><button class="btn sm" onclick="toggleDetail('t91')">展开 span 树</button> <a href="#" onclick="return false">Langfuse ↗</a></td></tr>
+              <tr id="t91" class="detail" hidden><td colspan="6">
+                <div class="tbl-wrap trace" style="box-shadow:none">
+                  <div class="sp"><span class="nm">▸ POST /quote  (入口)</span><span class="du">3.20s <span class="pill bad">超阈值</span></span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ intent-service.classify</span><span class="du">180ms</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ quote-engine.calc <span class="tag v">2.2.0</span></span><span class="du">2.10s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ dialog-agent.explain <span class="tag v">1.0.0</span> · LLM</span><span class="du">0.86s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;└ memory-service.write</span><span class="du">70ms</span></div>
+                </div>
+                <p class="hint" style="margin-top:8px"><a href="#" onclick="return false">在 Langfuse 打开<b>该用例</b> trace ↗</a> · 带用例过滤：run <span class="mono">insurance-v2</span> / item <span class="mono">#91</span></p>
+              </td></tr>
+
+              <tr data-k="ok"><td>#88 含优惠叠加报价</td><td><span class="tag">R-101</span></td><td><span class="pill ok">✓</span></td><td class="mono">2.05s</td><td class="mono">5</td><td><button class="btn sm" onclick="toggleDetail('t88')">展开 span 树</button> <a href="#" onclick="return false">Langfuse ↗</a></td></tr>
+              <tr id="t88" class="detail" hidden><td colspan="6">
+                <div class="tbl-wrap trace" style="box-shadow:none">
+                  <div class="sp"><span class="nm">▸ POST /quote  (入口)</span><span class="du">2.05s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ intent-service.classify</span><span class="du">170ms</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ quote-engine.calc <span class="tag v">2.2.0</span></span><span class="du">0.98s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;├ dialog-agent.explain <span class="tag v">1.0.0</span> · LLM</span><span class="du">0.83s</span></div>
+                  <div class="sp"><span class="nm">&nbsp;&nbsp;└ memory-service.write</span><span class="du">70ms</span></div>
+                </div>
+                <p class="hint" style="margin-top:8px"><a href="#" onclick="return false">在 Langfuse 打开<b>该用例</b> trace ↗</a> · 带用例过滤：run <span class="mono">insurance-v2</span> / item <span class="mono">#88</span></p>
+              </td></tr>
+            </tbody>
+          </table></div>
+          <p class="hint">列表 = 本运行的<b>逐用例轨迹</b>（此处示例 4 / 178）。「在 Langfuse 打开」都<b>带过滤条件</b>：① <b>按运行记录</b> → 该 dataset run 的全部轨迹；② <b>按单条用例</b> → 定位到该用例的 trace。</p>
         </div>
 
         <div class="runtab" data-rt="env" hidden>
@@ -936,6 +993,14 @@ evaluators:
     document.querySelectorAll('#view-datasets .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
     document.querySelectorAll('#dsTbl tbody tr').forEach(function(tr){
       tr.hidden=!(r==='all'||(tr.dataset.req||'').split(' ').indexOf(r)>=0);
+    });
+  }
+  // 运行记录·轨迹：逐用例过滤
+  function filterTrace(chip,k){
+    document.querySelectorAll('#view-run .runtab[data-rt="trace"] .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
+    document.querySelectorAll('#traceTbl tbody tr[data-k]').forEach(function(tr){
+      var show=(k==='all')||(tr.dataset.k===k); tr.hidden=!show;
+      var det=tr.nextElementSibling; if(det&&det.classList.contains('detail')) det.hidden=true;
     });
   }
   // 定义评估器
