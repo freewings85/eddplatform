@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 # --------------------------------------------------------------------------- 枚举
@@ -90,16 +90,42 @@ class EvaluatorScope(str, Enum):
 
 # --------------------------------------------------------------------------- 系统 / 模块 / 版本
 class Module(BaseModel):
-    """一个服务/进程，绑定 Git 仓库 + Harbor 镜像。对应 Backstage Component。"""
+    """一个服务/进程：绑定 Git 仓库(+分支) 与启动方式。对应 Backstage Component。
+
+    ``image`` 可选：有预构建镜像就直接用；否则由 EDD 从 ``git_url``+分支(见
+    ``SystemVersion.module_pins``) checkout 后用 ``dockerfile`` build。``command``/
+    ``args``/``ports``/``env`` 描述"这个进程怎么在 k8s 里跑起来"——真实多进程系统
+    (如 chatagent 的 orchestrator/mainagent/toolexecutor)靠这些才能被 EDD 拉起。
+    """
 
     name: str
     git_url: str
     branch: str = "main"
-    image: str                        # Harbor 镜像仓库路径
+    image: str | None = None          # 预构建镜像路径；None → 从 git+分支 build
     dockerfile: str = "./Dockerfile"
+    context: str = "."                # docker build 上下文(相对仓库根)
+    command: list[str] = []           # 启动命令(覆盖镜像 entrypoint)，空则用镜像默认
+    args: list[str] = []              # 启动参数
+    ports: list[int] = []             # 容器端口
+    env: dict[str, str] = {}          # 环境变量 / 配置
     healthcheck: str = "/healthz"
     owner: str | None = None
     prod_tag: str | None = None
+
+
+class BaseService(BaseModel):
+    """系统依赖的基础服务(kafka/redis/mysql/postgres/temporal…)，沙箱里一并拉起。
+
+    与 Module 的区别：它不来自被评项目的 git，而是现成中间件镜像，直接部署。
+    ``command``/``args`` 供需要自定义启动的中间件（如 ``temporal server start-dev``）。
+    """
+
+    name: str
+    image: str
+    ports: list[int] = []
+    env: dict[str, str] = {}
+    command: list[str] = []
+    args: list[str] = []
 
 
 class System(BaseModel):
@@ -107,6 +133,7 @@ class System(BaseModel):
     name: str
     owner: str | None = None
     modules: list[Module] = []
+    base_services: list[BaseService] = []   # 沙箱里要一并拉起的基础服务
     prod_version: str | None = None
 
 
@@ -231,6 +258,7 @@ class RunRecord(BaseModel):
     duration_s: float | None = None
     eval_id: str | None = None            # 关联评估；单独运行为 None
     trace_ref: str | None = None          # Langfuse trace 链接
+    cleanup_after: bool = True            # 跑完是否销毁环境(清 k8s namespace)；False 留现场排查
     log: list[str] = []
 
 
@@ -268,6 +296,7 @@ class MetricDelta(BaseModel):
     baseline: float
     candidate: float
 
+    @computed_field  # 进 JSON：API/前端对比要显示老新差多少
     @property
     def delta(self) -> float:
         return self.candidate - self.baseline

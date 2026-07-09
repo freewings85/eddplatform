@@ -88,6 +88,19 @@ services:
       LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-}
       LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-}
 
+  # EDD 共享 OTel collector：所有 eddplatform 沙箱 → 这里(:4318/:4317) → Langfuse eddplatform 项目。
+  # 与 langfuse 同 compose 网络，配置见 ./otelcol/config.yaml（版本管理）。
+  edd-otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.147.0
+    restart: always
+    command: ["--config", "/etc/otelcol-contrib/config.yaml"]
+    depends_on:
+      - langfuse-web
+    volumes:
+      - ./otelcol/config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - 4318:4318   # 只留 OTLP HTTP（沙箱 pod 经 host.k3d.internal:4318 打到这里）
+
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server
     restart: always

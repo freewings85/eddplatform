@@ -1,8 +1,14 @@
-"""FastAPI 应用：把原型当作当前 UI 端起来 + 暴露领域数据接口（读，占位）。
+"""FastAPI 应用：EDD 的真实数据接口 —— 读**真实** store（非占位 sample_data），
+并能**触发真实评估**（系统自己跑 engine.run 打已部署环境 → 落 RunRecord/Evaluation）。
 
     uvicorn eddplatform.api.app:app --reload
-    → http://127.0.0.1:8000        原型
+    → http://127.0.0.1:8000        原型 UI（数据驱动，自动显示 store 里的真实系统）
     → http://127.0.0.1:8000/docs   OpenAPI
+
+真实闭环（不绕过系统）：
+    POST /api/systems/{id}/evaluate?version=2.0   → 触发一次真实评估（后台跑，立即回 RUNNING id）
+    POST /api/systems/{id}/evaluate?version=2.3
+    GET  /api/comparison                          → 两版本已完成评估的老新对比（真实 delta）
 """
 
 from __future__ import annotations
@@ -14,17 +20,21 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from eddplatform.api import sample_data as sd
-from eddplatform.domain.models import Requirement
+from eddplatform.api.store import STORE
+from eddplatform.domain.models import EvalStatus, Requirement
+from eddplatform.evals import service
 from eddplatform.integrations import jira
+from eddplatform.systems import chatagent as chatagent_system
 
 app = FastAPI(
     title="EddPlatform",
-    version="0.0.1",
-    description="评估驱动研发平台 — 版本化一次性沙箱 + 用例驱动发布评估 + 老新对比。",
+    version="0.1.0",
+    description="评估驱动研发平台 — 版本化一次性沙箱 + 用例驱动发布评估 + 老新对比（真实数据）。",
 )
 
-# 仓库根：src/eddplatform/api/app.py -> parents[3]
+# 启动即注册真实被评系统（把系统元数据 + 运行绑定装进 store）。占位 demo 数据已清除。
+chatagent_system.register(STORE)
+
 PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
 
 
@@ -40,47 +50,53 @@ def health():
     return {"status": "ok", "version": app.version}
 
 
-# --- 系统 / 模块 / 版本 ----------------------------------------------------
+# --- 系统 / 版本 -----------------------------------------------------------
 @app.get("/api/systems")
 def list_systems():
-    return sd.SYSTEMS
+    return STORE.systems
 
 
 @app.get("/api/systems/{system_id}")
 def get_system(system_id: str):
-    system = sd.system_by_id(system_id)
-    if not system:
+    s = STORE.system_by_id(system_id)
+    if not s:
         raise HTTPException(404, "system not found")
-    return system
+    return s
 
 
 @app.get("/api/systems/{system_id}/versions")
 def list_versions(system_id: str):
-    return [v for v in sd.VERSIONS if v.system_id == system_id]
+    return STORE.versions_for(system_id)
 
 
-# --- 用例 / 评估器 ---------------------------------------------------------
+# --- 用例集 / 评估器 -------------------------------------------------------
 @app.get("/api/systems/{system_id}/dataset")
 def get_dataset(system_id: str, requirement: str | None = None):
-    if sd.DATASET.system_id != system_id:
+    ds = STORE.dataset_for(system_id)
+    if not ds:
         raise HTTPException(404, "dataset not found")
     if requirement:
-        cases = [c for c in sd.DATASET.cases if requirement in c.requirement_ids]
-        return sd.DATASET.model_copy(update={"cases": cases})
-    return sd.DATASET
+        cases = [c for c in ds.cases if requirement in c.requirement_ids]
+        return ds.model_copy(update={"cases": cases})
+    return ds
+
+
+@app.get("/api/systems/{system_id}/evaluators")
+def list_evaluators(system_id: str):
+    return STORE.evaluators_for(system_id)
 
 
 # --- 需求（追溯锚点；详情在 Jira）-----------------------------------------
 class RequirementCreate(BaseModel):
     title: str
     description: str | None = None
-    external_key: str | None = None       # 关联已有 Jira 号
-    jira_project: str | None = None       # 给了且无 external_key 且 Jira 可用 → 推送建 issue
+    external_key: str | None = None
+    jira_project: str | None = None
 
 
 @app.get("/api/systems/{system_id}/requirements")
 def list_requirements(system_id: str, key: str | None = None):
-    reqs = [r for r in sd.REQUIREMENTS if r.system_id == system_id]
+    reqs = STORE.requirements_for(system_id)
     if key:
         reqs = [r for r in reqs if r.external_key == key]
     return reqs
@@ -88,7 +104,7 @@ def list_requirements(system_id: str, key: str | None = None):
 
 @app.get("/api/requirements/{req_id}")
 def get_requirement(req_id: str):
-    r = next((x for x in sd.REQUIREMENTS if x.id == req_id), None)
+    r = STORE.requirement_by_id(req_id)
     if not r:
         raise HTTPException(404, "requirement not found")
     return r
@@ -96,60 +112,89 @@ def get_requirement(req_id: str):
 
 @app.post("/api/systems/{system_id}/requirements")
 def create_requirement(system_id: str, body: RequirementCreate):
-    """新建需求：可推送到 Jira 建 issue / 关联已有 key / 暂不关联（离线亦可）。"""
     key, url = body.external_key, None
     if not key and body.jira_project and jira.available():
         issue = jira.create_issue(body.jira_project, body.title, body.description or "")
         key, url = issue["key"], issue["url"]
     elif key and os.environ.get("JIRA_URL"):
         url = jira.issue_url(key)
-    nums = [int(r.id.split("-")[1]) for r in sd.REQUIREMENTS
+    nums = [int(r.id.split("-")[1]) for r in STORE.requirements
             if r.id.startswith("R-") and r.id.split("-")[1].isdigit()]
     req = Requirement(id=f"R-{max(nums) + 1 if nums else 101}", system_id=system_id,
                       title=body.title, description=body.description,
                       external_key=key, external_url=url)
-    sd.REQUIREMENTS.append(req)
-    return req
-
-
-@app.get("/api/systems/{system_id}/evaluators")
-def list_evaluators(system_id: str):
-    return sd.EVALUATORS
+    return STORE.add_requirement(req)
 
 
 # --- 沙箱 / 环境 -----------------------------------------------------------
 @app.get("/api/sandbox-configs")
 def list_sandbox_configs():
-    return sd.SANDBOX_CONFIGS
+    return STORE.sandbox_configs
 
 
 @app.get("/api/environments")
 def list_environments():
-    return sd.ENVIRONMENTS
+    return STORE.environments
 
 
-# --- 运行 / 评估 / 对比 ----------------------------------------------------
+# --- 运行 / 评估 -----------------------------------------------------------
 @app.get("/api/runs")
 def list_runs():
-    return sd.RUNS
+    return STORE.runs
 
 
 @app.get("/api/runs/{run_id}")
 def get_run(run_id: str):
-    run = next((r for r in sd.RUNS if r.id == run_id), None)
-    if not run:
+    r = STORE.run_by_id(run_id)
+    if not r:
         raise HTTPException(404, "run not found")
-    return run
+    return r
 
 
 @app.get("/api/evaluations")
 def list_evaluations():
-    return sd.EVALUATIONS
+    return STORE.evaluations
+
+
+@app.get("/api/evaluations/{eval_id}")
+def get_evaluation(eval_id: str):
+    e = STORE.eval_by_id(eval_id)
+    if not e:
+        raise HTTPException(404, "evaluation not found")
+    return e
+
+
+@app.post("/api/systems/{system_id}/evaluate")
+def trigger_evaluation(system_id: str, version: str):
+    """触发一次**真实**评估：系统跑 engine.run 打已部署环境 → 落 RunRecord+Evaluation。
+    后台执行，立即返回 RUNNING 的 run_id/eval_id，用 GET /api/evaluations/{id} 轮询。"""
+    if not STORE.system_by_id(system_id):
+        raise HTTPException(404, "system not found")
+    if system_id not in STORE.bindings:
+        raise HTTPException(400, f"system '{system_id}' 无运行绑定，无法评估")
+    if not any(v.label == version for v in STORE.versions_for(system_id)):
+        raise HTTPException(404, f"version '{version}' not found")
+    run, ev = service.start_evaluation(STORE, system_id, version, background=True)
+    return {"run_id": run.id, "eval_id": ev.id, "status": run.status,
+            "poll": f"/api/evaluations/{ev.id}"}
+
+
+# --- 对比 ------------------------------------------------------------------
+def _latest_completed(system_id: str, version: str):
+    evs = [e for e in STORE.completed_evaluations(system_id) if e.version_label == version]
+    return evs[-1] if evs else None
 
 
 @app.get("/api/comparison")
-def get_comparison(baseline: str = "E-2000", candidate: str = "E-2001"):
-    c = sd.COMPARISON
-    if {baseline, candidate} != {c.baseline_eval_id, c.candidate_eval_id}:
-        raise HTTPException(404, "comparison not available for these evaluations")
-    return c
+def get_comparison(baseline: str | None = None, candidate: str | None = None,
+                   system: str = "chatagent",
+                   baseline_version: str = "2.0", candidate_version: str = "2.3"):
+    """两条已完成评估的老新对比。不给 eval id 时，自动取该系统两版本最新完成的评估。"""
+    b_eval = STORE.eval_by_id(baseline) if baseline else _latest_completed(system, baseline_version)
+    c_eval = STORE.eval_by_id(candidate) if candidate else _latest_completed(system, candidate_version)
+    if not b_eval or not c_eval:
+        raise HTTPException(404, "两版本都需先各跑完一次评估（POST /api/systems/{id}/evaluate?version=…）")
+    cmp = service.comparison_of(STORE, b_eval.id, c_eval.id)
+    if not cmp:
+        raise HTTPException(409, "评估尚未完成或缺结果")
+    return cmp

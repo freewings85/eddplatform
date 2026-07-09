@@ -39,8 +39,13 @@ def _evaluate_version(
     evaluators: dict[str, Evaluator],
     target_factory: TargetFactory,
     provider: EnvironmentProvider,
+    cleanup: bool = True,
 ) -> EvalResult:
-    """为一个版本拉一次性环境、跑该版本适用的用例、评分，**跑完必销**。"""
+    """为一个版本拉一次性环境、跑该版本适用的用例、评分。
+
+    ``cleanup=True``（默认，ephemeral）跑完无论成败都销毁环境；``cleanup=False``
+    保留环境（如 k8s namespace 不删），便于跑后进现场排查。
+    """
     manifest = render_manifest(modules, version)
     env_id = provider.create(manifest, ttl_hours=2.0)
     try:
@@ -48,7 +53,8 @@ def _evaluate_version(
         cases = [c for c in dataset.cases if c.enabled and c.applies_to(version.label)]
         return run(target, cases, evaluators)
     finally:
-        provider.destroy(env_id)          # ephemeral：无论成败都销毁
+        if cleanup:
+            provider.destroy(env_id)      # ephemeral：无论成败都销毁
 
 
 def run_release_evaluation(
@@ -61,12 +67,17 @@ def run_release_evaluation(
     target_factory: TargetFactory,
     provider: EnvironmentProvider,
     requirements: Sequence[Requirement] | None = None,
+    cleanup: bool = True,
 ) -> ReleaseEvaluationResult:
-    """老新对比的完整编排：两个版本各评一次 → 对比（+ 可选需求级汇总）。"""
+    """老新对比的完整编排：两个版本各评一次 → 对比（+ 可选需求级汇总）。
+
+    ``cleanup``：跑完是否销毁两个版本的一次性环境（清理 k8s namespace）。默认 True；
+    传 False 可保留现场排查。
+    """
     baseline = _evaluate_version(baseline_version, modules, dataset, evaluators,
-                                 target_factory, provider)
+                                 target_factory, provider, cleanup=cleanup)
     candidate = _evaluate_version(candidate_version, modules, dataset, evaluators,
-                                  target_factory, provider)
+                                  target_factory, provider, cleanup=cleanup)
     cmp = compare(baseline, candidate)
     if requirements:
         cmp.by_requirement = rollup_by_requirement(baseline, candidate,

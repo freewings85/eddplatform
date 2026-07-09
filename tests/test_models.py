@@ -1,6 +1,6 @@
 """领域模型的核心不变量测试。"""
 
-from eddplatform.api import sample_data as sd
+import sample_fixtures as sd  # 测试专用 demo 夹具（已移出 src/，系统不再服务占位数据）
 from eddplatform.domain.models import Case, Comparison, MetricDelta
 
 
@@ -27,6 +27,13 @@ def test_comparison_only_counts_cases_applicable_to_both():
 def test_metric_delta():
     d = MetricDelta(metric="通过率", baseline=0.82, candidate=0.86)
     assert round(d.delta, 2) == 0.04
+
+
+def test_metric_delta_is_serialized():
+    """delta 必须进 JSON —— 否则 API/前端对比里 delta 恒为 None（看不出老新差多少）。"""
+    dump = MetricDelta(metric="维度-成本token", baseline=9551.6, candidate=33319.3).model_dump()
+    assert "delta" in dump
+    assert round(dump["delta"], 1) == 23767.7
 
 
 def test_evaluation_always_has_a_run():

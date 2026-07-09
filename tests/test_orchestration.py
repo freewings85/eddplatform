@@ -68,6 +68,39 @@ def test_render_manifest_pins_image_and_tag():
     assert m["version"] == "v2" and len(m["services"]) == 2
 
 
+# --- 可观测性：所有沙箱业务服务自动指向共享 collector → Langfuse -------------
+def test_render_manifest_injects_shared_observability_into_every_service():
+    """每个业务服务都自动开 tracing 并指向共享 collector —— 不用再手动 kubectl set env。"""
+    m = render_manifest(MODULES, V2)
+    for s in m["services"]:
+        assert s["env"]["LOGFIRE_ENABLED"] == "true"
+        assert s["env"]["LOGFIRE_ENDPOINT"] == "http://host.k3d.internal:4318/v1/traces"
+        assert s["env"]["OTEL_SERVICE_NAME"] == s["name"]      # 默认用服务名
+
+
+def test_render_manifest_observability_endpoint_is_configurable():
+    m = render_manifest(MODULES, V2, otel_endpoint="http://172.20.0.1:4318/v1/traces")
+    assert all(s["env"]["LOGFIRE_ENDPOINT"] == "http://172.20.0.1:4318/v1/traces"
+               for s in m["services"])
+
+
+def test_render_manifest_keeps_module_service_name_but_forces_endpoint():
+    mods = [Module(name="bma", git_url="g", image="reg/bma",
+                   env={"OTEL_SERVICE_NAME": "business-map-agent", "LOGFIRE_ENDPOINT": "http://stale:4318"})]
+    ver = SystemVersion(id="x", system_id="s", label="l", module_pins={"bma": "1.0"})
+    svc = render_manifest(mods, ver)["services"][0]
+    assert svc["env"]["OTEL_SERVICE_NAME"] == "business-map-agent"   # 模块显式名保留
+    assert svc["env"]["LOGFIRE_ENDPOINT"] == "http://host.k3d.internal:4318/v1/traces"  # 端点强制共享
+
+
+def test_render_manifest_base_services_not_traced():
+    """基础设施(kafka/redis/pg)不是 LLM 应用，不注入 tracing。"""
+    from eddplatform.domain.models import BaseService
+    m = render_manifest(MODULES, V2, base_services=[BaseService(name="redis", image="redis:7")])
+    base = m["base_services"][0]
+    assert "LOGFIRE_ENABLED" not in base["env"]
+
+
 # --- MockProvider：一次性环境生命周期 -------------------------------------
 def test_mock_provider_lifecycle():
     p = MockProvider()
@@ -97,10 +130,21 @@ def test_release_evaluation_end_to_end():
 
 
 def test_release_evaluation_destroys_all_environments():
-    """ephemeral：跑完两个版本的环境都必须销毁。"""
+    """ephemeral：默认跑完两个版本的环境都必须销毁。"""
     p = MockProvider()
     run_release_evaluation(
         modules=MODULES, baseline_version=V1, candidate_version=V2,
         dataset=DATASET, evaluators=EVALUATORS, target_factory=_factory, provider=p,
     )
     assert p.live_count() == 0
+
+
+def test_release_evaluation_keeps_environments_when_cleanup_false():
+    """cleanup=False：跑完保留环境（k8s namespace 不清），便于进现场排查。"""
+    p = MockProvider()
+    run_release_evaluation(
+        modules=MODULES, baseline_version=V1, candidate_version=V2,
+        dataset=DATASET, evaluators=EVALUATORS, target_factory=_factory, provider=p,
+        cleanup=False,
+    )
+    assert p.live_count() == 2      # 两个版本的环境都保留
