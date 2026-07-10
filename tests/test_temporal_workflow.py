@@ -69,6 +69,24 @@ def test_temporal_destroys_even_when_evaluation_raises():
     assert provider.live_count() == 0            # 抛错后仍销毁（至少 baseline 那个）
 
 
+def test_temporal_retries_transient_env_creation():
+    """create_env 瞬时失败被有界重试（INFRA_RETRY），工作流仍成功跑完。"""
+    class FlakyProvider(MockProvider):
+        def __init__(self):
+            super().__init__()
+            self._failed = False
+        def create(self, manifest, ttl_hours=2.0):
+            if not self._failed:
+                self._failed = True
+                raise RuntimeError("transient k8s blip")
+            return super().create(manifest, ttl_hours)
+    provider = FlakyProvider()
+    req = tw.ReleaseEvalRequest(baseline_version=V1, candidate_version=V2, dataset=DATASET)
+    res = asyncio.run(_run(req, provider))
+    assert res.comparison.applicable_cases == 3
+    assert provider.live_count() == 0
+
+
 def test_demo_is_import_safe_and_builds_request():
     """demo 可安全 import（顶层无执行副作用，不连 server）且能构造合法请求。"""
     import importlib.util

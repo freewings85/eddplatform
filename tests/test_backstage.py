@@ -44,7 +44,8 @@ def test_register_location_posts(monkeypatch):
         return httpx.Response(201, json={"location": {"target": "catalog-info.yaml"}})
 
     monkeypatch.setattr(backstage, "_http",
-                        lambda: httpx.Client(transport=httpx.MockTransport(handler)))
+                        lambda: httpx.Client(transport=httpx.MockTransport(handler),
+                                              headers={"Authorization": "Bearer tok"}))
     out = backstage.register_location("https://git.local/catalog-info.yaml")
     assert out["location"]["target"] == "catalog-info.yaml"
     assert seen["url"].endswith("/api/catalog/locations")

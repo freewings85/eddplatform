@@ -58,8 +58,7 @@ def register_location(catalog_url: str) -> dict:
     base = os.environ["BACKSTAGE_URL"].rstrip("/")
     with _http() as client:
         resp = client.post(f"{base}/api/catalog/locations",
-                           json={"type": "url", "target": catalog_url},
-                           headers={"Authorization": f"Bearer {os.environ['BACKSTAGE_TOKEN']}"})
+                           json={"type": "url", "target": catalog_url})
     resp.raise_for_status()
     return resp.json()
 

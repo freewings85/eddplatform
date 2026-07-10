@@ -37,6 +37,13 @@ TASK_QUEUE = "edd-release-eval"
 # 不重试——否则死循环，且违背与 run_release_evaluation 的等价性。
 NO_RETRY = RetryPolicy(maximum_attempts=1)
 
+# 基础设施活动（建/销 env）容忍瞬时故障，有界重试；被评系统(evaluate)不重试(见 NO_RETRY)。
+INFRA_RETRY = RetryPolicy(
+    initial_interval=timedelta(seconds=1),
+    maximum_interval=timedelta(seconds=10),
+    maximum_attempts=3,
+)
+
 
 def available() -> bool:
     try:
@@ -114,7 +121,7 @@ class ReleaseEvaluationWorkflow:
         env_id = await workflow.execute_activity(
             ReleaseEvalActivities.create_env,
             args=[version, req.otel_endpoint, req.ttl_hours],
-            start_to_close_timeout=timedelta(minutes=10), retry_policy=NO_RETRY)
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=INFRA_RETRY)
         try:
             return await workflow.execute_activity(
                 ReleaseEvalActivities.evaluate_version,
@@ -124,7 +131,7 @@ class ReleaseEvaluationWorkflow:
             if req.cleanup:                       # ephemeral：无论成败都销毁
                 await workflow.execute_activity(
                     ReleaseEvalActivities.destroy_env, args=[env_id],
-                    start_to_close_timeout=timedelta(minutes=5), retry_policy=NO_RETRY)
+                    start_to_close_timeout=timedelta(minutes=5), retry_policy=INFRA_RETRY)
 
 
 # --------------------------------------------------------------------------- Worker / runner
@@ -141,7 +148,9 @@ async def run_release_evaluation_via_temporal(
     evaluators, modules, task_queue: str = TASK_QUEUE,
 ) -> ReleaseEvaluationResult:
     """便捷入口：起 worker → 执行 workflow → 包成 pipeline.ReleaseEvaluationResult（与纯
-    Python 版同型，二者可互换）。"""
+    Python 版同型，二者可互换）。activity 失败时 workflow 抛出的是 Temporal 的
+    ``WorkflowFailureError``（包裹原始 activity 异常），不是原始的 ``RuntimeError``——
+    从纯 Python 路径迁移过来的调用方需放宽 except 类型来捕获。"""
     worker = build_worker(client, task_queue, provider=provider,
                           target_factory=target_factory, evaluators=evaluators, modules=modules)
     async with worker:
