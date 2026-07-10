@@ -67,3 +67,19 @@ def test_temporal_destroys_even_when_evaluation_raises():
                     target_factory=BoomFactory(), evaluators=EVALUATORS, modules=MODULES)
     asyncio.run(go())
     assert provider.live_count() == 0            # 抛错后仍销毁（至少 baseline 那个）
+
+
+def test_demo_is_import_safe_and_builds_request():
+    """demo 可安全 import（顶层无执行副作用，不连 server）且能构造合法请求。"""
+    import importlib.util
+    import pathlib
+
+    path = (pathlib.Path(__file__).resolve().parent.parent
+            / "examples" / "temporal_release_demo.py")
+    spec = importlib.util.spec_from_file_location("temporal_release_demo", path)
+    demo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(demo)          # 顶层无副作用 → 不会连 server
+    req = demo.build_request()
+    assert req.baseline_version.label == "v1"
+    assert req.candidate_version.label == "v2"
+    assert req.cleanup is True
