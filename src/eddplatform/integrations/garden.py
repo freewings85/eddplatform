@@ -1,9 +1,12 @@
 """Garden/k8s 一次性环境 provider（薄壳）。
 
 实现 orchestration.providers.EnvironmentProvider 接口。真实底座需要 ``garden`` +
-``kubectl`` + 一个 k8s 集群。**本机无集群**：``available()`` 返回 False，``create``
-明确报错并指向 MockProvider——不假装成功（见项目记忆 local-env-infra-constraints）。
-真集群时把下面的 shell-out 补全即可，接口对 pipeline 透明。
+``kubectl`` + 一个 k8s 集群。**本机无 garden 二进制**：``available()`` 返回 False，
+``create`` 明确报错并指向 MockProvider——不假装成功。
+
+**注意**：一次性 k8s 环境的**当前真实实现是 ``integrations/k8s.py::K8sProvider``**（纯
+kubectl，已对 k3d 集群跑通 建 ns→部署→就绪→销）；``GardenProvider`` 仅在引入 Garden
+底座时才需要填。见项目记忆 local-env-infra-constraints。
 """
 
 from __future__ import annotations

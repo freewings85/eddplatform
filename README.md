@@ -103,12 +103,27 @@ npm run dev          # http://localhost:5173（/api 自动代理到 :8000 的 Fa
 
 - [x] 领域模型 + 原型 + API 骨架
 - [x] 框架无关评估接口 + 本地兜底 + 离线 demo
-- [ ] **Langfuse 接入**：sync 用例集 → dataset run(v1/v2) → 写 score → Compare 对比
-- [ ] Harbor 拉 tag → 渲染「系统版本」manifest
-- [ ] Garden 在 k8s 拉起 v1/v2 一次性环境 + OTel 埋点
-- [ ] Temporal 编排「建 env → 跑 → 评 → 对比 → 销」
+- [x] **Langfuse 接入**：sync 用例集 → dataset run(v1/v2) → 写 score → Compare + 真实 token 对比
+- [x] **一次性环境（K8sProvider）**：kubectl 部署到独立 namespace → 就绪 → 销（k3d 验证）+ OTel 自动注入
+- [x] Harbor：渲染「系统版本」manifest（镜像构建走 `build.py`：git worktree→docker build→k3d import）
+- [x] **Temporal 编排**：建 env → 跑 → 评 → 对比 → 销（docker server；逻辑等价性 in-memory 测试保证）
+- [ ] Harbor / Backstage 的 **live 对接**（客户端已完整，待外部实例）
 - [ ] Backstage 门户 / SSO 单入口
+
+## 能力矩阵（真跑 / 壳+mock / live 待实例）
+
+| 能力 | 状态 | 说明 |
+|---|---|---|
+| 评估内核 / Langfuse / 老新对比 / 真实 token | **真跑** | |
+| 一次性环境 `K8sProvider` + OTel 注入 | **真跑** | k3d 集群验证 |
+| 镜像构建 `build.py`（worktree→build→k3d import） | **真跑** | |
+| Temporal 编排 | **真跑 (live)** | docker server；单测走 temporalio in-memory 环境，不依赖 server |
+| manifest 渲染（Harbor 系统版本） | **真跑** | 纯函数 |
+| Harbor tag 校验 / digest / verify_pins | **壳完整** | live 待 Harbor 实例 |
+| Backstage catalog descriptor / 登记 | **壳完整** | live 待 Backstage 实例 |
+| Garden 二进制 provider | **壳** | 目的已由 `K8sProvider` 达成 |
 
 ## 状态
 
-内部项目，早期脚手架。私有仓库。评估引擎复用 Langfuse，不自研。
+内部项目。评估引擎复用 Langfuse，不自研。基础设施集成层：能本地真跑的（K8s/OTel/Temporal/构建）已 live；
+需外部实例的（Harbor/Backstage）客户端已完整、live 待实例。私有仓库。
