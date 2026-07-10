@@ -19,6 +19,7 @@ from datetime import timedelta
 from pydantic import BaseModel
 from temporalio import activity, workflow
 from temporalio.client import Client
+from temporalio.common import RetryPolicy
 from temporalio.worker import Worker
 
 # workflow 内会用到的应用/三方符号——sandbox 里放行透传（避免重复执行/被限制）
@@ -31,6 +32,10 @@ with workflow.unsafe.imports_passed_through():
     from eddplatform.orchestration.pipeline import ReleaseEvaluationResult
 
 TASK_QUEUE = "edd-release-eval"
+
+# 匹配纯 Python pipeline 的「零重试」语义：被评系统(target)确定性失败即失败，
+# 不重试——否则死循环，且违背与 run_release_evaluation 的等价性。
+NO_RETRY = RetryPolicy(maximum_attempts=1)
 
 
 def available() -> bool:
@@ -109,17 +114,17 @@ class ReleaseEvaluationWorkflow:
         env_id = await workflow.execute_activity(
             ReleaseEvalActivities.create_env,
             args=[version, req.otel_endpoint, req.ttl_hours],
-            start_to_close_timeout=timedelta(minutes=10))
+            start_to_close_timeout=timedelta(minutes=10), retry_policy=NO_RETRY)
         try:
             return await workflow.execute_activity(
                 ReleaseEvalActivities.evaluate_version,
                 args=[version, cases, env_id, req.otel_endpoint],
-                start_to_close_timeout=timedelta(minutes=30))
+                start_to_close_timeout=timedelta(minutes=30), retry_policy=NO_RETRY)
         finally:
             if req.cleanup:                       # ephemeral：无论成败都销毁
                 await workflow.execute_activity(
                     ReleaseEvalActivities.destroy_env, args=[env_id],
-                    start_to_close_timeout=timedelta(minutes=5))
+                    start_to_close_timeout=timedelta(minutes=5), retry_policy=NO_RETRY)
 
 
 # --------------------------------------------------------------------------- Worker / runner

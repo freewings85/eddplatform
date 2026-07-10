@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.testing import WorkflowEnvironment
 
@@ -36,3 +37,33 @@ def test_temporal_matches_pure_python():
     r101 = next(r for r in res.comparison.by_requirement if r.requirement_id == "R-101")
     assert r101.baseline_passed == 1 and r101.candidate_passed == 2
     assert provider.live_count() == 0            # ephemeral：默认销毁
+
+
+def test_temporal_keeps_environments_when_cleanup_false():
+    provider = MockProvider()
+    req = tw.ReleaseEvalRequest(baseline_version=V1, candidate_version=V2, dataset=DATASET,
+                                cleanup=False)
+    asyncio.run(_run(req, provider))
+    assert provider.live_count() == 2            # 两个版本环境都保留
+
+
+def test_temporal_destroys_even_when_evaluation_raises():
+    """评估步抛错也要销毁环境（ephemeral 补偿）。"""
+    class BoomFactory:
+        def __call__(self, label, manifest, env_id):
+            def boom(inputs):
+                raise RuntimeError("target 挂了")
+            return boom
+
+    provider = MockProvider()
+    req = tw.ReleaseEvalRequest(baseline_version=V1, candidate_version=V2, dataset=DATASET)
+
+    async def go():
+        async with await WorkflowEnvironment.start_time_skipping(
+                data_converter=pydantic_data_converter) as env:
+            with pytest.raises(Exception):
+                await tw.run_release_evaluation_via_temporal(
+                    env.client, request=req, provider=provider,
+                    target_factory=BoomFactory(), evaluators=EVALUATORS, modules=MODULES)
+    asyncio.run(go())
+    assert provider.live_count() == 0            # 抛错后仍销毁（至少 baseline 那个）
