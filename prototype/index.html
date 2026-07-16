@@ -143,10 +143,81 @@
   textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:12.5px;font-family:ui-monospace,Menlo,Consolas,monospace;min-height:84px;resize:vertical;background:#fff}
   .codeblk{background:#0f172a;color:#cbd5e1;border-radius:10px;padding:12px 14px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;line-height:1.65}
   .chips .tag{cursor:default}
+  /* ===== 需求树工作台：左树 + 右证据 ===== */
+  .bench{display:grid;grid-template-columns:296px 1fr;border:1px solid var(--line);border-radius:var(--radius);
+    background:#fff;box-shadow:var(--shadow);overflow:hidden}
+  .bench .col-l{border-right:1px solid var(--line);padding:12px;background:#fbfcfe}
+  .bench .col-r{padding:16px 18px;min-width:0}
+  .bench-cap{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin-bottom:10px}
+  .tree{display:flex;flex-direction:column;gap:2px}
+  .tnode{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;
+    font-size:13px;border:1px solid transparent}
+  .tnode:hover{background:#f1f5f9}
+  .tnode.sel{background:var(--primary-weak);border-color:#c7d2fe;color:var(--primary);font-weight:600}
+  .tnode.child{margin-left:16px;font-size:12.5px}
+  .tnode .rid{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--muted)}
+  .tnode.sel .rid{color:var(--primary)}
+  .tnode .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 状态点 = 达标，不是进度（避开 .pipe 里的 .dot） */
+  .sdot{width:7px;height:7px;border-radius:50%;flex:none}
+  .sdot.ok{background:var(--ok)} .sdot.bad{background:var(--bad)}
+  .sdot.warn{background:var(--warn)} .sdot.idle{background:#cbd5e1}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line);
+    font-size:11.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:5px}
+  .evrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);
+    border-radius:9px;margin-bottom:7px;font-size:13px;background:#fff}
+  .evrow .ek{color:var(--muted);font-size:11.5px;font-family:ui-monospace,Menlo,Consolas,monospace;flex:0 0 74px}
+  .evrow .evv{flex:1}
+  .req-h{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+  .req-h b{font-size:16px}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
+  /* ===== 概念说明块：对齐 pydantic-evals 的词汇表 ===== */
+  .concept{border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:0 var(--radius) var(--radius) 0;
+    background:var(--panel);box-shadow:var(--shadow);padding:14px 16px;margin:0 0 16px}
+  .concept.ours{border-left-color:var(--warn)}
+  .concept-h{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap}
+  .concept-h b{font-size:15px;font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.2px}
+  .concept-h .zh{font-size:13px;color:var(--muted)}
+  .concept p{margin:0 0 6px;font-size:13px;line-height:1.65}
+  .concept p:last-child{margin-bottom:0}
+  .concept .def{color:var(--ink)}
+  .concept .map{color:var(--muted);padding-top:6px;border-top:1px dashed var(--line);margin-top:8px}
+  .concept .map b{color:var(--ink)}
+  /* 导航里的概念名 */
+  .nav a em{font-style:normal;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;
+    color:#475569;margin-left:auto;letter-spacing:.2px}
+  .nav a.active em,.nav a:hover em{color:#818cf8}
+  /* ===== 登录门（Jira 账号） ===== */
+  #login{position:fixed;inset:0;background:linear-gradient(135deg,#0f172a 0%,#1e293b 60%,#312e81 100%);
+    display:grid;place-items:center;z-index:100;padding:20px}
+  #login .box{background:#fff;border-radius:16px;width:392px;max-width:100%;padding:26px 28px;
+    box-shadow:0 24px 70px rgba(0,0,0,.45)}
+  #login .lg{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  #login .lg .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6366f1,#22d3ee);
+    display:grid;place-items:center;color:#fff;font-weight:800}
+  #login h3{margin:0;font-size:16px} #login .lg small{color:var(--muted);font-size:11.5px}
   [hidden]{display:none!important}
 </style>
 </head>
 <body>
+<!-- 登录门：用 Jira 账号登录（参考 goalplatform 的方案，EDD 原来没有账号概念） -->
+<div id="login">
+  <div class="box">
+    <div class="lg">
+      <div class="logo">E</div>
+      <div><h3>EddPlatform</h3><small>评估驱动研发平台</small></div>
+    </div>
+    <div class="field"><label>Jira 用户名</label><input type="text" id="lguser" value="chenzifei" /></div>
+    <div class="field"><label>Jira 密码</label><input type="password" id="lgpass" value="••••••••" /></div>
+    <button class="btn primary" style="width:100%;justify-content:center" onclick="doLogin()">登录</button>
+    <div class="note" style="margin:14px 0 0">
+      🔐 <b>没有独立系统账号</b>：拿你填的账号密码去 Jira 校验（<span class="mono">/rest/api/2/myself</span>），
+      通过即登录，用户自动创建。密码 <b>Fernet 加密存</b>、任何接口都不回显；会话是签名 cookie。
+    </div>
+  </div>
+</div>
+
 <div class="app">
   <!-- SIDEBAR -->
   <aside class="sidebar">
@@ -161,7 +232,7 @@
       <a data-view="overview" class="active">📊 全局概览</a>
       <a data-view="systems">🗂️ 系统管理</a>
       <div class="sec">平台</div>
-      <a data-view="settings">⚙️ 平台设置 / 治理</a>
+      <a data-view="settings">⚙️ 基础设置</a>
     </nav>
 
     <!-- 第二层：进入某个系统 -->
@@ -173,19 +244,20 @@
       <a data-view="sys-modules">🧱 模块 &amp; Git</a>
       <a data-view="sys-versions">🧩 系统版本</a>
       <div class="sec">资产</div>
-      <a data-view="requirements">📌 需求</a>
-      <a data-view="datasets">📁 用例库</a>
-      <a data-view="evaluators">⚗️ 评估器</a>
-      <a data-view="environments">🗄️ 环境 / 沙箱</a>
+      <a data-view="requirements">🌳 需求树 <em>+</em></a>
+      <a data-view="datasets">📁 用例集 <em>Dataset</em></a>
+      <a data-view="tasks">🎯 评估任务定义 <em>Task</em></a>
+      <a data-view="evaluators">⚗️ 评估器 <em>Evaluator</em></a>
+      <a data-view="environments">🗄️ 环境 / 沙箱 <em>+</em></a>
       <div class="sec">运行 &amp; 评估</div>
-      <a data-view="runs">🏃 运行记录</a>
-      <a data-view="evaluations">✅ 评估</a>
-      <a data-view="comparison">🔀 评估对比</a>
-      <div class="sec">其他</div>
-      <a data-view="settings">⚙️ 系统设置</a>
+      <a data-view="runs">🏃 单独运行 <em>自测</em></a>
+      <a data-view="evaluations">✅ 评估任务运行 <em>Experiment</em></a>
+      <a data-view="comparison">🔀 评估对比 <em>+</em></a>
+      <div class="sec">发布</div>
+      <a data-view="releases">🚀 发布记录 <em>+</em></a>
     </nav>
 
-    <div class="side-foot">底座：k8s · Garden · Temporal<br/>Harbor · Langfuse · Backstage</div>
+    <div class="side-foot">底座：k8s · Temporal · Harbor<br/>Langfuse · MySQL · Jira</div>
   </aside>
 
   <!-- MAIN -->
@@ -235,31 +307,52 @@
       </section>
 
       <section id="view-settings" hidden>
-        <h2 class="page">设置 / 治理</h2>
-        <p class="sub">SSO、权限、配额、审计（由 Backstage + 各开源组件提供）</p>
+        <h2 class="page">基础设置</h2>
+        <p class="sub">平台级底座：账号、存储、权限、审计（<b>跨所有系统</b>，不是某个系统的配置）</p>
         <div class="row-flex">
-          <div class="card stat"><div class="k">SSO</div><div class="muted" style="margin-top:8px">OAuth2 / SAML（Backstage）</div></div>
+          <div class="card stat"><div class="k">账号 / 登录</div><div style="margin-top:8px"><b>Jira 账号</b><div class="muted" style="font-size:12px">不做独立系统账号</div></div></div>
+          <div class="card stat"><div class="k">存储</div><div style="margin-top:8px"><b>MySQL</b><div class="muted" style="font-size:12px">本地回退 SQLite</div></div></div>
           <div class="card stat"><div class="k">权限 / RBAC</div><div class="muted" style="margin-top:8px">按系统 / 角色</div></div>
           <div class="card stat"><div class="k">审计</div><div class="muted" style="margin-top:8px">评估 / 运行 / 环境操作留痕</div></div>
         </div>
+        <div class="section-title"><h3>账号方案（参考 goalplatform 的做法）</h3></div>
+        <div class="tbl-wrap"><table>
+          <tbody>
+            <tr><td class="muted" style="width:140px">登录方式</td><td>填 Jira 用户名 + 密码 → 后端拿去 Jira 校验（<span class="mono">/rest/api/2/myself</span>）→ 通过即登录，<b>用户由登录自动创建</b></td></tr>
+            <tr><td class="muted">为什么不用 OAuth</td><td>自建 Jira Server 8.1 <b>无 OAuth 3LO、也无 PAT</b>（8.14+ 才有）→ 只能 Basic auth</td></tr>
+            <tr><td class="muted">凭据安全</td><td>密码 <b>Fernet 加密存</b>，任何接口都不回显；会话是<b>签名 cookie</b>；密钥来源：环境变量 → 密钥文件 → 自动生成存库（生产零配置）</td></tr>
+            <tr><td class="muted">为什么要存密码</td><td>之后要<b>代表该用户调 Jira</b>（建 issue / 关联需求）</td></tr>
+          </tbody>
+        </table></div>
+        <div class="section-title"><h3>存储方案（参考 goalplatform 的做法）</h3></div>
+        <div class="tbl-wrap"><table>
+          <tbody>
+            <tr><td class="muted" style="width:140px">生产</td><td><b>MySQL</b>（公司已有实例）· 设了 <span class="mono">*_MYSQL_HOST</span> 即启用 · 库要预先建好，表由应用启动自动创建</td></tr>
+            <tr><td class="muted">本地开发</td><td>不配任何变量即回退 <b>SQLite</b>（单写库，只能单实例）</td></tr>
+            <tr><td class="muted">失败姿态</td><td>MySQL 连不上<b>启动失败（fail fast）</b>，不静默回退 SQLite——避免生产数据悄悄写进本地文件</td></tr>
+            <tr><td class="muted">容器</td><td>无状态、可多副本；加密密钥存库，不挂卷</td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">⚠️ 现状差距：EDD 今天的 <span class="mono">api/store.py</span> 是<b>纯内存</b>的（<span class="mono">STORE = Store()</span>），进程重启数据就没；账号则完全不存在。这两块要照上面的方案补上。</p>
       </section>
 
       <!-- ============ 系统层 ============ -->
       <section id="view-sys-overview" hidden>
         <h2 class="page" id="sysTitleO">保险报价系统</h2>
-        <p class="sub">系统工作台 · 本系统的模块 / 版本 / 用例 / 运行 / 评估都在这一层</p>
+        <p class="sub">系统工作台 · 主线是<b>需求</b>（做对没有）；模块 / 版本 / 环境是它的运行底座</p>
         <div class="grid stats">
-          <div class="card stat"><div class="k">模块</div><div class="v">5</div><div class="d flat">2 待升级</div></div>
+          <div class="card stat"><div class="k">需求达标 <span class="muted">(候选 v2)</span></div><div class="v">2<span class="muted" style="font-size:16px">/4</span></div><div class="d down">2 项回归</div></div>
           <div class="card stat"><div class="k">生产版本</div><div class="v">v1</div><div class="d flat">候选 v2 草稿</div></div>
-          <div class="card stat"><div class="k">运行沙箱</div><div class="v">2</div><div class="d flat">v1 / v2</div></div>
+          <div class="card stat"><div class="k">最近发布</div><div class="v" style="font-size:17px">insurance-1.0.0</div><div class="d flat">v2 包已打 · 待发布</div></div>
           <div class="card stat"><div class="k">最近评估通过率</div><div class="v">86%</div><div class="d up">▲ +4pt</div></div>
         </div>
         <div class="section-title"><h3>快捷操作</h3></div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn" onclick="go('sys-modules')">🧱 模块 &amp; Git</button>
-          <button class="btn" onclick="go('sys-versions')">🧩 系统版本</button>
-          <button class="btn" onclick="openRun()">🏃 单独运行</button>
+          <button class="btn" onclick="go('requirements')">🌳 需求树</button>
+          <button class="btn" onclick="openRun()">🏃 单独运行（自测）</button>
           <button class="btn primary" onclick="openWizard()">✅ 发起评估</button>
+          <button class="btn" onclick="openRel()">🚀 新建发布</button>
+          <button class="btn" onclick="go('sys-versions')">🧩 系统版本</button>
         </div>
         <div class="section-title"><h3>最近评估</h3></div>
         <div class="tbl-wrap"><table>
@@ -290,48 +383,175 @@
 
       <section id="view-sys-versions" hidden>
         <h2 class="page">系统版本</h2>
-        <p class="sub">系统版本 = 各模块钉住一个 tag/commit 的快照（拉自 Harbor / Git）</p>
-        <div class="section-title"><h3>版本</h3><button class="btn primary" onclick="openWizard()">+ 新建版本 / 发起评估</button></div>
+        <p class="sub">系统版本 = 各模块钉住一个 tag/commit 的<b>静态快照</b>（拉自 Harbor / Git）。造版本只做一件事：钉 tag。</p>
+
+        <div class="note">
+          🧩 <b>系统版本就是版本，别的都不掺</b>：一个版本 = 各模块钉住 tag 的静态快照，它自己不会跑，<b>与用例集 / 任务 / 确认启动无关</b>。
+          「新建版本」只选各模块的 tag；<b>跑评估是之后、且在别处的事</b>——在下方每行的「▶ 发起评估」上发起（拿一个<b>评估任务定义</b>去跑这个版本），<b>不塞进新建里</b>。
+        </div>
+        <div class="section-title"><h3>版本</h3><button class="btn primary" onclick="openVersionNew()">+ 新建版本</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>版本</th><th>模块组合</th><th>状态</th><th>创建</th><th></th></tr></thead>
+          <thead><tr><th>版本</th><th>模块 pin（各模块钉住的 tag）</th><th>状态</th><th>创建</th><th></th></tr></thead>
           <tbody>
-            <tr><td><b>v1</b></td><td class="muted">5 模块（当前生产）</td><td><span class="pill ok">生产</span></td><td class="muted">—</td><td><button class="btn sm">查看</button></td></tr>
-            <tr><td><b>v2</b> 保险报价重构</td><td class="muted">2 新 + 3 旧</td><td><span class="pill neutral">草稿</span></td><td class="muted">今天</td><td><button class="btn sm" onclick="openWizard()">发起评估</button></td></tr>
+            <tr><td><b>v1</b></td><td class="muted mono">intent 1.4.2 · quote 2.1.0 · store 3.0.1 · dialog 0.9.5 · memory 1.2.0</td><td><span class="pill ok">生产</span></td><td class="muted">—</td><td><button class="btn sm" onclick="openVersionNew()">查看 pin</button></td></tr>
+            <tr><td><b>v2</b> 保险报价重构</td><td class="muted mono">quote <b>2.2.0</b> · dialog <b>1.0.0</b> · 其余同 v1 <span class="pill new">2 新 3 旧</span></td><td><span class="pill neutral">草稿</span></td><td class="muted">今天</td><td><button class="btn sm" onclick="openVersionNew()">查看 pin</button> <button class="btn sm primary" onclick="openWizard()">▶ 发起评估</button></td></tr>
           </tbody>
         </table></div>
       </section>
 
-      <!-- 需求（追溯锚点：详情在 Jira，平台只做挂接 + 达标汇总） -->
+      <!-- 需求树（主线）：左树 + 右证据。取代原来扁平的需求表 -->
       <section id="view-requirements" hidden>
-        <h2 class="page">需求 <span class="muted">(4)</span></h2>
-        <p class="sub">需求是<b>"为什么做这个版本"</b>的锚点。详情（描述 / 状态 / 流转）在 <b>Jira</b>（唯一真相源）；平台只做<b>追溯</b>——把需求挂到<b>验收用例</b>和<b>系统版本</b>，评估对比时按需求汇总达标情况。</p>
-        <div class="note">🔗 平台<b>不维护需求状态</b>（想按"未完成"筛，去 Jira 用它的筛选器）。这里能做：新建需求（可<b>推送到 Jira 建 issue</b>）/ 关联已有 Jira 号 / 按 Jira 号过滤 / 看每个需求的验收用例在新老版本的<b>达标</b>情况。</div>
-        <div class="section-title"><h3>本系统需求</h3><span><input class="search" style="width:190px" placeholder="按 Jira 号过滤，如 PROJ-2043" /> <button class="btn primary" onclick="openReq()">+ 新建需求</button></span></div>
+        <h2 class="page">需求树 <span class="muted">· 保险报价系统</span></h2>
+        <p class="sub">需求是<b>"为什么做这个版本"</b>的锚点，可递归成树。详情（描述 / 状态 / 流转）在 <b>Jira</b>（唯一真相源），平台只存锚点 + 挂接。</p>
+        <div class="note">
+          🏷️ <b>需求与用例是「标签」关系，不是从属关系</b>：一条用例可打<b>多个</b>需求标签，一个需求也被<b>多条</b>用例覆盖（多对多）。
+          用例库、运行、评估都和需求<b>平级</b>——标签只用来<b>按需求过滤用例</b>、以及把用例结果<b>卷成需求达标</b>。<br/>
+          🌳 树上的状态点是<b>达标</b>，不是进度——绿=达标 / 红=有回归 / 黄=证据不足 / 灰=还没打过标签。<b>达标沿树往上卷</b>：子需求全达标，父需求才算达标。「做到哪一步了」不归这里管。
+        </div>
+        <div class="section-title"><h3>需求（3 组 · 4 项）</h3><span><input class="search" style="width:190px" placeholder="按 Jira 号过滤，如 PROJ-2043" /> <button class="btn primary" onclick="openReq()">+ 新建需求</button></span></div>
+
+        <div class="bench">
+          <div class="col-l">
+            <div class="bench-cap">需求树 · 候选 v2</div>
+            <div class="tree" id="reqTree">
+              <div class="tnode" data-r="R-100" onclick="pickReq('R-100')"><span class="sdot ok"></span><span class="nm">报价准确性</span><span class="rid">R-100</span></div>
+              <div class="tnode child sel" data-r="R-101" onclick="pickReq('R-101')"><span class="sdot ok"></span><span class="nm">新能源车型报价修复</span><span class="rid">R-101</span></div>
+              <div class="tnode child" data-r="R-104" onclick="pickReq('R-104')"><span class="sdot ok"></span><span class="nm">过户后保单变更修复</span><span class="rid">R-104</span></div>
+              <div class="tnode" data-r="R-110" onclick="pickReq('R-110')"><span class="sdot bad"></span><span class="nm">对话与解释质量</span><span class="rid">R-110</span></div>
+              <div class="tnode child" data-r="R-102" onclick="pickReq('R-102')"><span class="sdot bad"></span><span class="nm">条款解释防幻觉</span><span class="rid">R-102</span></div>
+              <div class="tnode" data-r="R-120" onclick="pickReq('R-120')"><span class="sdot bad"></span><span class="nm">性能与成本</span><span class="rid">R-120</span></div>
+              <div class="tnode child" data-r="R-103" onclick="pickReq('R-103')"><span class="sdot bad"></span><span class="nm">保费计算延迟优化</span><span class="rid">R-103</span></div>
+              <div class="tnode child" data-r="R-105" onclick="pickReq('R-105')"><span class="sdot idle"></span><span class="nm">多轮改写成本</span><span class="rid">R-105</span></div>
+            </div>
+            <div class="legend">
+              <span><i class="sdot ok"></i>达标</span><span><i class="sdot bad"></i>有回归</span>
+              <span><i class="sdot warn"></i>证据不足</span><span><i class="sdot idle"></i>未挂用例</span>
+            </div>
+          </div>
+
+          <div class="col-r" id="reqPane"><!-- 由 pickReq() 渲染 --></div>
+        </div>
+
+        <p class="hint">"达标" = 该需求的验收用例在候选版本<b>全部通过</b>；由评估对比<b>实时算出</b>，不写回 Jira。Jira 状态与"达标"<b>正交</b>——Jira 可能标"已完成"，但评估发现回归 → 未达标，这正是平台的价值。父节点的达标由子节点卷出来（对应 <span class="mono">rollup_by_requirement</span> 沿树聚合）。</p>
+      </section>
+
+      <!-- 发布记录：一条条记录，每条挂一份评估报告作依据，产出整套系统的 Helm 包 -->
+      <section id="view-releases" hidden>
+        <h2 class="page">发布记录</h2>
+        <p class="sub">一次发布 = <b>选一份评估报告</b>（发布依据）→ 把该报告评的<b>那个系统版本</b>整套打成包 → 产出可部署的压缩包。发布记录留痕：谁、依据哪份报告、发了哪个包。</p>
+        <div class="note">
+          📦 <b>发布包 = 整套系统，不是单个模块</b>：一个系统版本钉住了全部 5 个模块的 tag，打出来的包必须原样带上这 5 个模块 + 基础服务。
+          形态用 <b>Helm chart</b>（<span class="mono">helm package</span> 产出 <span class="mono">.tgz</span> 压缩包）——<span class="mono">SystemVersion.module_pins</span> 天然就是 chart 的 <span class="mono">values.yaml</span>，
+          现有 <span class="mono">render_manifest</span> 渲染的 manifest 天然就是 <span class="mono">templates/</span>。包推到 <b>Harbor</b>（OCI chart 仓库，客户端已就绪）。
+        </div>
+        <div class="section-title"><h3>发布（3）</h3><button class="btn primary" onclick="openRel()">🚀 新建发布</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>需求</th><th>Jira 号</th><th>验收用例</th><th>交付版本</th><th>候选版本 (v2) 达标</th><th></th></tr></thead>
+          <thead><tr><th>发布号</th><th>系统版本</th><th>发布依据（评估报告）</th><th>发布包</th><th>状态</th><th>发布人 / 时间</th><th></th></tr></thead>
           <tbody>
-            <tr><td><b>R-101</b> 新能源车型报价修复</td><td class="mono"><a href="#" onclick="return false">PROJ-2043 ↗</a></td><td class="mono">#17 #88 #102</td><td><span class="tag v">v2</span></td><td><span class="pill ok">✅ 达标 (2/2)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
-            <tr><td><b>R-104</b> 过户后保单变更修复</td><td class="mono"><a href="#" onclick="return false">PROJ-2048 ↗</a></td><td class="mono">#44</td><td><span class="tag v">v2</span></td><td><span class="pill ok">✅ 达标 (1/1)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
-            <tr><td><b>R-102</b> 条款解释防幻觉</td><td class="mono"><a href="#" onclick="return false">PROJ-2044 ↗</a></td><td class="mono">#63</td><td><span class="tag v">v2</span></td><td><span class="pill bad">❌ 回归 (0/1)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
-            <tr><td><b>R-103</b> 保费计算延迟优化</td><td class="mono"><a href="#" onclick="return false">PROJ-2051 ↗</a></td><td class="mono">#91</td><td class="muted">—（未纳入 v2）</td><td><span class="pill bad">❌ 回归 (0/1)</span></td><td><button class="btn sm" onclick="go('comparison')">看对比</button></td></tr>
+            <tr><td class="mono"><b>REL-20260715-1</b></td><td><span class="tag v">v2</span></td>
+              <td>保险报价重构·候选 <span class="mono">#E-3002</span><div class="muted" style="font-size:12px">通过 86% · 改善 22 / <b class="bad">回归 8</b> · 需求达标 2/4</div></td>
+              <td class="mono">insurance-2.0.0.tgz</td>
+              <td><span class="pill neutral">📦 已打包 · 待发布</span></td><td class="muted">张三 · 今天 11:40</td>
+              <td><button class="btn sm" onclick="toggleDetail('rel1')">看包内容</button></td></tr>
+            <tr id="rel1" class="detail" hidden><td></td><td colspan="6">
+              <div class="row-flex" style="align-items:flex-start">
+                <div>
+                  <div class="bench-cap">Chart.yaml</div>
+                  <div class="codeblk">apiVersion: v2
+name: insurance                 # 系统
+version: 2.0.0                  # 发布包版本
+appVersion: "v2"                # 系统版本(SystemVersion.label)
+annotations:
+  edd/evaluation: "E-3002"      # 发布依据：哪份评估报告
+  edd/baseline: "v1"
+  edd/regressions: "8"          # 报告结论一并钉进包里</div>
+                </div>
+                <div>
+                  <div class="bench-cap">values.yaml · 各模块钉住的 tag</div>
+                  <div class="codeblk">modules:
+  intent-service:  {image: registry/intent, tag: "1.4.2"}
+  quote-engine:    {image: registry/quote,  tag: "2.2.0"}   # 新
+  dialog-agent:    {image: registry/dialog, tag: "1.0.0"}   # 新
+  store-service:   {image: registry/store,  tag: "3.0.1"}
+  memory-service:  {image: registry/memory, tag: "1.2.0"}
+baseServices:
+  kafka: {image: bitnami/kafka, tag: "3.7"}
+  redis: {image: redis, tag: "7.2"}</div>
+                </div>
+              </div>
+              <div class="section-title" style="margin:14px 0 8px"><h3 style="font-size:13px">包内清单</h3></div>
+              <div class="tbl-wrap" style="box-shadow:none"><table>
+                <thead><tr><th>模块</th><th>tag</th><th>digest（发布前 verify_pins 校验）</th><th>相对 v1</th></tr></thead>
+                <tbody>
+                  <tr><td>intent-service</td><td class="mono">1.4.2</td><td class="mono muted">sha256:9c1f…a3</td><td class="muted">旧</td></tr>
+                  <tr><td>quote-engine</td><td class="mono">2.2.0</td><td class="mono muted">sha256:41be…7d</td><td><span class="pill new">🔵 新</span></td></tr>
+                  <tr><td>dialog-agent</td><td class="mono">1.0.0</td><td class="mono muted">sha256:0a77…19</td><td><span class="pill new">🔵 新</span></td></tr>
+                  <tr><td>store-service</td><td class="mono">3.0.1</td><td class="mono muted">sha256:e5d2…6b</td><td class="muted">旧</td></tr>
+                  <tr><td>memory-service</td><td class="mono">1.2.0</td><td class="mono muted">sha256:77aa…c4</td><td class="muted">旧</td></tr>
+                </tbody>
+              </table></div>
+              <p class="hint">包 = <span class="mono">templates/</span>（5 个 Deployment + Service + NetworkPolicy，由 <span class="mono">render_manifest</span> 渲染）+ 上面两份 yaml，<span class="mono">helm package</span> 打成 <span class="mono">insurance-2.0.0.tgz</span>。
+                打包前跑 <span class="mono">harbor.verify_pins</span> 确认 5 个 tag 都在、digest 钉死 → 早失败胜过部署时拉不到镜像。</p>
+              <div style="margin-top:10px">
+                <button class="btn sm">⬇️ 下载 .tgz</button>
+                <button class="btn sm">📤 推到 Harbor（OCI chart 仓库）</button>
+                <button class="btn sm" onclick="go('comparison')">📊 看发布依据的评估报告</button>
+              </div>
+            </td></tr>
+
+            <tr><td class="mono"><b>REL-20260710-1</b></td><td><span class="tag">v1</span></td>
+              <td>保险报价·首版 <span class="mono">#E-3000</span><div class="muted" style="font-size:12px">通过 82% · 无基线可比（首版）</div></td>
+              <td class="mono">insurance-1.0.0.tgz</td>
+              <td><span class="pill ok">✅ 已发布</span></td><td class="muted">李雷 · 07-10 10:20</td>
+              <td><button class="btn sm" onclick="toggleDetail('rel2')">看包内容</button></td></tr>
+            <tr id="rel2" class="detail" hidden><td></td><td colspan="6">
+              <div class="kv">
+                <div class="k">Chart</div><div class="mono">insurance-1.0.0.tgz · appVersion v1</div>
+                <div class="k">发布依据</div><div>评估报告 <span class="mono">#E-3000</span> · 通过 82%</div>
+                <div class="k">模块</div><div class="mono">intent 1.4.2 · quote 2.1.0 · dialog 0.9.5 · store 3.0.1 · memory 1.2.0</div>
+                <div class="k">当前状态</div><div><span class="pill ok">生产运行中</span> · 可作为下次发布的回滚目标（<span class="mono">helm rollback</span>）</div>
+              </div>
+            </td></tr>
+
+            <tr><td class="mono"><b>REL-20260628-1</b></td><td><span class="tag">v0.9</span></td>
+              <td>保险报价·灰度 <span class="mono">#E-2988</span><div class="muted" style="font-size:12px">通过 74%</div></td>
+              <td class="mono">insurance-0.9.0.tgz</td>
+              <td><span class="pill neutral">已归档</span></td><td class="muted">李雷 · 06-28</td>
+              <td><button class="btn sm">详情</button></td></tr>
           </tbody>
         </table></div>
-        <p class="hint">"达标" = 该需求的验收用例在候选版本<b>全部通过</b>；由评估对比<b>实时算出</b>，不写回 Jira。Jira 状态与"达标"<b>正交</b>——Jira 可能标"已完成"，但评估发现回归 → 未达标，正是平台的价值。R-102 在 v2 声称交付却回归 → 发布门禁应拦。</p>
+        <p class="hint">发布记录是<b>追溯的落点</b>：从一条发布 → 依据的评估报告 → 该报告的运行记录 / 轨迹 → 用例 → 需求标签，整条链路可回溯。<b>包里钉的是 digest 不是浮动 tag</b>，同一个包在任何环境部署结果一致。</p>
       </section>
 
       <!-- 用例库（有版本 + 适用系统版本） -->
       <section id="view-datasets" hidden>
-        <h2 class="page">用例库 · 保险报价 <span class="muted">(200)</span></h2>
+        <h2 class="page">用例集 · 保险报价 <span class="muted">(200)</span></h2>
         <p class="sub">用例有<b>自身版本</b>（编辑历史）+ <b>适用系统版本</b>（多版本通用 / 某版本专属）</p>
-        <div class="note">⚖️ 评估对比时，<b>只统计"被比两个版本都适用"的用例</b>；某版本专属用例（如 v2 才有的功能）会单列、不计入对比，避免不公平。</div>
-        <div class="filterbar">
-          <span class="muted" style="font-size:12.5px">按需求过滤：</span>
-          <span class="chip active" onclick="filterDS(this,'all')">全部 5</span>
-          <span class="chip" onclick="filterDS(this,'R-101')">R-101 新能源报价 3</span>
-          <span class="chip" onclick="filterDS(this,'R-102')">R-102 条款解释 1</span>
-          <span class="chip" onclick="filterDS(this,'R-103')">R-103 延迟 1</span>
+
+        <div class="concept">
+          <div class="concept-h"><b>Dataset</b><span class="zh">用例集</span><span class="pill new">pydantic-evals 概念</span></div>
+          <p class="def">框架原义：<b>「为评估某个 Task 而设计的一组 Case 的集合」</b>——它是评估的<b>题库</b>，一个 Dataset 可以被反复用于多次 Experiment。</p>
+          <p class="map">在 EddPlatform：<b>一个系统一个用例集</b>。老新版本必须跑<b>同一个 Dataset</b>，对比才成立。
+            <b>我们加的：</b>每条 Case 带「适用系统版本」——框架不需要（它只评一个 Task），我们要跨版本比，就必须能排除"某版本专属"的题，否则对比不公平。</p>
         </div>
-        <div class="section-title"><h3>用例</h3><span><button class="btn">+ 导入自真实 trace</button> <button class="btn primary">+ 新建用例</button></span></div>
+        <div class="concept">
+          <div class="concept-h"><b>Case</b><span class="zh">用例</span><span class="pill new">pydantic-evals 概念</span></div>
+          <p class="def">框架原义：<b>「一个测试场景，对应 Task 的一组输入，可选带期望输出、metadata、以及该用例专属的 evaluators」</b>。</p>
+          <p class="map">在 EddPlatform：下表<b>每一行就是一个 Case</b>。字段一一对上——inputs / expected_output / metadata / 专属评估器都有。
+            <b>我们加的：</b><span class="mono">case_version</span>（用例自身的编辑历史）、<span class="mono">applicable_versions</span>（适用哪些系统版本）、<span class="mono">requirement_ids</span>（需求标签）。</p>
+        </div>
+        <div class="note">⚖️ 评估对比时，<b>只统计"被比两个版本都适用"的用例</b>；某版本专属用例（如 v2 才有的功能）会单列、不计入对比，避免不公平。</div>
+        <div class="note">🏷️ <b>需求是用例上的标签</b>（多对多）：一条用例可打多个需求标签。标签只用来<b>过滤</b>（下面这排）和<b>把结果卷成需求达标</b>——用例库和需求树是<b>平级</b>的两份资产，不是谁属于谁。</div>
+        <div class="filterbar">
+          <span class="muted" style="font-size:12.5px">按需求标签过滤：</span>
+          <span class="chip active" data-r="all" onclick="filterDS(this,'all')">全部 6</span>
+          <span class="chip" data-r="R-101" onclick="filterDS(this,'R-101')">R-101 新能源报价 3</span>
+          <span class="chip" data-r="R-104" onclick="filterDS(this,'R-104')">R-104 过户变更 1</span>
+          <span class="chip" data-r="R-102" onclick="filterDS(this,'R-102')">R-102 条款解释 1</span>
+          <span class="chip" data-r="R-103" onclick="filterDS(this,'R-103')">R-103 延迟 1</span>
+        </div>
+        <div class="section-title"><h3>用例</h3><span><button class="btn primary" onclick="openYaml()">📥 导入 YAML</button> <button class="btn">+ 导入自真实 trace</button> <button class="btn" onclick="openCase()">+ 新建用例</button></span></div>
+        <div class="note">📥 <b>批量定义用例的主路径 = 导入 pydantic-evals YAML</b>（它的原生格式，能 round-trip，已在用的团队零重录）。「新建用例」表单用来<b>改单条 / 建一次性用例 / 看清字段</b>；「从 trace 导入」从生产轨迹抓真实用例。三条路，YAML 是主力。</div>
         <div class="tbl-wrap"><table id="dsTbl">
           <thead><tr><th>#</th><th>用例名</th><th>需求</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
           <tbody>
@@ -340,14 +560,75 @@
             <tr data-req="R-101"><td>88</td><td>含优惠叠加报价</td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag">全部版本</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
             <tr data-req="R-103"><td>91</td><td>历史出险影响保费</td><td><span class="tag">R-103</span></td><td><span class="tag v">v4</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">金额一致 + 延迟&lt;3s</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
             <tr data-req="R-101"><td>102</td><td>新能源专属补贴校验</td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag only">仅 v2 专属</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-104"><td>44</td><td>过户后保单变更</td><td><span class="tag">R-104</span></td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">工具调用链正确</td><td><span class="tag">工单 #5102</span></td><td><span class="pill ok">启用</span></td></tr>
           </tbody>
         </table></div>
-        <p class="hint">一条用例可挂<b>多个需求</b>（标签，多对多）；标签同步到 Langfuse dataset item 的 metadata，Langfuse 侧也能按需求过滤。维护：编辑 / 归档 / 批量导入 / 设置适用版本。</p>
+        <p class="hint">需求是用例上的<b>标签</b>，<b>多对多</b>——一条用例可打多个需求标签（模型里是 <span class="mono">case.requirement_ids</span> 列表），按任一标签过滤都会出现；一个需求也被多条用例覆盖（如 R-101 有 #17 #88 #102 三条）。标签同步到 Langfuse dataset item 的 metadata，Langfuse 侧也能按需求过滤。维护：编辑 / 归档 / 批量导入 / 设置适用版本。</p>
+      </section>
+
+      <!-- 评估任务定义 Task：怎么评这个系统（版本无关的可复用定义） -->
+      <section id="view-tasks" hidden>
+        <h2 class="page">评估任务定义 <span class="muted mono" style="font-size:15px">Task</span></h2>
+        <p class="sub">"怎么评这个系统" 的<b>可复用定义</b>：绑入口 + 用例集 + 评估器 + 环境。<b>版本无关</b>——运行时才选版本。</p>
+
+        <div class="concept">
+          <div class="concept-h"><b>Task</b><span class="zh">评估任务定义 · 被评对象</span><span class="pill new">pydantic-evals 概念</span></div>
+          <p class="def">框架原义：<b>「被评估的函数或系统：接收 Case 的 inputs，产出 output」</b>。框架里 Task 就是一个<b>函数</b>，
+            传给 <span class="mono">dataset.evaluate_sync(task)</span> 就跑。</p>
+          <p class="map"><b>我们和框架的分道点，就在这一个对象上。</b>框架是 code-first——版本、入口、依赖全<b>闭包进那个函数</b>里，改一版就改代码。
+            我们要<b>跨版本比、且可在 UI 管理</b>，所以把 Task 从"一个函数"拆成一份<b>声明式定义</b>：绑<b>系统</b> + <b>入口适配器</b>（怎么喂输入 / 读输出）+ <b>用例集</b> + <b>评估器</b> + <b>环境</b>，
+            但<b>刻意不含版本</b>。<b>系统版本是运行时参数</b>：同一个 Task 定义在 v1、v2 各跑一次，就得到两个 Experiment，绑成一个 Comparison。</p>
+        </div>
+
+        <div class="section-title"><h3>本系统的任务定义</h3><button class="btn primary" onclick="openTask()">+ 新建任务定义</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>任务定义</th><th>入口适配器</th><th>用例集</th><th>评估器（尺子）</th><th>环境</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>报价·前门端到端</b><div class="muted" style="font-size:12px">整系统黑盒</div></td>
+              <td class="mono">POST /quote<div class="muted" style="font-size:11px">同步 · JSON</div></td>
+              <td>保险报价 <span class="muted">(200)</span></td>
+              <td class="chips"><span class="tag">金额校验 v1</span><span class="tag">工具轨迹 v1</span><span class="tag">条款解释 v2</span><span class="tag">延迟 v1</span></td>
+              <td>默认-轻量</td>
+              <td><button class="btn sm" onclick="toggleDetail('task1')">看定义</button></td></tr>
+            <tr id="task1" class="detail" hidden><td colspan="6">
+              <div class="kv">
+                <div class="k">系统</div><div>保险报价系统</div>
+                <div class="k">入口适配器</div><div><span class="mono">POST /quote</span> · 同步取 <span class="mono">{output, tool_calls, usage}</span> · OTel 轨迹经 5 服务传播到 Langfuse</div>
+                <div class="k">用例集 (Dataset)</div><div>保险报价 200 条</div>
+                <div class="k">评估器 (Evaluator)</div><div>金额校验 v1 · 工具轨迹 v1 · 条款解释 v2 · 延迟 v1 <span class="muted">（各带版本 = 尺子钉死）</span></div>
+                <div class="k">环境 (Sandbox)</div><div>默认-轻量（namespace + NetworkPolicy）· 跑完销毁</div>
+                <div class="k mono">版本</div><div><span class="pill warn">不在定义里</span> —— 运行时选，见「评估任务运行」</div>
+              </div>
+              <div class="note" style="margin-top:12px">🎯 这份定义 = 一个「怎么评保险报价系统」的模板。<b>点「运行」时选 v1 或 v2</b>，各得一个 Experiment；两个 Experiment 才能对比。</div>
+              <div style="margin-top:10px"><button class="btn sm primary" onclick="openWizard()">▶ 运行此任务（选版本）</button> <button class="btn sm">编辑定义</button></div>
+            </td></tr>
+
+            <tr><td><b>报价·仅报价引擎</b><div class="muted" style="font-size:12px">单模块直连</div></td>
+              <td class="mono">quote-engine :8080<div class="muted" style="font-size:11px">绕过对话层</div></td>
+              <td>保险报价 <span class="muted">(适用 120)</span></td>
+              <td class="chips"><span class="tag">金额校验 v1</span></td>
+              <td>默认-轻量</td>
+              <td><button class="btn sm">看定义</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">同一个系统可有<b>多个任务定义</b>（不同入口 / 不同用例子集 / 不同尺子组合）——如「前门端到端」vs「仅报价引擎」。
+          <b>入口适配器</b>把"这个系统怎么被喂输入、怎么读输出"声明出来（对应记忆里 chatagent 那轮手写的 <span class="mono">frontdoor.py</span>，应升为一等定义），
+          让任意被评系统<b>声明式接入</b>，而不是每个项目手写 target。</p>
       </section>
 
       <section id="view-evaluators" hidden>
         <h2 class="page">评估器（给用例打分 / 判定的规则）</h2>
         <p class="sub">用例跑完有个输出，"评估器"就是判断这个输出<b>算不算通过</b>的规则；引擎复用 <b>Langfuse</b>（框架无关，不自研），下面的代码写法是可选后端(pydantic-ai 项目)</p>
+
+        <div class="concept">
+          <div class="concept-h"><b>Evaluator</b><span class="zh">评估器</span><span class="pill new">pydantic-evals 概念</span></div>
+          <p class="def">框架原义：<b>「分析并给 Task 在某个 Case 上的结果打分」</b>。可以是<b>确定性的</b>（代码校验）或<b>概率性的</b>（LLM 判断）。
+            返回值<b>自动归类</b>：<span class="mono">bool → assertion</span>（通过/不通过）、<span class="mono">数值 → score</span>、<span class="mono">字符串 → label</span>——这条规则我们逐字对齐。</p>
+          <p class="def">作用范围也对齐：<b>Dataset 级</b>评估器跑全部 Case，<b>Case 级</b>评估器只跑挂它的那条。</p>
+          <p class="map">在 EddPlatform：<b>评估器是"尺子"</b>，老新版本必须用<b>同一把</b>，对比才公平——所以我们
+            <b>加了 version</b>（框架的 <span class="mono">get_evaluator_version()</span>），并在评估对比前<b>校验两侧尺子一致</b>。
+            框架是 code-first（评估器写在 git 里），<b>我们要可在 UI 管理</b>——这是我们和它必然分道的一处。</p>
+        </div>
         <div class="note">
           🔁 打分流程：<b>用例输入</b> → 系统跑出 <b>输出 + 轨迹(ctx)</b> → <b>评估器 evaluate(ctx)</b> → 返回值自动归类：<b>bool→通过/不通过</b>、<b>数值→分数</b>、<b>字符串→标签</b>。一条用例可挂多个评估器，全过才算过。
         </div>
@@ -357,21 +638,48 @@
             <p class="muted" style="margin:8px 0 0">写死的校验，结果<b>确定</b>可复现。用内置（EqualsExpected / Contains / MaxDuration / HasMatchingSpan…）或自定义 <span class="mono">Evaluator</span> 子类。</p>
           </div>
           <div class="card" style="padding:14px 16px">
-            <div><span class="pill new">LLM-judge</span> <b>模型评委</b> <span class="mono">LLMJudge</span></div>
-            <p class="muted" style="margin:8px 0 0">让模型按 <b>rubric</b> 打分，处理<b>主观</b>问题（幻觉/语气）。默认出"通过+理由"，可再附 0-1 分。⚠️ 需<b>人工校准</b>。</p>
+            <div><span class="pill new">LLM-judge</span> <b>模型评委</b> <span class="mono">LLMJudge</span> / <span class="mono">GEval</span></div>
+            <p class="muted" style="margin:8px 0 0">让模型按 <b>rubric</b> 打分，处理<b>主观</b>问题（幻觉/语气）。默认出"通过+理由"，可再附 0-1 分。⚠️ 需<b>人工校准</b>。<br/>
+              <b class="mono">GEval</b>：给 criteria + <b>显式 evaluation_steps</b>，评委先出<b>推理轨迹</b>再打整数分（G-Eval，Liu et al. 2023）——把"怎么判"写死成步骤，比裸 rubric 稳。</p>
           </div>
         </div>
-        <p class="hint chips" style="margin:12px 0 0">可选后端(pydantic-ai) 内置评估器：
-          <span class="tag">EqualsExpected</span><span class="tag">Equals</span><span class="tag">Contains</span><span class="tag">IsInstance</span><span class="tag">MaxDuration</span><span class="tag">HasMatchingSpan</span><span class="tag">LLMJudge</span>
-          <span class="muted">（Python 评估器已被移除，不提供）</span>
+        <div class="note" style="margin-top:12px">
+          🧭 <b>先找内置的，别自己写</b>——尤其轨迹类。我们评的是 <b>agent</b>，"工具调没调对"是核心维度，而这类<b>全是内置的</b>，
+          且比手写的强：<span class="mono">TrajectoryMatch</span> 用 <b>LCS 算 F1 给部分分</b>，"少调一个工具"和"完全跑偏"不同分；手写的 bool 判定两者一样惨。
+        </div>
+        <div class="section-title" style="margin:14px 0 8px"><h3>可选后端 (pydantic-evals) 内置评估器</h3><span class="muted">按维度分组</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th style="width:120px">维度</th><th>内置评估器</th><th>读 ctx 的</th></tr></thead>
+          <tbody>
+            <tr><td><b>结果正确性</b></td><td class="chips"><span class="tag">EqualsExpected</span><span class="tag">Equals</span><span class="tag">Contains</span><span class="tag">IsInstance</span></td><td class="mono muted">output / expected_output</td></tr>
+            <tr><td><b>轨迹 / 工具</b><div class="muted" style="font-size:12px">agent 的核心维度</div></td>
+              <td class="chips">
+                <span class="tag v">TrajectoryMatch</span><span class="tag v">ToolCorrectness</span><span class="tag v">ArgumentCorrectness</span>
+                <span class="tag v">MaxToolCalls</span><span class="tag v">MaxModelRequests</span><span class="tag">HasMatchingSpan</span>
+              </td>
+              <td class="mono muted">span_tree / metrics</td></tr>
+            <tr><td><b>速度</b></td><td class="chips"><span class="tag">MaxDuration</span></td><td class="mono muted">duration</td></tr>
+            <tr><td><b>主观质量</b></td><td class="chips"><span class="tag">LLMJudge</span><span class="tag v">GEval</span></td><td class="mono muted">output（+ inputs）</td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">🔵 蓝底 = 我们原来漏掉的。轨迹类语义：<span class="mono">ToolCorrectness</span> 比对工具<b>多重集</b>（重复次数有意义）；
+          <span class="mono">TrajectoryMatch</span> 比对<b>顺序</b>（<span class="mono">exact</span> / <span class="mono">in_order</span> 走 LCS-F1 / <span class="mono">any_order</span> 走多重集 F1）；
+          <span class="mono">ArgumentCorrectness</span> 查某次工具调用的<b>入参</b>（subset / exact）；<span class="mono">MaxToolCalls</span> 卡调用预算（失败的也算——照样烧 token）。
+          <span class="muted">（<span class="mono">Python</span> 任意表达式评估器已被移除，不提供）</span>
         </p>
 
+        <div class="note" style="margin-top:14px">
+          🔒 <b>评估器是尺子，尺子必须钉住版本</b>：平台的核心主张是"老新版本用<b>同一套评估器</b>，对比才公平"。
+          可 rubric / 代码是能被人改的——改完之后，v1 的分和 v2 的分<b>就不可比了</b>。所以每个评估器带 <b>version</b>，
+          改判定逻辑必须 bump；<b>评估对比时校验两侧尺子一致</b>，不一致就拒绝出「改善 / 回归」结论。
+          <span class="muted">（用例有 <span class="mono">case_version</span>、版本有 pin，尺子却没版本——这是个漏洞。）</span>
+        </div>
         <div class="section-title"><h3>本系统的评估器</h3><span><button class="btn" onclick="go('eval-guide')">📖 Langfuse 评估标准指南</button> <button class="btn primary" onclick="openEvalDef()">+ 定义评估器</button></span></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>评估器</th><th>定义方式</th><th>读取 (ctx)</th><th>输出</th><th>通过阈值</th><th>用在用例</th><th></th></tr></thead>
+          <thead><tr><th>评估器</th><th>版本</th><th>定义方式</th><th>读取 (ctx)</th><th>输出</th><th>通过阈值</th><th>用在用例</th><th></th></tr></thead>
           <tbody>
-            <tr><td><b>金额校验</b></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">output.premium</td><td>assertion</td><td class="muted">== 规则引擎</td><td class="mono">#17 #88 #91</td><td><button class="btn sm" onclick="toggleDetail('e1')">看定义</button></td></tr>
-            <tr id="e1" class="detail" hidden><td></td><td colspan="6">
+            <tr><td><b>金额校验</b></td><td><span class="tag v">v1</span></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">output.premium</td><td>assertion</td><td class="muted">== 规则引擎</td><td class="mono">#17 #88 #91</td><td><button class="btn sm" onclick="toggleDetail('e1')">看定义</button></td></tr>
+            <tr id="e1" class="detail" hidden><td></td><td colspan="7">
               <div class="codeblk">from dataclasses import dataclass
 from pydantic_evals.evaluators import Evaluator, EvaluatorContext
 
@@ -379,12 +687,15 @@ from pydantic_evals.evaluators import Evaluator, EvaluatorContext
 class 金额校验(Evaluator):
     def evaluate(self, ctx: EvaluatorContext) -> bool:
         return ctx.output["premium"] == ctx.expected_output["premium"]
-# 返回 bool → 自动记为 assertion（通过 / 不通过）</div>
+# 返回 bool → 自动记为 assertion（通过 / 不通过）
+
+    def get_evaluator_version(self) -> str:
+        return "v1"        # ← 改判定逻辑必须 bump，否则新老分数不可比</div>
               <div class="hint">确定性：同输入永远同结果，适合金额/字段/格式这类<b>有标准答案</b>的检查。也可用内置 <span class="mono">EqualsExpected</span> 免写代码。</div>
             </td></tr>
 
-            <tr><td><b>条款解释</b></td><td><span class="pill new">LLM 评委</span></td><td class="mono">output（+ inputs）</td><td>assertion + score</td><td class="muted">judge ≥ 4</td><td class="mono">#63</td><td><button class="btn sm" onclick="toggleDetail('e2')">看定义</button></td></tr>
-            <tr id="e2" class="detail" hidden><td></td><td colspan="6">
+            <tr><td><b>条款解释</b></td><td><span class="tag v">v2</span> <span class="pill warn">改过</span></td><td><span class="pill new">LLM 评委</span></td><td class="mono">output（+ inputs）</td><td>assertion + score</td><td class="muted">judge ≥ 4</td><td class="mono">#63</td><td><button class="btn sm" onclick="toggleDetail('e2')">看定义</button></td></tr>
+            <tr id="e2" class="detail" hidden><td></td><td colspan="7">
               <div class="codeblk">from pydantic_evals.evaluators import LLMJudge
 
 LLMJudge(
@@ -393,31 +704,114 @@ LLMJudge(
     include_input=True,
     assertion={"include_reason": True},   # 通过 / 不通过 + 理由
     score={"evaluation_name": "条款质量"},  # 另附 0-1 分
-)</div>
-              <div class="hint">⚠️ 上线前用人工标注过的用例<b>校准</b> rubric，让判分与人一致（对应 #63 判出的 4.5→2.1 幻觉）。</div>
+)
+# get_evaluator_version() -> "v2"   ← 上次改 rubric 时 bump 过（v1 漏judge编造减免）</div>
+              <div class="hint">⚠️ 上线前用人工标注过的用例<b>校准</b> rubric，让判分与人一致（对应 #63 判出的 4.5→2.1 幻觉）。
+                改 rubric = <b>换了尺子</b> → 必须 bump 版本，否则拿它评出的新分去和旧分比，"改善/回归"是假的。
+                主观维度也可换 <span class="mono">GEval</span>：把判定拆成显式步骤，比裸 rubric 稳。</div>
             </td></tr>
 
-            <tr><td><b>工具调用正确</b></td><td><span class="pill neutral">内置 code</span></td><td class="mono">span_tree</td><td>assertion</td><td class="muted">命中工具 span</td><td class="mono">#17 #44</td><td><button class="btn sm" onclick="toggleDetail('e3')">看定义</button></td></tr>
-            <tr id="e3" class="detail" hidden><td></td><td colspan="6">
-              <div class="codeblk"># YAML（EvaluatorSpec）——挂到用例集 / 单个用例
+            <tr><td><b>工具调用轨迹</b></td><td><span class="tag v">v1</span></td><td><span class="pill neutral">内置 code</span></td><td class="mono">span_tree</td><td><b>score</b> <span class="muted">(F1)</span></td><td class="muted">≥ 0.8</td><td class="mono">#17 #44</td><td><button class="btn sm" onclick="toggleDetail('e3')">看定义</button></td></tr>
+            <tr id="e3" class="detail" hidden><td></td><td colspan="7">
+              <div class="codeblk"># YAML（EvaluatorSpec）——挂到用例集 / 单个用例。全是内置，不用自己写
 evaluators:
-- HasMatchingSpan: {query: {name_contains: "tool:quote-engine"}}
-# 轨迹里存在该工具调用的 span → 通过（读 ctx.span_tree，来自 OTel）</div>
-              <div class="hint">工具/延迟这类"看执行过程"的判定，靠 OTel 轨迹：<span class="mono">HasMatchingSpan</span> 查 span、<span class="mono">MaxDuration</span> 看耗时。</div>
+- TrajectoryMatch:                       # 工具调用顺序对不对
+    expected_trajectory: ["intent.classify", "quote.calc", "dialog.explain"]
+    order: in_order                      # LCS 算 F1 → 给部分分（不是 bool）
+- ToolCorrectness:                       # 该调的工具都调了（多重集，重复次数有意义）
+    expected_tools: ["quote.calc", "dialog.explain"]
+    allow_extra: false                   # 多调了也算错
+- ArgumentCorrectness:                   # 关键入参对不对
+    tool_name: "quote.calc"
+    expected_arguments: {car_type: "ev"}
+    match_mode: subset
+- MaxToolCalls: {max_calls: 4}           # 调用预算（失败的也算——照样烧 token）</div>
+              <div class="hint">🔵 <b>这类原来是我们手写的</b>（<span class="mono">engine.py::MinimalToolChain</span>），其实全内置、且更强：
+                <span class="mono">TrajectoryMatch</span> 用 <b>LCS-F1 给部分分</b>——"少调一个工具"(0.8) 和"完全跑偏"(0.1) 分得开；
+                手写的 bool 判定两者都是"不通过"，等于把信息量丢了。</div>
             </td></tr>
 
-            <tr><td><b>延迟阈值</b></td><td><span class="pill neutral">内置 code</span></td><td class="mono">duration</td><td>assertion</td><td class="muted">≤ 3s</td><td class="mono">#91</td><td></td></tr>
-            <tr><td><b>提示词注入检测</b></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">output</td><td>assertion</td><td class="muted">未越权/未泄露</td><td class="mono">全部（安全）</td><td></td></tr>
+            <tr><td><b>延迟阈值</b></td><td><span class="tag v">v1</span></td><td><span class="pill neutral">内置 code</span></td><td class="mono">duration</td><td>assertion</td><td class="muted">≤ 3s</td><td class="mono">#91</td><td></td></tr>
+            <tr><td><b>token 预算</b></td><td><span class="tag v">v1</span></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">metrics["tokens"]</td><td>assertion</td><td class="muted">≤ 20k / 轮</td><td class="mono">全部</td><td></td></tr>
+            <tr><td><b>提示词注入检测</b></td><td><span class="tag v">v1</span></td><td><span class="pill neutral">自定义 code</span></td><td class="mono">output</td><td>assertion</td><td class="muted">未越权/未泄露</td><td class="mono">全部（安全）</td><td></td></tr>
           </tbody>
         </table></div>
+
+        <div class="section-title"><h3>自定义评估器 <span class="pill bad">当前实现是假的</span></h3></div>
+        <div class="note" style="background:var(--bad-weak);border-color:#f5c2c7;color:#991b1b">
+          ⛔ <b>今天 <span class="mono">kind=custom_code</span> 不报错，静默退化成 <span class="mono">EqualsExpected</span></b>（<span class="mono">engine.py:247</span>）。
+          实测：给「提示词注入检测」喂一条<b>注入成功</b>的输出，它判 <b>passed=True</b>——因为它比的是 <span class="mono">output == expected_output</span>，跟注入毫无关系。
+          这条假的"通过"会进 通过率 → 对比 → 需求达标 → 发布依据。<b>宁可不能用，不可以假装能用</b>——未实现就该抛错。
+        </div>
+        <div class="row-flex" style="margin-bottom:6px">
+          <div class="card" style="padding:14px 16px">
+            <div><span class="pill neutral">框架怎么做</span></div>
+            <p class="muted" style="margin:8px 0 0">写 <b>Python 类</b>继承 <span class="mono">Evaluator</span>、实现 <span class="mono">evaluate(ctx)</span>。
+              <b>代码在你的 git 里</b>——可 review、可 diff、有 commit。code-first。</p>
+          </div>
+          <div class="card" style="padding:14px 16px">
+            <div><span class="pill new">我们该怎么做</span> <b>引用一个「版本化 evals 包」，不执行字符串</b></div>
+            <p class="muted" style="margin:8px 0 0">代码 + 它的依赖是一个<b>钉死版本的构建产物</b>（pip 包 / 镜像），平台只存<b>引用</b>：<br/>
+              <span class="mono">source: "myproj-evals@1.4.0"</span> · <span class="mono">ref: "注入检测"</span> · <span class="mono">params: {patterns:[...]}</span> · <span class="mono">version: "v2"</span><br/>
+              UI 管"用哪个包的哪个类 / 什么参数 / 什么版本"，<b>从不粘代码</b>。</p>
+          </div>
+        </div>
+        <div class="note" style="background:var(--warn-weak);border-color:#fde68a;color:#92400e">
+          📦 <b>为什么不能只存 ref+params：代码 import 的包，得在评估器<u>运行的环境</u>里装好。</b>
+          实测一个 <span class="mono">import sentence_transformers</span> 的自定义评估器——类能实例化、<span class="mono">{threshold:0.9}</span> 能序列化，
+          但 <span class="mono">evaluate()</span> 一跑就 <span class="mono">ModuleNotFoundError</span>。所以自定义评估器<b>不是代码片段，是一个带 <span class="mono">pyproject</span> 依赖的版本化包</b>。
+        </div>
+        <div class="section-title" style="margin-top:14px"><h3 style="font-size:13px">这和我们钉被评系统模块是同一套纪律</h3></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>环节</th><th>被评系统模块</th><th>自定义评估器</th></tr></thead>
+          <tbody>
+            <tr><td>代码</td><td>模块 git 仓库</td><td>evals git 仓库</td></tr>
+            <tr><td>依赖</td><td class="mono">Dockerfile → 镜像</td><td class="mono">pyproject → 包/镜像</td></tr>
+            <tr><td>钉版本</td><td class="mono">module_pins（tag）</td><td class="mono">evals 包@版本</td></tr>
+            <tr><td>运行在</td><td>k8s 一次性沙箱</td><td>eval worker <span class="muted">/ 隔离容器</span></td></tr>
+            <tr><td>平台存的</td><td><b>tag 引用，不是代码</b></td><td><b>ref+params+version，不是代码</b></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">
+          <b>版本钉的是两样：评估器逻辑 + 它那套依赖</b>（像 lockfile）——正如钉一个模块 tag = 钉住代码+依赖。
+          在哪跑分两档（同沙箱思路）：<b>可信</b> → evals 包 pip 进 worker；<b>要隔离</b>（依赖冲突/不可信）→ 依赖烤进镜像、评估器在自己容器里跑。
+          ⚠️ <b>Langfuse 沙箱代码评估器有包限制 + 2s 超时</b>——<span class="mono">sentence-transformers</span> 这类重依赖跑不进它的沙箱，得走我们自己的 worker。
+          代价：自定义评估器<b>不能在 UI 里现写</b>，得提交代码 + 声明依赖。这代价是对的——<b>一把影响发布决策的尺子，本就该走代码评审</b>。
+        </p>
+
+        <div class="section-title"><h3>能否与 pydantic-evals 一一对应？<span class="muted" style="font-weight:400;font-size:12px">　—— 不能，而卡点不是"少几个"</span></h3></div>
+        <div class="note">
+          🧩 它 13 个内置，我们兜底引擎 5 个。但<b>数量不是问题</b>——<span class="mono">engine.py</span> 只是"零依赖本地兜底"（离线 / CI 冒烟），生产走 Langfuse，兜底不必复刻 13 个。<br/>
+          <b>真问题：<span class="mono">EvaluatorDef</span> 存不下它们的参数。</b>我们只有 5 个字符串字段 + 1 个 float，而它们要 <span class="mono">list[str]</span> / <span class="mono">dict</span> / 多个 bool 开关。
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>评估器</th><th>它需要的参数</th><th>我们的 EvaluatorDef 往哪放</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">TrajectoryMatch</td><td class="mono">expected_trajectory: <b>list[str]</b>, order: enum</td><td><span class="pill bad">✗ 无处安放</span></td></tr>
+            <tr><td class="mono">ToolCorrectness</td><td class="mono">expected_tools: <b>list[str]</b>, allow_extra: bool</td><td><span class="pill bad">✗ 无处安放</span></td></tr>
+            <tr><td class="mono">ArgumentCorrectness</td><td class="mono">expected_arguments: <b>dict[str,Any]</b>, match_mode</td><td><span class="pill bad">✗ 无处安放</span></td></tr>
+            <tr><td class="mono">GEval</td><td class="mono">evaluation_steps: <b>list[str]</b>, score_range: tuple</td><td><span class="pill bad">✗ 无处安放</span></td></tr>
+            <tr><td class="mono">HasMatchingSpan</td><td class="mono">query: <b>SpanQuery</b>（结构化 DSL）</td><td><span class="pill warn">⚠ 压成 rule 字符串，丢了 query</span></td></tr>
+            <tr><td class="mono">Contains</td><td class="mono">value, case_sensitive: bool, as_strings: bool</td><td><span class="pill warn">⚠ 只存了 value，丢了两个开关</span></td></tr>
+            <tr><td class="mono">MaxDuration</td><td class="mono">seconds: float</td><td><span class="pill ok">✓ threshold 够用</span></td></tr>
+          </tbody>
+        </table></div>
+        <div class="note">
+          💡 <b>答案在它自己身上</b>：它序列化评估器用 <span class="mono">EvaluatorSpec</span>，字段只有两个——<b><span class="mono">name: str</span> + <span class="mono">arguments: dict|tuple|None</span></b>，
+          就是 YAML 里那个 <span class="mono">- TrajectoryMatch: {expected_trajectory: [...], order: in_order}</span>。<b>名字 + 任意参数 dict，13 个全能表达。</b><br/>
+          所以修法：<span class="mono">EvaluatorDef</span> 加 <b><span class="mono">params: dict</span></b>，与 <span class="mono">EvaluatorSpec</span> 同构，<span class="mono">rule</span>/<span class="mono">threshold</span>/<span class="mono">rubric</span> 退成 params 里的 key。
+          这样<b>加新评估器不用改模型</b>——和 <span class="mono">metrics</span> 用开放 dict 是同一个道理：<b>能扩展的地方留 dict，别写死成字段</b>。
+        </div>
 
         <div class="section-title"><h3>字段映射：我们的 UI ↔ Langfuse(引擎) ↔ Pydantic Evals(可选后端)</h3></div>
         <div class="tbl-wrap"><table>
           <thead><tr><th>UI 字段</th><th>Pydantic Evals（执行）</th><th>Langfuse（管理/存储）</th></tr></thead>
           <tbody>
             <tr><td>名称</td><td class="mono">evaluation_name</td><td>score / template 名称</td></tr>
-            <tr><td>打分方式</td><td class="mono">Evaluator 子类 / LLMJudge</td><td>Code evaluator / LLM-judge template</td></tr>
-            <tr><td>读取输入</td><td class="mono">ctx.output / expected_output / inputs / metadata / span_tree</td><td>变量映射（JSONPath）</td></tr>
+            <tr><td><b>版本</b> <span class="pill new">补</span></td><td class="mono">get_evaluator_version()</td><td class="muted">下游可按版本过滤</td></tr>
+            <tr><td><b>参数</b> <span class="pill new">补</span></td><td class="mono">EvaluatorSpec.arguments（<b>dict</b>，任意结构）</td><td class="muted">evaluator config</td></tr>
+            <tr><td>打分方式</td><td class="mono">Evaluator 子类 / LLMJudge / GEval</td><td>Code evaluator / LLM-judge template</td></tr>
+            <tr><td>读取输入</td><td class="mono">ctx.output / expected_output / inputs / metadata / duration / span_tree / <b>metrics</b> / attributes</td><td>变量映射（JSONPath）</td></tr>
             <tr><td>规则 / rubric</td><td class="mono">evaluate() / LLMJudge.rubric</td><td>prompt 模板</td></tr>
             <tr><td>评委模型</td><td class="mono">LLMJudge.model</td><td>model（LLM Connection）</td></tr>
             <tr><td>输出类型</td><td class="mono">bool→assertion / 数值→score / 字符串→label</td><td>BOOLEAN / NUMERIC / CATEGORICAL / TEXT</td></tr>
@@ -583,24 +977,31 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 
       <!-- 运行记录 -->
       <section id="view-runs" hidden>
-        <h2 class="page">运行记录</h2>
-        <p class="sub">一次运行 = 选一套环境/沙箱 → 拉起 → 跑，产出<b>日志 + 轨迹</b>。可<b>单独运行</b>（自测不评分），也可由评估产生。</p>
-        <div class="section-title"><h3>全部运行</h3><button class="btn primary" onclick="openRun()">+ 新建运行（单独）</button></div>
+        <h2 class="page">单独运行 <span class="muted mono" style="font-size:15px">自测 · 测试阶段</span></h2>
+        <p class="sub">拉起一套环境自测：跑一跑、看日志和轨迹，<b>不跑用例集、不评分</b>。这是生命周期里的<b>「测试」段</b>。</p>
+
+        <div class="note">
+          🧭 <b>为什么这里不列评估运行？</b>一次评估运行（Experiment）<b>恒定自带一条运行记录</b>（1:1），
+          把它同时列在这里和「评估任务运行」里，就是<b>同一件事登两遍</b>。所以此页只留<b>单独运行</b>——
+          它是唯一不属于任何 Experiment 的运行（<span class="mono">eval_id=None</span>）。
+          评估运行去 <a href="#" onclick="go('evaluations');return false;">评估任务运行</a> 看；两者的<b>日志/轨迹详情页是同一个</b>，点进去都到这里。
+        </div>
+        <div class="section-title"><h3>单独运行</h3><button class="btn primary" onclick="openRun()">+ 新建单独运行</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>运行</th><th>类型</th><th>版本</th><th>环境 / 沙箱</th><th>状态</th><th>时长</th><th>关联评估</th></tr></thead>
+          <thead><tr><th>运行</th><th>版本</th><th>环境 / 沙箱</th><th>状态</th><th>时长</th><th>日志 / 轨迹</th></tr></thead>
           <tbody>
-            <tr class="click" onclick="go('run')"><td class="mono">#R-1042</td><td><span class="pill new">评估运行</span></td><td>v2</td><td class="mono">release-insur-v2</td><td><span class="pill ok">✓ 完成</span></td><td>6m</td><td>保险报价重构·候选</td></tr>
-            <tr class="click" onclick="go('run')"><td class="mono">#R-1041</td><td><span class="pill new">评估运行</span></td><td>v1</td><td class="mono">release-insur-v1</td><td><span class="pill ok">✓ 完成</span></td><td>5m</td><td>保险报价重构·基线</td></tr>
-            <tr class="click" onclick="go('run')"><td class="mono">#R-1050</td><td><span class="pill neutral">单独运行</span></td><td>v2</td><td class="mono">dev-sandbox-a</td><td><span class="pill run">● 运行中</span></td><td class="muted">—</td><td class="muted">—（自测）</td></tr>
-            <tr class="click" onclick="go('run')"><td class="mono">#R-1039</td><td><span class="pill neutral">单独运行</span></td><td>v1</td><td class="mono">dev-sandbox-b</td><td><span class="pill ok">✓ 完成</span></td><td>8m</td><td class="muted">—</td></tr>
+            <tr class="click" onclick="go('run')"><td class="mono">#R-1050</td><td><span class="tag v">v2</span></td><td class="mono">dev-sandbox-a</td><td><span class="pill run">● 运行中</span></td><td class="muted">—</td><td><a href="#" onclick="go('run');return false;">看详情 ↗</a></td></tr>
+            <tr class="click" onclick="go('run')"><td class="mono">#R-1039</td><td><span class="tag">v1</span></td><td class="mono">dev-sandbox-b</td><td><span class="pill ok">✓ 完成</span></td><td>8m</td><td><a href="#" onclick="go('run');return false;">看详情 ↗</a></td></tr>
           </tbody>
         </table></div>
+        <p class="hint">单独运行只把某个版本拉进沙箱供你手动验证（对应生命周期的「测试」）；要评分对比，去<b>评估任务运行</b>选一个任务定义跑。</p>
       </section>
 
-      <!-- 运行记录详情（日志 / 轨迹 / 环境） -->
+      <!-- 运行详情（日志 / 轨迹 / 环境）——单独运行 与 评估运行 共用同一个详情页 -->
       <section id="view-run" hidden>
-        <h2 class="page">运行记录 <span class="mono">#R-1042</span> <span class="pill new">评估运行</span> <span class="pill run">● 运行中</span></h2>
-        <p class="sub">系统版本 v2 · 环境 <span class="mono">release-insur-v2</span> · 由评估「保险报价重构·候选」产生 · 流水线 Temporal 编排</p>
+        <h2 class="page">运行详情 <span class="mono">#R-1042</span> <span class="pill new">评估运行</span> <span class="pill run">● 运行中</span></h2>
+        <p class="sub">系统版本 v2 · 环境 <span class="mono">release-insur-v2</span> · 属于 Experiment「<a href="#" onclick="go('evaluations');return false;">#E-3002 报价重构·候选</a>」· 流水线 Temporal 编排<br/>
+          <span class="muted">（此页是<b>共用详情</b>：单独运行点进来也是这个页，只是不带 Experiment / 评分那部分。）</span></p>
         <div class="tabs">
           <div class="tab active" onclick="runTab(this,'ov')">概览</div>
           <div class="tab" onclick="runTab(this,'log')">日志</div>
@@ -724,25 +1125,67 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 
       <!-- 评估（任务列表） -->
       <section id="view-evaluations" hidden>
-        <h2 class="page">评估</h2>
-        <p class="sub">每个评估任务 = <b>系统版本 × 用例集 × 环境</b> → 一定带一条<b>运行记录</b> → 评分 → 任务结果（结果可拿去对比）</p>
-        <div class="section-title"><h3>评估任务</h3><button class="btn primary" onclick="openWizard()">✅ 发起评估</button></div>
+        <h2 class="page">评估 <span class="muted mono" style="font-size:15px">Experiment</span></h2>
+        <p class="sub">一次运行 = 拿一个<b>评估任务定义</b> + 选<b>一个系统版本</b> → 建环境 → 逐 Case 跑 → 评分 → 一份 Report + 每条 Case 的结果</p>
+
+        <div class="concept">
+          <div class="concept-h"><b>Experiment</b><span class="zh">评估任务运行实例（一次实验）</span><span class="pill new">pydantic-evals 概念</span></div>
+          <p class="def">框架原义：<b>把一个 Task 跑遍 Dataset 的全部 Case 的一次执行</b>（<span class="mono">dataset.evaluate_sync(task)</span>），
+            产出一份 <b>Report</b>。关系：<span class="mono">Experiment ── (1) Task</span>、<span class="mono">Experiment ── (Many) Evaluator</span>、
+            <span class="mono">Experiment ── (Many) Case results</span>、<span class="mono">Dataset ── (Many) Experiment</span>。</p>
+          <p class="def">Data Flow 五步：<b>定义 Dataset → 执行 Experiment → 逐 Case 跑 → Evaluator 打分 → 汇成 Report</b>。下表每一行就是一次 Experiment。</p>
+          <p class="map">在 EddPlatform：Experiment = <b>「一个评估任务定义（Task）」运行在「一个系统版本」上的一次实例</b>。
+            <span class="mono">Experiment ── (1) Task</span> 依然成立——只是我们的 Task 是<b>声明式定义</b>，且<b>版本在运行时才注入</b>。
+            所以一次运行要多做框架没有的两件事：<b>建/销一次性环境</b>、把结果登记成可被 <b>Comparison</b> 引用的对象。
+            同一个 Task 定义跑 v1、v2 两次 → 两个 Experiment → 一个对比。</p>
+        </div>
+        <div class="section-title"><h3>评估任务运行</h3><button class="btn primary" onclick="openWizard()">▶ 运行评估任务</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>评估任务</th><th>版本</th><th>用例集</th><th>环境</th><th>状态</th><th>结果</th><th>运行记录</th><th></th></tr></thead>
+          <thead><tr><th>运行实例</th><th>任务定义 (Task)</th><th>版本</th><th>环境</th><th>状态</th><th>Report</th><th>Case results</th><th></th></tr></thead>
           <tbody>
-            <tr class="click" onclick="go('comparison')"><td><b>保险报价重构·候选</b></td><td>v2</td><td>保险(适用178)</td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono"><a href="#" onclick="go('run');return false;">#R-1042</a></td><td><button class="btn sm">对比</button></td></tr>
-            <tr class="click" onclick="go('comparison')"><td><b>保险报价重构·基线</b></td><td>v1</td><td>保险(适用178)</td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 82%</td><td class="mono"><a href="#" onclick="go('run');return false;">#R-1041</a></td><td><button class="btn sm">对比</button></td></tr>
-            <tr class="click" onclick="go('run')"><td><b>客服升级·候选</b></td><td>v5</td><td>客服 340</td><td class="mono">强隔离</td><td><span class="pill run">● 运行中</span></td><td class="muted">64%…</td><td class="mono">#R-1050</td><td><button class="btn sm">查看</button></td></tr>
-            <tr><td><b>项目推荐·候选</b></td><td>v3</td><td>推荐 90</td><td class="muted">—</td><td><span class="pill neutral">草稿</span></td><td class="muted">—</td><td class="muted">—</td><td><button class="btn sm" onclick="openWizard()">配置</button></td></tr>
+            <tr><td><b>#E-3002</b> 报价重构·候选</td><td>报价·前门端到端</td><td><span class="tag v">v2</span></td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono"><a href="#" onclick="go('run');return false;">178 条 ↗</a></td><td><button class="btn sm" onclick="go('comparison')">对比</button></td></tr>
+            <tr><td><b>#E-3001</b> 报价重构·基线</td><td>报价·前门端到端</td><td><span class="tag">v1</span></td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 82%</td><td class="mono"><a href="#" onclick="go('run');return false;">178 条 ↗</a></td><td><button class="btn sm" onclick="go('comparison')">对比</button></td></tr>
+            <tr><td><b>#E-3005</b> 客服升级·候选</td><td>客服·前门端到端</td><td><span class="tag v">v5</span></td><td class="mono">强隔离</td><td><span class="pill run">● 运行中</span></td><td class="muted">64%…</td><td class="mono muted">218 / 340</td><td><button class="btn sm" onclick="go('run')">查看</button></td></tr>
+            <tr><td class="muted">（草稿）项目推荐·候选</td><td>推荐·端到端</td><td><span class="tag v">v3</span></td><td class="muted">—</td><td><span class="pill neutral">草稿</span></td><td class="muted">—</td><td class="muted">—</td><td><button class="btn sm" onclick="openWizard()">配置</button></td></tr>
           </tbody>
         </table></div>
-        <p class="hint">要"新 vs 老"？发起两个评估任务（v1、v2），到「评估对比」选两个结果对比。发布评估向导可一键建两个 + 直接开对比。</p>
+
+        <div class="concept" style="margin:16px 0 0">
+          <div class="concept-h"><b>Case results</b><span class="zh">逐用例结果</span><span class="pill new">pydantic-evals 概念</span></div>
+          <p class="def">框架原义：一次 Experiment <b>对每条 Case 产出一个结果</b>（<span class="mono">Experiment ── (Many) Case results</span>）——
+            记录该 Case 的实际 output、各评估器打的分、通过与否、耗时。Report 就是把它们汇总成一行行 + 一个通过率。</p>
+          <p class="map">在 EddPlatform：模型里就是 <span class="mono">CaseResult{case_id, passed, assertions, scores, labels}</span>（<span class="mono">EvalResult.case_results</span> 列表）。
+            下表是 <b>#E-3002</b> 的逐 Case 结果——它是<b>对比、需求达标、发布依据的最小事实颗粒</b>，往上每一层都由它卷出来。</p>
+        </div>
+        <div class="section-title" style="margin-top:14px"><h3>#E-3002 · Case results <span class="muted" style="font-weight:400;font-size:12px">（178 条，示例 5）</span></h3>
+          <span class="filterbar" style="margin:0"><span class="chip active" onclick="filterCR(this,'all')">全部</span><span class="chip" onclick="filterCR(this,'bad')">仅未过</span></span></div>
+        <div class="tbl-wrap"><table id="crTbl">
+          <thead><tr><th>Case</th><th>需求标签</th><th>output（实际）</th><th>assertions</th><th>scores</th><th>耗时</th><th>结果</th></tr></thead>
+          <tbody>
+            <tr data-k="ok"><td class="mono">#17</td><td><span class="tag">R-101</span></td><td class="muted">premium ¥4,260</td><td class="mono">金额校验 ✓ · 轨迹 ✓</td><td class="mono">轨迹F1 0.95</td><td class="mono">2.41s</td><td><span class="pill ok">✓ 通过</span></td></tr>
+            <tr data-k="ok"><td class="mono">#88</td><td><span class="tag">R-101</span></td><td class="muted">premium ¥3,100</td><td class="mono">金额校验 ✓</td><td class="mono">轨迹F1 0.92</td><td class="mono">2.05s</td><td><span class="pill ok">✓ 通过</span></td></tr>
+            <tr data-k="bad"><td class="mono">#63</td><td><span class="tag">R-102</span></td><td class="muted">编造「新能源 30% 减免」</td><td class="mono">条款解释 <span style="color:var(--bad)">✗</span></td><td class="mono">judge 2.1</td><td class="mono">3.10s</td><td><span class="pill bad">✗ 未过</span></td></tr>
+            <tr data-k="bad"><td class="mono">#91</td><td><span class="tag">R-103</span></td><td class="muted">premium ¥5,200</td><td class="mono">延迟 <span style="color:var(--bad)">✗</span></td><td class="mono">dur 3.20s</td><td class="mono">3.20s</td><td><span class="pill bad">✗ 未过</span></td></tr>
+            <tr data-k="ok"><td class="mono">#44</td><td><span class="tag">R-104</span></td><td class="muted">工具链正确</td><td class="mono">轨迹 ✓</td><td class="mono">轨迹F1 1.0</td><td class="mono">2.30s</td><td><span class="pill ok">✓ 通过</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">这是<b>最小事实颗粒</b>：把 Case results 按 <span class="mono">case.requirement_ids</span> 卷 → 需求达标；把 v1/v2 两次 Experiment 的 Case results 对齐 → 逐用例改善/回归 → Comparison。轨迹（trace）在<a href="#" onclick="go('run');return false;">运行详情</a>里逐 Case 看。</p>
       </section>
 
       <!-- 评估对比（对两个评估结果） -->
       <section id="view-comparison" hidden>
         <h2 class="page">评估对比</h2>
         <p class="sub">对比两个<b>评估结果</b>（先各自评估、再对比）</p>
+
+        <div class="concept ours">
+          <div class="concept-h"><b>Comparison</b><span class="zh">评估对比</span><span class="pill warn">框架没有 · 我们加的</span></div>
+          <p class="def">pydantic-evals 的数据模型里<b>没有这个对象</b>——它的 Data Flow 走到「汇成一份 Report」就结束了，
+            一个 Experiment 只评一个 Task，天然不存在"两版比"的问题。</p>
+          <p class="def">但它留了接口：<span class="mono">Dataset ── (Many) Experiment</span>（同一题库可被反复跑）。
+            <b>Comparison = 把其中两次 Experiment（v1 的和 v2 的）绑成一个对象</b>，再往上卷成需求达标、变成发布依据。<b>这是 EddPlatform 的立身之处。</b></p>
+          <p class="map">公平性靠三条铁律：① 只统计<b>两版都适用</b>的 Case；② 两侧用<b>同一把尺子</b>（评估器版本一致，见下方前置校验）；③ 两版跑<b>各自独立的一次性沙箱</b>。
+            任一条破了，「改善 / 回归」就是假结论。</p>
+        </div>
         <div class="cmp-pick">
           <div>
             <div class="hint" style="margin:0 0 4px">基线结果</div>
@@ -757,13 +1200,30 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
         </div>
         <div class="note" style="margin-top:14px">⚖️ 用例集 200 条中，<b>v1/v2 都适用的 178 条</b>参与对比；v2 专属 12 条、v1 专属 10 条不计入（在各自结果里单独看）。</div>
 
+        <div class="section-title"><h3>对比前置校验 · 尺子是否一致</h3><span class="muted">尺子变了，"改善 / 回归"就是假的</span></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>评估器</th><th>v1 基线用的版本</th><th>v2 候选用的版本</th><th>可比?</th></tr></thead>
+          <tbody>
+            <tr><td><b>金额校验</b></td><td><span class="tag v">v1</span></td><td><span class="tag v">v1</span></td><td><span class="pill ok">✓ 同尺</span></td></tr>
+            <tr><td><b>工具调用轨迹</b></td><td><span class="tag v">v1</span></td><td><span class="tag v">v1</span></td><td><span class="pill ok">✓ 同尺</span></td></tr>
+            <tr><td><b>延迟阈值</b></td><td><span class="tag v">v1</span></td><td><span class="tag v">v1</span></td><td><span class="pill ok">✓ 同尺</span></td></tr>
+            <tr><td><b>条款解释</b> <span class="muted">(LLM 评委)</span></td><td><span class="tag v">v1</span></td><td><span class="tag v">v2</span> <span class="pill warn">rubric 改过</span></td><td><span class="pill bad">✗ 不可比</span></td></tr>
+          </tbody>
+        </table></div>
+        <div class="note" style="background:var(--bad-weak);border-color:#f5c2c7;color:#991b1b">
+          ⛔ <b>「条款解释」两侧不是同一把尺子</b>：v1 用 rubric v1 评的，v2 用改过的 rubric v2 评的 —— 它俩的分<b>不能相减</b>。
+          下面「结果质量 3.9 → 4.2 ▲ +0.3」这条<b>不成立</b>，可能全部来自尺子变松，而不是系统变好。<br/>
+          <b>处理</b>：① 用 v2 版尺子<b>重跑基线</b>（推荐，代价是重跑一次 v1）；或 ② 把该维度<b>排除出本次对比</b>并在报告里标注。
+          <span class="muted">不做这个校验，平台就会一本正经地输出假结论——这正是「同一套评估器才公平」这句话的真正含义。</span>
+        </div>
+
         <div class="section-title"><h3>聚合指标</h3><button class="btn">导出报告</button></div>
         <div class="tbl-wrap"><table>
           <thead><tr><th>指标</th><th>v1 基线</th><th>v2 候选</th><th>变化</th><th></th></tr></thead>
           <tbody>
             <tr><td>通过率</td><td>82%</td><td><b>86%</b></td><td><span class="delta up">▲ +4pt</span></td><td><span class="pill ok">改善</span></td></tr>
-            <tr><td>结果质量 (LLM-judge)</td><td>3.9</td><td><b>4.2</b></td><td><span class="delta up">▲ +0.3</span></td><td><span class="pill ok">改善</span></td></tr>
-            <tr><td>工具调用正确率</td><td>91%</td><td><b>95%</b></td><td><span class="delta up">▲ +4pt</span></td><td><span class="pill ok">改善</span></td></tr>
+            <tr><td>结果质量 (LLM-judge) <span class="pill warn">尺子不同</span></td><td>3.9 <span class="muted mono">(rubric v1)</span></td><td><b>4.2</b> <span class="muted mono">(rubric v2)</span></td><td><span class="muted">—</span></td><td><span class="pill bad">✗ 不可比</span></td></tr>
+            <tr><td>工具调用轨迹 (F1)</td><td>0.91</td><td><b>0.95</b></td><td><span class="delta up">▲ +0.04</span></td><td><span class="pill ok">改善</span></td></tr>
             <tr><td>P95 延迟</td><td>2.1s</td><td><b>2.6s</b></td><td><span class="delta down">▼ +0.5s</span></td><td><span class="pill warn">变慢</span></td></tr>
             <tr><td>成本 / 用例</td><td>¥0.011</td><td><b>¥0.013</b></td><td><span class="delta down">▼ +18%</span></td><td><span class="pill warn">变贵</span></td></tr>
           </tbody>
@@ -779,7 +1239,7 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
             <tr><td><b>R-103</b> 保费计算延迟优化</td><td class="mono">PROJ-2051</td><td class="mono">#91</td><td>1/1 达标</td><td><b class="bad">0/1</b> 未达标</td><td><span class="pill bad">❌ 回归（达→未达）</span></td></tr>
           </tbody>
         </table></div>
-        <p class="hint">"达标" = 该需求验收用例在候选版本<b>全部通过</b>（把下方逐用例结果按 <span class="mono">case.requirement_ids</span> 卷到需求级）。<b>R-102 声称在 v2 交付却回归 → 发布门禁应拦截。</b>#102 为 v2 专属用例不计入对比。</p>
+        <p class="hint">"达标" = 该需求验收用例在候选版本<b>全部通过</b>（把下方逐用例结果按 <span class="mono">case.requirement_ids</span> 这个<b>标签</b>卷到需求级）。<b>R-102 声称在 v2 交付却回归——拿这份报告去发布前，这就是要先看清楚的事。</b>#102 为 v2 专属用例不计入对比。</p>
 
         <div class="section-title"><h3>逐用例</h3><span class="muted">改善 <b class="up">22</b> ↑ · 回归 <b class="bad">8</b> ↓ · 持平 148</span></div>
         <div class="filterbar">
@@ -821,6 +1281,95 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
   </div>
 </div>
 
+<!-- 导入 YAML：pydantic-evals 原生格式 + 扩展藏 metadata -->
+<div class="modal" id="yamlmodal">
+  <div class="dialog" style="width:720px">
+    <div class="dialog-h"><b>导入 YAML</b> <span class="muted mono" style="font-size:12px;font-weight:400">pydantic-evals 原生 Dataset 格式</span><button class="btn sm" onclick="closeYaml()">✕</button></div>
+    <div class="dialog-b">
+      <div class="note" style="margin-top:0">
+        ✅ <b>标准 pydantic-evals YAML 直接导入</b>（<span class="mono">Dataset.to_file</span> 存的就是它）。我们的扩展字段
+        （需求标签 / 适用版本 / 用例版本）<b>住在每条 case 的 <span class="mono">metadata.edd_*</span> 下</b>——已验证能 round-trip、不破坏兼容。
+      </div>
+      <div class="field"><label>选择文件</label>
+        <div style="display:flex;gap:8px;align-items:center"><button class="btn">📁 选择 .yaml 文件…</button><span class="muted">或直接粘贴 ↓</span></div>
+      </div>
+      <div class="field"><label>YAML 内容</label>
+        <div class="codeblk">name: 保险报价
+cases:
+- name: 新能源报价
+  inputs:                       # PE · 喂给被评系统的输入
+    car: ev
+  expected_output:              # PE · 期望（可空）
+    premium: 4260
+  metadata:                     # PE metadata —— 我们的扩展藏这里
+    difficulty: hard
+    edd_requirement_ids: [R-101]        # + 需求标签
+    edd_applicable_versions: [v1, v2]   # + 适用系统版本
+  evaluators:                   # PE · 该用例专属评估器（内置=name+args，纯数据）
+  - IsInstance: dict
+evaluators:                     # PE · dataset 级评估器（跑全部 case）
+- EqualsExpected
+- MaxDuration: 3.0
+- TrajectoryMatch: {expected_trajectory: [intent.classify, quote.calc], order: in_order}
+- LLMJudge: 不得编造优惠/减免；1=编造 5=准确</div>
+      </div>
+      <div class="note">
+        ⚠️ <b>YAML 里引用的自定义评估器需代码已注册</b>（如 <span class="mono">- 注入检测: {...}</span>）——内置评估器（上面这些）直接进；
+        自定义的要项目 git 里有对应类。纯 pydantic-evals 文件也能导，只是暂无 <span class="mono">edd_*</span> 标签，导入后可在用例上补。
+      </div>
+    </div>
+    <div class="dialog-f"><span class="muted" style="flex:1;font-size:12px">预检：解析 → 校验评估器可解析 → 列出将导入 N 条</span><button class="btn" onclick="closeYaml()">取消</button><button class="btn primary" onclick="closeYaml()">导入</button></div>
+  </div>
+</div>
+
+<!-- 新建用例 Case：字段严格对应 pydantic-evals Case + 我们的扩展 -->
+<div class="modal" id="casemodal">
+  <div class="dialog" style="width:680px">
+    <div class="dialog-h"><b>新建用例</b> <span class="muted mono" style="font-size:12px;font-weight:400">Case · pydantic-evals 的一行</span><button class="btn sm" onclick="closeCase()">✕</button></div>
+    <div class="dialog-b">
+      <div class="note" style="margin-top:0">
+        🏷️ 标 <span class="pill new">PE</span> 的是 pydantic-evals <span class="mono">Case</span> 的原生字段（共 5 个），标 <span class="pill warn">+</span> 的是我们为"跨版本对比 / 追溯 / 管理"加的。
+      </div>
+
+      <div class="field"><label>用例名 <span class="pill new">PE name</span></label><input type="text" value="新能源车型报价"></div>
+
+      <div class="field"><label>inputs（喂给被评系统的输入）<span class="pill new">PE inputs</span> <span class="muted" style="font-weight:400">必填 · JSON</span></label>
+        <textarea>{
+  "car": "ev",
+  "city": "上海",
+  "claims_last_year": 0
+}</textarea></div>
+
+      <div class="field"><label>expected_output（期望输出，可空）<span class="pill new">PE expected_output</span> <span class="muted" style="font-weight:400">JSON</span></label>
+        <textarea>{ "premium": 4260 }</textarea>
+        <p class="hint" style="margin-top:6px">给了期望，<span class="mono">EqualsExpected</span> 这类评估器才能比；纯 LLM-judge 可不给。</p></div>
+
+      <div class="field"><label>metadata（任意附加信息，可空）<span class="pill new">PE metadata</span> <span class="muted" style="font-weight:400">JSON</span></label>
+        <textarea>{ "difficulty": "hard", "source_trace": "prod-2043" }</textarea>
+        <p class="hint" style="margin-top:6px">评估器能读它（<span class="mono">ctx.metadata</span>）；也用来标难度/来源等。</p></div>
+
+      <div class="field"><label>该用例专属评估器 <span class="pill new">PE evaluators</span> <span class="muted" style="font-weight:400">选库里已定义的（引用名，不写代码）</span></label>
+        <div><span class="tag">金额校验 v1</span><span class="tag">工具轨迹 v1</span><span class="tag muted" style="cursor:pointer">+ 选择评估器…</span></div>
+        <p class="hint" style="margin-top:6px">框架里这里放<b>内联评估器对象</b>；我们放<b>引用名</b>（评估器是库里可管理的定义）。<b>这是我们和框架一贯的差别，不是缺失。</b></p></div>
+
+      <hr style="border:none;border-top:1px dashed var(--line);margin:16px 0">
+
+      <div class="row-flex">
+        <div class="field"><label>需求标签 <span class="pill warn">+ requirement_ids</span></label>
+          <div><span class="tag">R-101</span><span class="tag muted" style="cursor:pointer">+</span></div></div>
+        <div class="field"><label>适用系统版本 <span class="pill warn">+ applicable_versions</span></label>
+          <select><option>全部版本通用</option><option>仅 v2 专属</option><option>v1 + v2</option></select></div>
+      </div>
+      <div class="row-flex">
+        <div class="field"><label>用例版本 <span class="pill warn">+ case_version</span></label><input type="text" value="v1" readonly></div>
+        <div class="field"><label>状态 <span class="pill warn">+ enabled</span></label><select><option>启用</option><option>归档</option></select></div>
+      </div>
+      <div class="note">🧩 下半区四个字段框架都没有：<b>需求标签</b>（多对多追溯）、<b>适用版本</b>（跨版本对比才需要）、<b>用例版本</b>（编辑历史）、<b>启用/归档</b>（管理）。</div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeCase()">取消</button><button class="btn primary" onclick="closeCase()">保存用例</button></div>
+  </div>
+</div>
+
 <!-- 定义评估器 -->
 <div class="modal" id="evalmodal">
   <div class="dialog" style="width:900px">
@@ -829,7 +1378,12 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
       <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:20px">
         <!-- 左：表单 -->
         <div>
-          <div class="field"><label>名称 (evaluation_name)</label><input type="text" value="金额校验"></div>
+          <div class="row-flex">
+            <div class="field"><label>名称 (evaluation_name)</label><input type="text" value="金额校验"></div>
+            <div class="field"><label>版本 (get_evaluator_version)</label><input type="text" value="v1"></div>
+          </div>
+          <div class="note" style="margin:-4px 0 14px">🔒 <b>改了判定逻辑就必须 bump 版本</b>（rubric / 代码 / 阈值任一变化）。
+            尺子变了而版本没变，拿它评出的新分去和旧分比，「改善 / 回归」就是<b>假结论</b>。评估对比会校验两侧版本一致。</div>
           <div class="field"><label>打分方式</label>
             <div class="segmented" id="ekseg">
               <button class="seg active" onclick="evalKind(this,'builtin')">内置代码</button>
@@ -841,12 +1395,24 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
           <div class="ekind" data-k="builtin">
             <div class="field"><label>内置评估器</label>
               <select>
-                <option>EqualsExpected — 输出 == 期望</option>
-                <option>Equals — 输出 == 指定值</option>
-                <option>Contains — 输出包含子串 / 成员</option>
-                <option>IsInstance — 输出类型匹配</option>
-                <option>MaxDuration — 耗时 ≤ 阈值</option>
-                <option>HasMatchingSpan — 轨迹里存在某 span（如调了某工具）</option>
+                <optgroup label="结果正确性">
+                  <option>EqualsExpected — 输出 == 期望</option>
+                  <option>Equals — 输出 == 指定值</option>
+                  <option>Contains — 输出包含子串 / 成员</option>
+                  <option>IsInstance — 输出类型匹配</option>
+                </optgroup>
+                <optgroup label="轨迹 / 工具（agent 核心维度）">
+                  <option>TrajectoryMatch — 工具调用顺序（LCS-F1 部分分）</option>
+                  <option>ToolCorrectness — 该调的工具都调了（多重集）</option>
+                  <option>ArgumentCorrectness — 某次工具调用的入参对不对</option>
+                  <option>MaxToolCalls — 工具调用数 ≤ 预算</option>
+                  <option>MaxModelRequests — 模型请求数 ≤ 预算</option>
+                  <option>HasMatchingSpan — 轨迹里存在某 span</option>
+                </optgroup>
+                <optgroup label="速度 / 主观质量">
+                  <option>MaxDuration — 耗时 ≤ 阈值</option>
+                  <option>GEval — 思维链评委（criteria + 显式步骤）</option>
+                </optgroup>
               </select>
             </div>
             <div class="field"><label>参数</label><input type="text" value="（EqualsExpected 无参数）"></div>
@@ -871,9 +1437,18 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 
           <div class="field"><label>读取输入（EvaluatorContext 字段）</label>
             <div class="row-flex">
-              <select><option>output（实际输出）</option><option>expected_output（期望）</option><option>inputs（用例输入）</option><option>metadata</option><option>duration（耗时）</option><option>span_tree（轨迹）</option></select>
-              <input type="text" placeholder="JSONPath（可选）如 $.premium">
+              <select>
+                <option>output（实际输出）</option><option>expected_output（期望）</option>
+                <option>inputs（用例输入）</option><option>metadata</option>
+                <option>duration（耗时）</option><option>span_tree（轨迹）</option>
+                <option>metrics（信号：token / 成本 / TTFT / 请求数…）</option>
+                <option>attributes（被评系统自带的任意属性）</option>
+              </select>
+              <input type="text" placeholder="JSONPath / key，如 $.premium 或 tokens.cache_read">
             </div>
+            <p class="hint" style="margin-top:6px">📊 <b><span class="mono">metrics</span> 是开放 dict</b>（<span class="mono">dict[str, int|float]</span>），不是固定字段：
+              被评系统 emit 什么信号，评估器就能读什么——<b>加新信号不用改平台代码</b>。<br/>
+              <span class="muted">（对比：把 TTFT / usage / cost 各写成一个字段，每加一个信号就要改模型 + 改枚举 + 改这个下拉，三处。chatagent 那轮为了拿全 token 接 OTel collector 读 <span class="mono">gen_ai.client.token.usage</span>，走的正是这条路。）</span></p>
           </div>
           <div class="field"><label>输出类型 &amp; 通过阈值</label>
             <div class="row-flex">
@@ -904,6 +1479,12 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
     <div class="dialog-h"><b>新建需求</b> <span class="muted" style="font-size:12px;font-weight:400">详情留在 Jira，平台只存锚点 + 挂接</span><button class="btn sm" onclick="closeReq()">✕</button></div>
     <div class="dialog-b">
       <div class="field"><label>标题</label><input type="text" value="新能源车型报价修复"></div>
+      <div class="row-flex">
+        <div class="field"><label>父需求（树形，可留空 = 顶层）</label>
+          <select><option>R-100 报价准确性</option><option>R-110 对话与解释质量</option><option>R-120 性能与成本</option><option>（无 · 作为顶层需求）</option></select>
+        </div>
+        <div class="field"><label>负责人</label><input type="text" value="张三"></div>
+      </div>
       <div class="field"><label>描述（用于推送到 Jira）</label><textarea>新能源车识别错误导致报价偏差，需修正 quote-engine 车型分类逻辑，并补齐验收用例。</textarea></div>
       <div class="field"><label>关联 Jira</label>
         <div class="segmented" id="jseg">
@@ -931,8 +1512,70 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
       <div class="field"><label>交付版本（此版本声称交付该需求）</label>
         <div><span class="tag v">v2</span><span class="tag muted" style="cursor:pointer">+ 选择版本…</span></div>
       </div>
+      <div class="note">📐 <b>没有"达标"这个字段可填</b>——达标由评估对比<b>算出来</b>（验收用例在候选版本全过才算达标），父需求的达标再由子需求卷出来。这里只登记<b>挂接关系</b>。</div>
     </div>
     <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeReq()">取消</button><button class="btn primary" onclick="closeReq()">保存需求</button></div>
+  </div>
+</div>
+
+<!-- 新建评估任务定义 Task：绑入口+用例集+评估器+环境，版本无关 -->
+<div class="modal" id="taskmodal">
+  <div class="dialog" style="width:600px">
+    <div class="dialog-h"><b>新建评估任务定义</b> <span class="muted" style="font-size:12px;font-weight:400">Task · 怎么评这个系统（版本无关）</span><button class="btn sm" onclick="closeTask()">✕</button></div>
+    <div class="dialog-b">
+      <div class="field"><label>名称</label><input type="text" value="报价·前门端到端"></div>
+      <div class="field"><label>入口适配器（怎么喂输入 / 读输出）</label>
+        <select><option>POST /quote — 同步，取 {output, tool_calls, usage}</option><option>前门 /chat/stream — SSE，聚合到一轮结束</option><option>quote-engine :8080 — 单模块直连</option><option>自定义 HTTP…</option></select>
+        <p class="hint" style="margin-top:6px">声明式入口，让任意被评系统接入，不用每个项目手写 target（对应 <span class="mono">frontdoor.py</span> 升为一等定义）。</p>
+      </div>
+      <div class="field"><label>用例集 (Dataset)</label><select><option>保险报价 200 条</option><option>保险冒烟 30 条</option></select></div>
+      <div class="field"><label>评估器（尺子，各带版本）</label>
+        <div><span class="tag">金额校验 v1</span><span class="tag">工具轨迹 v1</span><span class="tag">条款解释 v2</span><span class="tag">延迟 v1</span><span class="tag muted" style="cursor:pointer">+ 选择评估器…</span></div>
+      </div>
+      <div class="field"><label>环境 / 沙箱</label><select><option>默认-轻量（namespace + NetworkPolicy）</option><option>强隔离（vCluster）</option></select></div>
+      <div class="note">🎯 <b>这里不选版本</b>——版本是<b>运行时</b>才注入的参数。同一个任务定义分别在 v1、v2 上运行，得到两个 Experiment，才能组成一次 Comparison。</div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeTask()">取消</button><button class="btn primary" onclick="closeTask()">保存任务定义</button></div>
+  </div>
+</div>
+
+<!-- 新建发布：选评估报告 → 打整套系统的 Helm 包 -->
+<div class="modal" id="relmodal">
+  <div class="dialog" style="width:640px">
+    <div class="dialog-h"><b>新建发布</b> <span class="muted" style="font-size:12px;font-weight:400">选一份评估报告作为发布依据</span><button class="btn sm" onclick="closeRel()">✕</button></div>
+    <div class="dialog-b">
+      <div class="field"><label>发布依据（评估报告）— 必选</label>
+        <select id="relEval" onchange="relPick()">
+          <option value="E-3002">#E-3002 · 保险报价重构·候选 · v2 · 通过 86% · 改善 22 / 回归 8 · 需求达标 2/4</option>
+          <option value="E-3000">#E-3000 · 保险报价·首版 · v1 · 通过 82% · 无基线可比</option>
+        </select>
+      </div>
+      <div class="note" id="relNote"></div>
+      <div class="row-flex">
+        <div class="field"><label>系统版本（由报告带出，不可改）</label><input type="text" id="relVer" value="v2" readonly></div>
+        <div class="field"><label>发布包版本（chart version）</label><input type="text" value="2.0.0"></div>
+      </div>
+      <div class="field"><label>打包内容（整套系统 · 由系统版本钉住）</label>
+        <div class="tbl-wrap" style="box-shadow:none"><table>
+          <thead><tr><th>模块</th><th>tag</th><th>Harbor 校验</th></tr></thead>
+          <tbody>
+            <tr><td>intent-service</td><td class="mono">1.4.2</td><td><span class="pill ok">✓ 存在</span></td></tr>
+            <tr><td>quote-engine</td><td class="mono">2.2.0 <span class="pill new">新</span></td><td><span class="pill ok">✓ 存在</span></td></tr>
+            <tr><td>dialog-agent</td><td class="mono">1.0.0 <span class="pill new">新</span></td><td><span class="pill ok">✓ 存在</span></td></tr>
+            <tr><td>store-service</td><td class="mono">3.0.1</td><td><span class="pill ok">✓ 存在</span></td></tr>
+            <tr><td>memory-service</td><td class="mono">1.2.0</td><td><span class="pill ok">✓ 存在</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint"><span class="mono">harbor.verify_pins</span> 已校验 5 个 tag 全部存在 → 打包时按 digest 钉死。</p>
+      </div>
+      <div class="field"><label>产出</label>
+        <div class="codeblk">helm package → insurance-2.0.0.tgz
+  ├ Chart.yaml      (appVersion: v2 · annotations.edd/evaluation: E-3002)
+  ├ values.yaml     (5 模块 image+tag+digest · 基础服务)
+  └ templates/      (Deployment ×5 · Service · NetworkPolicy — render_manifest 渲染)</div>
+      </div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeRel()">取消</button><button class="btn primary" onclick="closeRel();go('releases')">📦 打包并记录发布</button></div>
   </div>
 </div>
 
@@ -998,20 +1641,57 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 </div>
 
 <!-- 发起评估向导 -->
+<!-- 新建系统版本：纯快照 = 各模块钉一个 tag，别的都不掺 -->
+<div class="modal" id="versionmodal">
+  <div class="dialog" style="width:600px">
+    <div class="dialog-h"><b>新建系统版本</b> <span class="muted" style="font-size:12px;font-weight:400">一个版本 = 各模块钉一个 tag 的快照</span><button class="btn sm" onclick="closeVersionModal()">✕</button></div>
+    <div class="dialog-b">
+      <div class="note" style="margin-top:0">🧩 这里只做<b>钉 tag</b> 一件事——<b>不选用例集、不选评估器、不选环境、不点启动</b>。跑评估在「系统版本」列表每行的「▶ 发起评估」上发起。</div>
+      <div class="row-flex">
+        <div class="field"><label>版本标签 <span class="mono">label</span></label><input type="text" placeholder="如 v3"></div>
+        <div class="field"><label>以某版本为基础（fork tag）</label><select><option>v1（当前生产）</option><option>v2 · 保险报价重构（草稿）</option><option>空白（全部重选）</option></select></div>
+      </div>
+      <div class="field"><label>说明（为什么做这版）<span class="mono">note</span></label><input type="text" placeholder="如 报价引擎重构 + 对话 agent 升级"></div>
+      <div class="field"><label>模块 pin — 逐个钉 tag <span class="mono">module_pins</span></label>
+        <div class="tbl-wrap" style="box-shadow:none"><table>
+          <thead><tr><th>模块</th><th>基线(v1) tag</th><th>本版钉住</th></tr></thead>
+          <tbody>
+            <tr><td>intent-service</td><td class="mono muted">1.4.2</td><td><select><option>1.4.2（同 v1）</option><option>1.5.0</option></select></td></tr>
+            <tr><td>quote-engine</td><td class="mono muted">2.1.0</td><td><select><option>2.2.0 🔵</option><option>2.1.0（同 v1）</option></select></td></tr>
+            <tr><td>store-service</td><td class="mono muted">3.0.1</td><td><select><option>3.0.1（同 v1）</option><option>3.1.0</option></select></td></tr>
+            <tr><td>dialog-agent</td><td class="mono muted">0.9.5</td><td><select><option>1.0.0 🔵</option><option>0.9.5（同 v1）</option></select></td></tr>
+            <tr><td>memory-service</td><td class="mono muted">1.2.0</td><td><select><option>1.2.0（同 v1）</option><option>1.3.0</option></select></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">tag 候选拉自 <span class="mono">Harbor</span>（镜像）/ <span class="mono">Git</span>（commit）。保存时跑 <span class="mono">harbor.verify_pins</span> 预检各 tag 是否存在。</p>
+      </div>
+      <div class="field"><label>关联需求（可选 · 这版<b>为什么</b>存在的锚点）<span class="pill warn">+ requirement_ids</span></label>
+        <div><span class="tag">R-101 优惠叠加</span><span class="tag">R-102 条款解释</span><button class="btn sm">+ 关联需求</button></div>
+        <p class="hint">需求是版本自身的锚点（"为什么做这版"），<b>不是</b>用例集 / 评估——不影响这版怎么被跑。</p>
+      </div>
+    </div>
+    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeVersionModal()">取消</button><button class="btn primary" onclick="closeVersionModal()">保存为草稿版本</button></div>
+  </div>
+</div>
+
 <div class="modal" id="wizard">
   <div class="dialog">
-    <div class="dialog-h"><b>发起评估</b><button class="btn sm" onclick="closeWizard()">✕</button></div>
+    <div class="dialog-h"><b>运行评估任务</b><button class="btn sm" onclick="closeWizard()">✕</button></div>
     <div class="steps" id="wsteps">
-      <span class="s active">① 选版本</span><span class="s">② 用例集</span><span class="s">③ 环境/沙箱</span><span class="s">④ 确认启动</span>
+      <span class="s active">① 任务 + 版本</span><span class="s">② 用例集</span><span class="s">③ 环境/沙箱</span><span class="s">④ 确认启动</span>
     </div>
     <div class="dialog-b">
       <div class="wstep" data-step="1">
-        <div class="field"><label>评估模式</label>
-          <select><option>对比评估（同时建 基线v1 + 候选v2 两个评估任务，跑完自动开对比）</option><option>单版本评估（只评一个版本）</option></select>
+        <div class="field"><label>评估任务定义 (Task)</label>
+          <select><option>报价·前门端到端（入口 /quote · 保险200 · 4 个评估器）</option><option>报价·仅报价引擎（quote-engine 直连 · 1 个评估器）</option></select>
+        </div>
+        <div class="note" style="margin:-2px 0 14px">用例集 / 评估器 / 环境由<b>任务定义带出</b>（后两步只是确认或临时覆盖）。版本已在「系统版本」页建好，这里<b>只选跑哪个/哪些版本</b>，不在这里造版本。</div>
+        <div class="field"><label>运行模式</label>
+          <select><option>对比运行（同一任务定义在 v1 + v2 各跑一次 → 两个 Experiment，自动开对比）</option><option>单版本运行（只跑一个版本）</option></select>
         </div>
         <div class="row-flex">
           <div class="field"><label>基线（老）</label><select><option>v1（当前生产）</option></select></div>
-          <div class="field"><label>候选（新）</label><select><option>v2 · 保险报价重构（草稿）</option><option>新建…</option></select></div>
+          <div class="field"><label>候选（新）</label><select><option>v2 · 保险报价重构（草稿）</option></select></div>
         </div>
         <div class="field"><label>服务组合</label>
           <div class="tbl-wrap"><table>
@@ -1048,14 +1728,14 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
         <p><b>确认启动</b></p>
         <div class="tbl-wrap"><table>
           <tbody>
-            <tr><td class="muted">模式</td><td>对比评估 → 建 2 个评估任务（v1、v2）</td></tr>
-            <tr><td class="muted">用例集</td><td>保险 200 条（适用 178）· 4 个评估器</td></tr>
+            <tr><td class="muted">模式</td><td>对比运行 → 同一任务定义在 v1、v2 各跑一次（2 个 Experiment）</td></tr>
+            <tr><td class="muted">用例集</td><td>保险 200 条（适用 178）· 4 个评估器（由任务定义带出）</td></tr>
             <tr><td class="muted">环境</td><td>默认-轻量 · TTL 2h</td></tr>
-            <tr><td class="muted">每个评估</td><td>= 一次运行记录（日志/轨迹）+ 评分结果</td></tr>
+            <tr><td class="muted">每个 Experiment</td><td>= 一条运行（日志/轨迹）+ Case results + Report</td></tr>
             <tr><td class="muted">流水线</td><td>Temporal：建 env → 部署 → 跑用例 → 评分 → 出结果 → 销毁</td></tr>
           </tbody>
         </table></div>
-        <p class="hint">启动后到「运行记录」看实时流水线；跑完到「评估对比」看结论。</p>
+        <p class="hint">启动后到「评估任务运行」看实时流水线；跑完到「评估对比」看结论。</p>
       </div>
     </div>
     <div class="dialog-f">
@@ -1068,9 +1748,12 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 
 <script>
   // 两层：全局(global) / 系统(system)
-  var gTitles={overview:'全局概览',systems:'系统管理',settings:'平台设置 / 治理'};
-  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求',datasets:'用例库',evaluators:'评估器','eval-guide':'Langfuse 评估标准指南',environments:'环境 / 沙箱',runs:'运行记录',run:'运行记录详情',evaluations:'评估',comparison:'评估对比',settings:'系统设置'};
+  var gTitles={overview:'全局概览',systems:'系统管理',settings:'基础设置'};
+  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求树',datasets:'用例集',tasks:'评估任务定义',evaluators:'评估器','eval-guide':'Langfuse 评估标准指南',environments:'环境 / 沙箱',runs:'单独运行',run:'运行详情',evaluations:'评估任务运行',comparison:'评估对比',releases:'发布记录'};
   var curSys='保险报价系统', mode='global';
+
+  // 登录门：Jira 账号（原型里不校验，点了就进）
+  function doLogin(){ document.getElementById('login').hidden=true; }
 
   function setMode(m){
     mode=m;
@@ -1101,6 +1784,36 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
   function openSystemTo(name,view){ openSystem(name); go(view); }
   function openSystemNew(){ openSystem('新系统（草稿）'); }
 
+  // 导入 YAML 弹窗
+  function openYaml(){document.getElementById('yamlmodal').classList.add('open')}
+  function closeYaml(){document.getElementById('yamlmodal').classList.remove('open')}
+  // 新建用例弹窗
+  function openCase(){document.getElementById('casemodal').classList.add('open')}
+  function closeCase(){document.getElementById('casemodal').classList.remove('open')}
+  // 评估任务定义弹窗
+  function openTask(){document.getElementById('taskmodal').classList.add('open')}
+  function closeTask(){document.getElementById('taskmodal').classList.remove('open')}
+  // Case results 过滤
+  function filterCR(chip,k){
+    document.querySelectorAll('#view-evaluations .filterbar .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
+    document.querySelectorAll('#crTbl tbody tr[data-k]').forEach(function(tr){
+      tr.hidden=!(k==='all'||tr.dataset.k===k);
+    });
+  }
+
+  // 新建发布：选评估报告 → 带出系统版本 + 结论摘要
+  var RELEVALS={
+    'E-3002':{ver:'v2',txt:'该报告结论：通过 86% · 改善 22 / <b class="bad">回归 8</b> · 需求达标 <b class="bad">2/4</b>（R-102 / R-103 回归）。结论会一并钉进包的 <span class="mono">Chart.yaml</span> annotations，发布记录可回溯。'},
+    'E-3000':{ver:'v1',txt:'该报告结论：通过 82% · 首版无基线可比。'}
+  };
+  function openRel(){document.getElementById('relmodal').classList.add('open'); relPick();}
+  function closeRel(){document.getElementById('relmodal').classList.remove('open')}
+  function relPick(){
+    var e=RELEVALS[document.getElementById('relEval').value];
+    document.getElementById('relVer').value=e.ver;
+    document.getElementById('relNote').innerHTML='📊 '+e.txt;
+  }
+
   // 弹窗
   function openModule(){document.getElementById('modmodal').classList.add('open')}
   function closeModule(){document.getElementById('modmodal').classList.remove('open')}
@@ -1115,12 +1828,77 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
     document.querySelectorAll('#jseg .seg').forEach(function(s){s.classList.remove('active')}); el.classList.add('active');
     document.querySelectorAll('#reqmodal .jmode').forEach(function(p){p.hidden=p.dataset.j!==j});
   }
-  // 用例库按需求过滤
+  // ===== 需求树：选中 → 右侧渲染该需求的证据 =====
+  // 叶子需求带证据；父需求只做卷积（子全达标才达标）——不带自己的用例。
+  var REQS={
+    'R-100':{t:'报价准确性',own:'李雷',kids:['R-101','R-104'],met:'ok'},
+    'R-101':{t:'新能源车型报价修复',own:'张三',jira:'PROJ-2043',cases:'#17 #88',only:'#102',
+             ver:'v2',runs:5,base:'1/2',cand:'2/2',met:'ok',
+             note:'v1 把新能源识别成燃油车（¥3,820）；v2 走 quote-engine 2.2.0 得 ¥4,260，与规则引擎一致。'},
+    'R-104':{t:'过户后保单变更修复',own:'王五',jira:'PROJ-2048',cases:'#44',ver:'v2',runs:2,
+             base:'0/1',cand:'1/1',met:'ok',note:'工具调用链修复，#44 由 ✗ 转 ✓。'},
+    'R-110':{t:'对话与解释质量',own:'韩梅',kids:['R-102'],met:'bad'},
+    'R-102':{t:'条款解释防幻觉',own:'李四',jira:'PROJ-2044',cases:'#63',ver:'v2',runs:3,
+             base:'1/1',cand:'0/1',met:'bad',
+             note:'v2 在条款解释处声称「新能源车享 30% 保费减免」——该规则不存在。LLM-judge 4.5 → 2.1。'},
+    'R-120':{t:'性能与成本',own:'刘敏',kids:['R-103','R-105'],met:'bad'},
+    'R-103':{t:'保费计算延迟优化',own:'赵六',jira:'PROJ-2051',cases:'#91',ver:'—（未纳入 v2）',runs:1,
+             base:'1/1',cand:'0/1',met:'bad',note:'#91 耗时 3.20s 超过 3s 阈值 → 由 ✓ 转 ✗。'},
+    'R-105':{t:'多轮改写成本',own:'刘敏',jira:'PROJ-2062',cases:'',ver:'—',runs:0,met:'idle',
+             note:'还没挂验收用例 → 无法评估，也就无法判达标。'}
+  };
+  var MET={ok:['pill ok','✅ 达标'],bad:['pill bad','❌ 回归'],warn:['pill warn','⚠️ 证据不足'],idle:['pill neutral','⚪ 未挂用例']};
+
+  function row(k,v){ return '<div class="evrow"><span class="ek">'+k+'</span><span class="evv">'+v+'</span></div>'; }
+
+  function pickReq(id){
+    var r=REQS[id]; if(!r) return;
+    document.querySelectorAll('#reqTree .tnode').forEach(function(n){n.classList.toggle('sel',n.dataset.r===id)});
+    var m=MET[r.met], h='';
+    h+='<div class="req-h"><b>'+r.t+'</b><span class="mono muted">'+id+'</span><span class="'+m[0]+'">'+m[1]+'</span></div>';
+
+    if(r.kids){   // 父需求：达标是卷出来的，没有自己的用例
+      var okN=r.kids.filter(function(k){return REQS[k].met==='ok'}).length;
+      h+='<p class="hint" style="margin:0 0 12px">父需求 · 不直接挂用例，<b>达标由子需求卷积</b>：子全达标才算达标。</p>';
+      h+=row('负责人',r.own);
+      h+=row('子需求',r.kids.map(function(k){
+            var km=MET[REQS[k].met];
+            return '<a href="#" onclick="pickReq(\''+k+'\');return false;">'+REQS[k].t+'</a> <span class="'+km[0]+'">'+km[1]+'</span>';
+          }).join(' &nbsp; '));
+      h+=row('卷积','子 '+r.kids.length+' 项 · 达标 <b>'+okN+'/'+r.kids.length+'</b> → 父'+(r.met==='ok'?'<b class="up"> 达标</b>':'<b class="bad"> 未达标</b>'));
+      h+='<div class="note" style="margin-top:12px">对应引擎里的 <span class="mono">rollup_by_requirement</span> 沿树聚合——今天它只卷一层，改成树形后往上递归。</div>';
+    } else {      // 叶子需求：完整证据链
+      h+=row('负责人',r.own);
+      h+=row('Jira', r.jira?'<a href="#" onclick="return false" class="mono">'+r.jira+' ↗</a> <span class="muted">（描述 / 状态 / 流转都在 Jira，平台不维护）</span>':'<span class="muted">未关联</span>');
+      h+=row('用例标签', r.cases
+            ? '<span class="mono">'+r.cases+'</span>'+(r.only?' <span class="tag only">'+r.only+' 仅 v2 专属·不计入对比</span>':'')
+              +' <a href="#" onclick="filterDSBy(\''+id+'\');return false;">在用例库按此需求过滤 ↗</a>'
+            : '<span class="muted">—</span> <span class="pill neutral">没有用例打此标签 → 无法评估</span>');
+      h+=row('交付版本', r.ver==='v2'?'<span class="tag v">v2</span>':'<span class="muted">'+r.ver+'</span>');
+      h+=row('测试', r.runs?'单独运行 <b>'+r.runs+'</b> 次 <span class="muted">（自测 · 不评分）</span> <a href="#" onclick="go(\'runs\');return false;">看运行</a>':'<span class="muted">—</span>');
+      h+=row('评估', r.cases?'v1 <b>'+r.base+'</b> → v2 <b>'+r.cand+'</b> <a href="#" onclick="go(\'comparison\');return false;">看对比</a>':'<span class="muted">— 无用例可跑</span>');
+      h+=row('达标','<span class="'+m[0]+'">'+m[1]+'</span>'+(r.cases?' <span class="muted">'+r.base+' → '+r.cand+'</span>':''));
+      h+=row('发布', r.cases
+            ? '该达标结论是评估报告 <span class="mono">#E-3002</span> 的一部分；发布时选这份报告作<b>发布依据</b> <a href="#" onclick="go(\'releases\');return false;">看发布记录</a>'
+            : '<span class="muted">无评估结论 → 不构成发布依据</span>');
+      if(r.note) h+='<div class="note" style="margin-top:12px">'+r.note+'</div>';
+    }
+    document.getElementById('reqPane').innerHTML=h;
+  }
+
+  // 用例库按需求标签过滤（需求↔用例是多对多标签，非从属）
   function filterDS(chip,r){
     document.querySelectorAll('#view-datasets .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
     document.querySelectorAll('#dsTbl tbody tr').forEach(function(tr){
       tr.hidden=!(r==='all'||(tr.dataset.req||'').split(' ').indexOf(r)>=0);
     });
+  }
+  // 从需求树跳到用例库并按该需求标签过滤——标签关系的实际用处
+  function filterDSBy(rid){
+    go('datasets');
+    var chip=document.querySelector('#view-datasets .chip[data-r="'+rid+'"]');
+    if(chip){ filterDS(chip,rid); }
+    else { var all=document.querySelector('#view-datasets .chip[data-r="all"]'); filterDS(all,'all'); }
   }
   // 运行记录·轨迹：逐用例过滤
   function filterTrace(chip,k){
@@ -1132,9 +1910,9 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
   }
   // 定义评估器
   var evalPreviews={
-    builtin:'# YAML（EvaluatorSpec）——挂到用例集 / 单个用例\nevaluators:\n- EqualsExpected\n# 带参数：\n- MaxDuration: 3.0\n- HasMatchingSpan: {query: {name_contains: "tool:quote-engine"}}',
-    custom:'from dataclasses import dataclass\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext\n\n@dataclass\nclass 金额校验(Evaluator):\n    def evaluate(self, ctx: EvaluatorContext) -> bool:\n        return ctx.output["premium"] == ctx.expected_output["premium"]\n# bool → assertion（通过 / 不通过）',
-    judge:'from pydantic_evals.evaluators import LLMJudge\n\nLLMJudge(\n    rubric="只依据真实条款，不得编造优惠/减免；1-5 分",\n    model="openai:gpt-5.2",\n    include_input=True,\n    assertion={"include_reason": True},  # 通过/不通过 + 理由\n    score={"evaluation_name": "条款质量"},  # 另附 0-1 分\n)'
+    builtin:'# YAML（EvaluatorSpec）——挂到用例集 / 单个用例\nevaluators:\n- EqualsExpected\n- MaxDuration: 3.0\n\n# 轨迹类：agent 的核心维度，全内置，别自己写\n- TrajectoryMatch:\n    expected_trajectory: ["intent.classify", "quote.calc", "dialog.explain"]\n    order: in_order          # LCS-F1 → 部分分，不是 bool\n- ToolCorrectness:\n    expected_tools: ["quote.calc", "dialog.explain"]\n    allow_extra: false\n- MaxToolCalls: {max_calls: 4}   # 失败的调用也算——照样烧 token',
+    custom:'from dataclasses import dataclass\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext\n\n@dataclass\nclass 金额校验(Evaluator):\n    def evaluate(self, ctx: EvaluatorContext) -> bool:\n        return ctx.output["premium"] == ctx.expected_output["premium"]\n    # bool → assertion（通过 / 不通过）\n\n    def get_evaluator_version(self) -> str:\n        return "v1"     # ← 改判定逻辑必须 bump，否则新老分不可比',
+    judge:'from pydantic_evals.evaluators import LLMJudge\n\nLLMJudge(\n    rubric="只依据真实条款，不得编造优惠/减免；1-5 分",\n    model="openai:gpt-5.2",\n    include_input=True,\n    assertion={"include_reason": True},  # 通过/不通过 + 理由\n    score={"evaluation_name": "条款质量"},  # 另附 0-1 分\n)\n# 改了 rubric = 换了尺子 → get_evaluator_version() 必须 bump\n\n# 更稳的主观评判：GEval —— 把"怎么判"拆成显式步骤\nfrom pydantic_evals.evaluators import GEval\nGEval(\n    criteria="条款解释是否只依据真实条款、无编造减免",\n    evaluation_steps=[\n        "列出输出中提到的每一条优惠/减免",\n        "逐条在真实条款里查证是否存在",\n        "只要有一条查无实据，判低分",\n    ],\n    score_range=(1, 5),   # 先出推理轨迹，再给整数分\n)'
   };
   function openEvalDef(){document.getElementById('evalmodal').classList.add('open'); evalKind(document.querySelector('#ekseg .seg'),'builtin');}
   function closeEvalDef(){document.getElementById('evalmodal').classList.remove('open')}
@@ -1152,6 +1930,8 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 
   // 向导
   var step=1;
+  function openVersionNew(){document.getElementById('versionmodal').classList.add('open')}
+  function closeVersionModal(){document.getElementById('versionmodal').classList.remove('open')}
   function openWizard(){step=1;renderStep();document.getElementById('wizard').classList.add('open')}
   function closeWizard(){document.getElementById('wizard').classList.remove('open')}
   function renderStep(){
@@ -1185,7 +1965,8 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
   }
   function toggleDetail(id){var d=document.getElementById(id); if(d) d.hidden=!d.hidden}
 
-  go('overview'); // 初始进入全局层
+  pickReq('R-101');  // 需求树默认选中项（先渲染，页面 hidden 不影响）
+  go('overview');    // 初始进入全局层
 </script>
 </body>
 </html>
