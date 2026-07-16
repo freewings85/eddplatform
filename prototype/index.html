@@ -525,42 +525,61 @@ baseServices:
 
       <!-- 用例库（有版本 + 适用系统版本） -->
       <section id="view-datasets" hidden>
-        <h2 class="page">用例集 · 保险报价 <span class="muted">(200)</span></h2>
-        <p class="sub">用例有<b>自身版本</b>（编辑历史）+ <b>适用系统版本</b>（多版本通用 / 某版本专属）</p>
+        <h2 class="page">用例集 · 保险报价</h2>
+        <p class="sub">一个系统有<b>多个 Dataset（题库）</b>，每个 Dataset 是一组 Case。用例带<b>自身版本</b> + <b>适用系统版本</b>。</p>
 
         <div class="concept">
           <div class="concept-h"><b>Dataset</b><span class="zh">用例集</span><span class="pill new">pydantic-evals 概念</span></div>
           <p class="def">框架原义：<b>「为评估某个 Task 而设计的一组 Case 的集合」</b>——它是评估的<b>题库</b>，一个 Dataset 可以被反复用于多次 Experiment。</p>
-          <p class="map">在 EddPlatform：<b>一个系统一个用例集</b>。老新版本必须跑<b>同一个 Dataset</b>，对比才成立。
-            <b>我们加的：</b>每条 Case 带「适用系统版本」——框架不需要（它只评一个 Task），我们要跨版本比，就必须能排除"某版本专属"的题，否则对比不公平。</p>
+          <p class="map">在 EddPlatform：<b>一个系统有多个 Dataset</b>（全量回归 / 冒烟 / 红队…各是一个题库，见下方列表）。对比的<b>公平性</b>不靠"只有一个题库"，而靠<b>一次 Comparison 里两个版本跑同一个 Dataset</b>。
+            <b>我们加的：</b>每条 Case 带「适用系统版本」——框架不需要（它只评一个 Task），我们要跨版本比，就必须能排除"某版本专属"的题。</p>
         </div>
         <div class="concept">
           <div class="concept-h"><b>Case</b><span class="zh">用例</span><span class="pill new">pydantic-evals 概念</span></div>
           <p class="def">框架原义：<b>「一个测试场景，对应 Task 的一组输入，可选带期望输出、metadata、以及该用例专属的 evaluators」</b>。</p>
-          <p class="map">在 EddPlatform：下表<b>每一行就是一个 Case</b>。字段一一对上——inputs / expected_output / metadata / 专属评估器都有。
-            <b>我们加的：</b><span class="mono">case_version</span>（用例自身的编辑历史）、<span class="mono">applicable_versions</span>（适用哪些系统版本）、<span class="mono">requirement_ids</span>（需求标签）。</p>
+          <p class="map">在 EddPlatform：下表<b>每一行就是一个 Case</b>，来自导入的标准 YAML。原生 5 字段里 <span class="mono">name / inputs / expected_output / metadata</span> 严格对上；<span class="mono">evaluators</span> 是<b>声明式 spec（名 + 参数）</b>——per-case 的"必须调某工具"就写在这（<span class="mono">ToolCorrectness: {expected_tools:[…]}</span>），是数据不是代码。
+            <b>我们加的</b>三项（<span class="mono">case_version</span> 编辑历史、<span class="mono">applicable_versions</span> 适用系统版本、<span class="mono">requirement_ids</span> 需求标签）不是独立字段，而是<b>藏在每条 case 的 <span class="mono">metadata.edd_*</span> 下</b>（已验证 round-trip）。</p>
         </div>
+
+        <div class="section-title"><h3>Dataset（题库）</h3><button class="btn primary" onclick="openYaml()">📥 导入用例 / 新建 Dataset</button></div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Dataset</th><th>用例数</th><th>dataset 级评估器（跑全部 case）</th><th>适用系统版本</th><th>状态</th><th></th></tr></thead>
+          <tbody>
+            <tr><td><b>保险 200 条</b> <span class="muted">全量回归</span></td><td class="mono">200</td><td class="muted">EqualsExpected · MaxDuration · <span class="tag">注入检测 (git)</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td><span class="pill ok">启用</span></td><td><button class="btn sm">查看</button> <button class="btn sm" onclick="openYaml()">导入用例</button></td></tr>
+            <tr><td><b>保险冒烟 30 条</b> <span class="muted">快跑</span></td><td class="mono">30</td><td class="muted">EqualsExpected</td><td><span class="tag">全部版本</span></td><td><span class="pill ok">启用</span></td><td><button class="btn sm">查看</button> <button class="btn sm" onclick="openYaml()">导入用例</button></td></tr>
+            <tr><td><b>红队注入 40 条</b> <span class="muted">安全</span></td><td class="mono">40</td><td class="muted"><span class="tag">注入检测 (git)</span> · ToolCorrectness</td><td><span class="tag">v2</span><span class="tag">v3</span></td><td><span class="pill ok">启用</span></td><td><button class="btn sm">查看</button> <button class="btn sm" onclick="openYaml()">导入用例</button></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">Dataset = 一组 Case 的题库（对应 <span class="mono">pydantic_evals.Dataset</span>）。dataset 级评估器对该题库每条 case 都跑；标 <span class="tag">git</span> 的自定义评估器代码在 eval 项目里。下方用例表是各 Dataset 的<b>抽样</b>。</p>
+
         <div class="note">⚖️ 评估对比时，<b>只统计"被比两个版本都适用"的用例</b>；某版本专属用例（如 v2 才有的功能）会单列、不计入对比，避免不公平。</div>
         <div class="note">🏷️ <b>需求是用例上的标签</b>（多对多）：一条用例可打多个需求标签。标签只用来<b>过滤</b>（下面这排）和<b>把结果卷成需求达标</b>——用例库和需求树是<b>平级</b>的两份资产，不是谁属于谁。</div>
-        <div class="filterbar">
-          <span class="muted" style="font-size:12.5px">按需求标签过滤：</span>
-          <span class="chip active" data-r="all" onclick="filterDS(this,'all')">全部 6</span>
-          <span class="chip" data-r="R-101" onclick="filterDS(this,'R-101')">R-101 新能源报价 3</span>
-          <span class="chip" data-r="R-104" onclick="filterDS(this,'R-104')">R-104 过户变更 1</span>
-          <span class="chip" data-r="R-102" onclick="filterDS(this,'R-102')">R-102 条款解释 1</span>
-          <span class="chip" data-r="R-103" onclick="filterDS(this,'R-103')">R-103 延迟 1</span>
+        <div class="filterbar" id="dsFilterDs">
+          <span class="muted" style="font-size:12.5px">按 Dataset 过滤：</span>
+          <span class="chip active" data-ds="all" onclick="filterDS(this,'ds','all')">全部 6</span>
+          <span class="chip" data-ds="ins200" onclick="filterDS(this,'ds','ins200')">保险 200 条 4</span>
+          <span class="chip" data-ds="smoke30" onclick="filterDS(this,'ds','smoke30')">冒烟 30 条 1</span>
+          <span class="chip" data-ds="red40" onclick="filterDS(this,'ds','red40')">红队 40 条 1</span>
         </div>
-        <div class="section-title"><h3>用例</h3><span><button class="btn primary" onclick="openYaml()">📥 导入 YAML</button> <button class="btn">+ 导入自真实 trace</button> <button class="btn" onclick="openCase()">+ 新建用例</button></span></div>
-        <div class="note">📥 <b>批量定义用例的主路径 = 导入 pydantic-evals YAML</b>（它的原生格式，能 round-trip，已在用的团队零重录）。「新建用例」表单用来<b>改单条 / 建一次性用例 / 看清字段</b>；「从 trace 导入」从生产轨迹抓真实用例。三条路，YAML 是主力。</div>
+        <div class="filterbar" id="dsFilterReq">
+          <span class="muted" style="font-size:12.5px">按需求标签过滤：</span>
+          <span class="chip active" data-r="all" onclick="filterDS(this,'req','all')">全部 6</span>
+          <span class="chip" data-r="R-101" onclick="filterDS(this,'req','R-101')">R-101 新能源报价 3</span>
+          <span class="chip" data-r="R-104" onclick="filterDS(this,'req','R-104')">R-104 过户变更 1</span>
+          <span class="chip" data-r="R-102" onclick="filterDS(this,'req','R-102')">R-102 条款解释 1</span>
+          <span class="chip" data-r="R-103" onclick="filterDS(this,'req','R-103')">R-103 延迟 1</span>
+        </div>
+        <div class="section-title"><h3>用例 <span class="muted" style="font-size:13px;font-weight:400">跨 Dataset 抽样 · 可按 Dataset / 需求过滤</span></h3><span><button class="btn primary" onclick="openYaml()">📥 导入用例</button> <button class="btn">+ 导入自真实 trace</button></span></div>
+        <div class="note">📥 <b>平台只做一件事：登记用例（数据）</b>——用<b>标准 pydantic-evals YAML</b> 导入（它的原生格式，能 round-trip，已在用的团队零重录），或从生产 trace 抓真实用例。<b>不做"新建用例"表单</b>：一条用例就是一段标准 YAML，没必要在页面里把它的字段重画一遍。<br/>🧬 <b>评估的代码不在这里</b>：自定义评估器 + 任务适配器全在 <b>git 的 eval 项目</b>。YAML 里的内置评估器（如 <span class="mono">ToolCorrectness: {expected_tools:[…]}</span>）是<b>声明式数据、不是代码</b>——连"这条用例必须调哪个工具"都写在数据里，平台照存；真正的评估代码在 git。</div>
         <div class="tbl-wrap"><table id="dsTbl">
-          <thead><tr><th>#</th><th>用例名</th><th>需求</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
+          <thead><tr><th>#</th><th>用例名</th><th>Dataset</th><th>需求</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
           <tbody>
-            <tr data-req="R-101"><td>17</td><td>新能源车型报价</td><td><span class="tag">R-101</span></td><td><span class="tag v">v3</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr data-req="R-102"><td>63</td><td>多车型比价</td><td><span class="tag">R-102</span></td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">judge：无幻觉</td><td><span class="tag">工单 #4821</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr data-req="R-101"><td>88</td><td>含优惠叠加报价</td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag">全部版本</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr data-req="R-103"><td>91</td><td>历史出险影响保费</td><td><span class="tag">R-103</span></td><td><span class="tag v">v4</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">金额一致 + 延迟&lt;3s</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr data-req="R-101"><td>102</td><td>新能源专属补贴校验</td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag only">仅 v2 专属</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
-            <tr data-req="R-104"><td>44</td><td>过户后保单变更</td><td><span class="tag">R-104</span></td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">工具调用链正确</td><td><span class="tag">工单 #5102</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-101" data-ds="ins200"><td>17</td><td>新能源车型报价</td><td><span class="tag">保险 200</span></td><td><span class="tag">R-101</span></td><td><span class="tag v">v3</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-102" data-ds="ins200"><td>63</td><td>多车型比价</td><td><span class="tag">保险 200</span></td><td><span class="tag">R-102</span></td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">judge：无幻觉</td><td><span class="tag">工单 #4821</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-101" data-ds="smoke30"><td>88</td><td>含优惠叠加报价</td><td><span class="tag">冒烟 30</span></td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag">全部版本</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-103" data-ds="ins200"><td>91</td><td>历史出险影响保费</td><td><span class="tag">保险 200</span></td><td><span class="tag">R-103</span></td><td><span class="tag v">v4</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">金额一致 + 延迟&lt;3s</td><td><span class="tag">trace 导入</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-101" data-ds="ins200"><td>102</td><td>新能源专属补贴校验</td><td><span class="tag">保险 200</span></td><td><span class="tag">R-101</span></td><td><span class="tag v">v1</span></td><td><span class="tag only">仅 v2 专属</span></td><td class="muted">金额 = 规则引擎</td><td><span class="tag">手工</span></td><td><span class="pill ok">启用</span></td></tr>
+            <tr data-req="R-104" data-ds="red40"><td>44</td><td>过户后保单变更</td><td><span class="tag">红队 40</span></td><td><span class="tag">R-104</span></td><td><span class="tag v">v2</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">工具调用链正确</td><td><span class="tag">工单 #5102</span></td><td><span class="pill ok">启用</span></td></tr>
           </tbody>
         </table></div>
         <p class="hint">需求是用例上的<b>标签</b>，<b>多对多</b>——一条用例可打多个需求标签（模型里是 <span class="mono">case.requirement_ids</span> 列表），按任一标签过滤都会出现；一个需求也被多条用例覆盖（如 R-101 有 #17 #88 #102 三条）。标签同步到 Langfuse dataset item 的 metadata，Langfuse 侧也能按需求过滤。维护：编辑 / 归档 / 批量导入 / 设置适用版本。</p>
@@ -1284,17 +1303,21 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
 <!-- 导入 YAML：pydantic-evals 原生格式 + 扩展藏 metadata -->
 <div class="modal" id="yamlmodal">
   <div class="dialog" style="width:720px">
-    <div class="dialog-h"><b>导入 YAML</b> <span class="muted mono" style="font-size:12px;font-weight:400">pydantic-evals 原生 Dataset 格式</span><button class="btn sm" onclick="closeYaml()">✕</button></div>
+    <div class="dialog-h"><b>导入用例</b> <span class="muted mono" style="font-size:12px;font-weight:400">选 Dataset + 选 .yaml 文件</span><button class="btn sm" onclick="closeYaml()">✕</button></div>
     <div class="dialog-b">
       <div class="note" style="margin-top:0">
-        ✅ <b>标准 pydantic-evals YAML 直接导入</b>（<span class="mono">Dataset.to_file</span> 存的就是它）。我们的扩展字段
-        （需求标签 / 适用版本 / 用例版本）<b>住在每条 case 的 <span class="mono">metadata.edd_*</span> 下</b>——已验证能 round-trip、不破坏兼容。
+        ✅ <b>导入 = 选一个目标 Dataset + 选一个标准 pydantic-evals YAML 文件</b>。<b>不在这里手写 YAML</b>——文件由 <span class="mono">Dataset.to_file</span> 导出、或从别处拿来。扩展字段（需求标签 / 适用版本 / 用例版本）在每条 case 的 <span class="mono">metadata.edd_*</span> 下，round-trip 已验证。
       </div>
-      <div class="field"><label>选择文件</label>
-        <div style="display:flex;gap:8px;align-items:center"><button class="btn">📁 选择 .yaml 文件…</button><span class="muted">或直接粘贴 ↓</span></div>
+      <div class="field"><label>① 目标 Dataset</label>
+        <select><option>保险 200 条（全量回归）· 200</option><option>保险冒烟 30 条 · 30</option><option>红队注入 40 条 · 40</option><option>＋ 新建 Dataset…</option></select>
+        <p class="hint" style="margin-top:6px">导入的 case 进入这个 Dataset；选「＋ 新建 Dataset」则用文件里的 <span class="mono">name</span> 建一个新题库。</p>
       </div>
-      <div class="field"><label>YAML 内容</label>
-        <div class="codeblk">name: 保险报价
+      <div class="field"><label>② 选择文件</label>
+        <div style="display:flex;gap:8px;align-items:center"><button class="btn">📁 选择 .yaml 文件…</button><span class="muted">标准 pydantic-evals Dataset（.yaml）—— 不用手写</span></div>
+      </div>
+      <details class="field">
+        <summary style="cursor:pointer;font-size:13px;color:var(--muted)">▸ 标准 YAML 格式参考（只读，不用手填）</summary>
+        <div class="codeblk" style="margin-top:8px">name: 保险报价                    # Dataset 名
 cases:
 - name: 新能源报价
   inputs:                       # PE · 喂给被评系统的输入
@@ -1305,68 +1328,28 @@ cases:
     difficulty: hard
     edd_requirement_ids: [R-101]        # + 需求标签
     edd_applicable_versions: [v1, v2]   # + 适用系统版本
-  evaluators:                   # PE · 该用例专属评估器（内置=name+args，纯数据）
+  evaluators:                   # PE · 该用例专属评估器（内置 = 名+参数，纯数据）
   - IsInstance: dict
+
+- name: 报价必须先查保单库          # ← per-case 轨迹要求，就写在数据里
+  inputs: {q: 给我个报价}
+  metadata: {edd_requirement_ids: [R-140]}
+  evaluators:
+  - ToolCorrectness:            # 内置轨迹评估器（零代码）
+      expected_tools: [search_policy]   # 这条用例【必须】调这个工具
+      allow_extra: true
+
 evaluators:                     # PE · dataset 级评估器（跑全部 case）
 - EqualsExpected
 - MaxDuration: 3.0
-- TrajectoryMatch: {expected_trajectory: [intent.classify, quote.calc], order: in_order}
-- LLMJudge: 不得编造优惠/减免；1=编造 5=准确</div>
-      </div>
+- 注入检测: {}                   # ← 自定义评估器：这里只出现名字，代码在 git eval 项目</div>
+      </details>
       <div class="note">
-        ⚠️ <b>YAML 里引用的自定义评估器需代码已注册</b>（如 <span class="mono">- 注入检测: {...}</span>）——内置评估器（上面这些）直接进；
-        自定义的要项目 git 里有对应类。纯 pydantic-evals 文件也能导，只是暂无 <span class="mono">edd_*</span> 标签，导入后可在用例上补。
+        ⚠️ <b>内置评估器（<span class="mono">ToolCorrectness / IsInstance / EqualsExpected / MaxDuration…</span>）= 纯数据，直接进。</b>
+        YAML 里引用的<b>自定义评估器（如 <span class="mono">注入检测</span>）只是个名字</b>——它的<b>代码 + 依赖住在 git 的 eval 项目</b>里（运行时 <span class="mono">custom_evaluator_types=[…]</span> 注册）。<b>平台一行评估代码都不存</b>，只登记这份用例数据。
       </div>
     </div>
-    <div class="dialog-f"><span class="muted" style="flex:1;font-size:12px">预检：解析 → 校验评估器可解析 → 列出将导入 N 条</span><button class="btn" onclick="closeYaml()">取消</button><button class="btn primary" onclick="closeYaml()">导入</button></div>
-  </div>
-</div>
-
-<!-- 新建用例 Case：字段严格对应 pydantic-evals Case + 我们的扩展 -->
-<div class="modal" id="casemodal">
-  <div class="dialog" style="width:680px">
-    <div class="dialog-h"><b>新建用例</b> <span class="muted mono" style="font-size:12px;font-weight:400">Case · pydantic-evals 的一行</span><button class="btn sm" onclick="closeCase()">✕</button></div>
-    <div class="dialog-b">
-      <div class="note" style="margin-top:0">
-        🏷️ 标 <span class="pill new">PE</span> 的是 pydantic-evals <span class="mono">Case</span> 的原生字段（共 5 个），标 <span class="pill warn">+</span> 的是我们为"跨版本对比 / 追溯 / 管理"加的。
-      </div>
-
-      <div class="field"><label>用例名 <span class="pill new">PE name</span></label><input type="text" value="新能源车型报价"></div>
-
-      <div class="field"><label>inputs（喂给被评系统的输入）<span class="pill new">PE inputs</span> <span class="muted" style="font-weight:400">必填 · JSON</span></label>
-        <textarea>{
-  "car": "ev",
-  "city": "上海",
-  "claims_last_year": 0
-}</textarea></div>
-
-      <div class="field"><label>expected_output（期望输出，可空）<span class="pill new">PE expected_output</span> <span class="muted" style="font-weight:400">JSON</span></label>
-        <textarea>{ "premium": 4260 }</textarea>
-        <p class="hint" style="margin-top:6px">给了期望，<span class="mono">EqualsExpected</span> 这类评估器才能比；纯 LLM-judge 可不给。</p></div>
-
-      <div class="field"><label>metadata（任意附加信息，可空）<span class="pill new">PE metadata</span> <span class="muted" style="font-weight:400">JSON</span></label>
-        <textarea>{ "difficulty": "hard", "source_trace": "prod-2043" }</textarea>
-        <p class="hint" style="margin-top:6px">评估器能读它（<span class="mono">ctx.metadata</span>）；也用来标难度/来源等。</p></div>
-
-      <div class="field"><label>该用例专属评估器 <span class="pill new">PE evaluators</span> <span class="muted" style="font-weight:400">选库里已定义的（引用名，不写代码）</span></label>
-        <div><span class="tag">金额校验 v1</span><span class="tag">工具轨迹 v1</span><span class="tag muted" style="cursor:pointer">+ 选择评估器…</span></div>
-        <p class="hint" style="margin-top:6px">框架里这里放<b>内联评估器对象</b>；我们放<b>引用名</b>（评估器是库里可管理的定义）。<b>这是我们和框架一贯的差别，不是缺失。</b></p></div>
-
-      <hr style="border:none;border-top:1px dashed var(--line);margin:16px 0">
-
-      <div class="row-flex">
-        <div class="field"><label>需求标签 <span class="pill warn">+ requirement_ids</span></label>
-          <div><span class="tag">R-101</span><span class="tag muted" style="cursor:pointer">+</span></div></div>
-        <div class="field"><label>适用系统版本 <span class="pill warn">+ applicable_versions</span></label>
-          <select><option>全部版本通用</option><option>仅 v2 专属</option><option>v1 + v2</option></select></div>
-      </div>
-      <div class="row-flex">
-        <div class="field"><label>用例版本 <span class="pill warn">+ case_version</span></label><input type="text" value="v1" readonly></div>
-        <div class="field"><label>状态 <span class="pill warn">+ enabled</span></label><select><option>启用</option><option>归档</option></select></div>
-      </div>
-      <div class="note">🧩 下半区四个字段框架都没有：<b>需求标签</b>（多对多追溯）、<b>适用版本</b>（跨版本对比才需要）、<b>用例版本</b>（编辑历史）、<b>启用/归档</b>（管理）。</div>
-    </div>
-    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeCase()">取消</button><button class="btn primary" onclick="closeCase()">保存用例</button></div>
+    <div class="dialog-f"><span class="muted" style="flex:1;font-size:12px">预检：解析文件 → 校验评估器可解析 → 将导入 N 条到所选 Dataset</span><button class="btn" onclick="closeYaml()">取消</button><button class="btn primary" onclick="closeYaml()">导入到 Dataset</button></div>
   </div>
 </div>
 
@@ -1788,8 +1771,6 @@ evaluators:                     # PE · dataset 级评估器（跑全部 case）
   function openYaml(){document.getElementById('yamlmodal').classList.add('open')}
   function closeYaml(){document.getElementById('yamlmodal').classList.remove('open')}
   // 新建用例弹窗
-  function openCase(){document.getElementById('casemodal').classList.add('open')}
-  function closeCase(){document.getElementById('casemodal').classList.remove('open')}
   // 评估任务定义弹窗
   function openTask(){document.getElementById('taskmodal').classList.add('open')}
   function closeTask(){document.getElementById('taskmodal').classList.remove('open')}
@@ -1887,18 +1868,22 @@ evaluators:                     # PE · dataset 级评估器（跑全部 case）
   }
 
   // 用例库按需求标签过滤（需求↔用例是多对多标签，非从属）
-  function filterDS(chip,r){
-    document.querySelectorAll('#view-datasets .chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
+  var dsFilter={ds:'all',req:'all'};
+  function filterDS(chip,dim,val){
+    chip.parentElement.querySelectorAll('.chip').forEach(function(c){c.classList.remove('active')}); chip.classList.add('active');
+    dsFilter[dim]=val;
     document.querySelectorAll('#dsTbl tbody tr').forEach(function(tr){
-      tr.hidden=!(r==='all'||(tr.dataset.req||'').split(' ').indexOf(r)>=0);
+      var okDs = dsFilter.ds==='all' || tr.dataset.ds===dsFilter.ds;
+      var okReq = dsFilter.req==='all' || (tr.dataset.req||'').split(' ').indexOf(dsFilter.req)>=0;
+      tr.hidden=!(okDs&&okReq);
     });
   }
   // 从需求树跳到用例库并按该需求标签过滤——标签关系的实际用处
   function filterDSBy(rid){
     go('datasets');
-    var chip=document.querySelector('#view-datasets .chip[data-r="'+rid+'"]');
-    if(chip){ filterDS(chip,rid); }
-    else { var all=document.querySelector('#view-datasets .chip[data-r="all"]'); filterDS(all,'all'); }
+    var chip=document.querySelector('#dsFilterReq .chip[data-r="'+rid+'"]');
+    if(chip){ filterDS(chip,'req',rid); }
+    else { var all=document.querySelector('#dsFilterReq .chip[data-r="all"]'); filterDS(all,'req','all'); }
   }
   // 运行记录·轨迹：逐用例过滤
   function filterTrace(chip,k){
