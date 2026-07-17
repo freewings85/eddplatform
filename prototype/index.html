@@ -247,7 +247,6 @@
       <a data-view="requirements">🌳 需求树 <em>+</em></a>
       <a data-view="datasets">📁 用例集 <em>Dataset</em></a>
       <a data-view="tasks">🎯 评估任务定义 <em>Task</em></a>
-      <a data-view="evaluators">⚗️ 评估器 <em>Evaluator</em></a>
       <a data-view="environments">🗄️ 环境 / 沙箱 <em>+</em></a>
       <div class="sec">运行 &amp; 评估</div>
       <a data-view="runs">🏃 单独运行 <em>自测</em></a>
@@ -588,265 +587,53 @@ baseServices:
       <!-- 评估任务定义 Task：怎么评这个系统（版本无关的可复用定义） -->
       <section id="view-tasks" hidden>
         <h2 class="page">评估任务定义 <span class="muted mono" style="font-size:15px">Task</span></h2>
-        <p class="sub">"怎么评这个系统" 的<b>可复用定义</b>：绑入口 + 用例集 + 评估器 + 环境。<b>版本无关</b>——运行时才选版本。</p>
+        <p class="sub">"怎么评这个系统" 的<b>可复用定义</b> = 绑 <b>评估代码(repo@ref)</b> + <b>启动脚本</b> + <b>依赖外部服务</b> + <b>Dataset</b>。<b>版本运行时才注入。</b></p>
 
-        <div class="concept">
-          <div class="concept-h"><b>Task</b><span class="zh">评估任务定义 · 被评对象</span><span class="pill new">pydantic-evals 概念</span></div>
-          <p class="def">框架原义：<b>「被评估的函数或系统：接收 Case 的 inputs，产出 output」</b>。框架里 Task 就是一个<b>函数</b>，
-            传给 <span class="mono">dataset.evaluate_sync(task)</span> 就跑。</p>
-          <p class="map"><b>我们和框架的分道点，就在这一个对象上。</b>框架是 code-first——版本、入口、依赖全<b>闭包进那个函数</b>里，改一版就改代码。
-            我们要<b>跨版本比、且可在 UI 管理</b>，所以把 Task 从"一个函数"拆成一份<b>声明式定义</b>：绑<b>系统</b> + <b>入口适配器</b>（怎么喂输入 / 读输出）+ <b>用例集</b> + <b>评估器</b> + <b>环境</b>，
-            但<b>刻意不含版本</b>。<b>系统版本是运行时参数</b>：同一个 Task 定义在 v1、v2 各跑一次，就得到两个 Experiment，绑成一个 Comparison。</p>
+        <div class="concept ours">
+          <div class="concept-h"><b>Task</b><span class="zh">评估任务定义</span><span class="pill warn">EddPlatform：评估代码的绑定</span></div>
+          <p class="def">框架里 Task = 被评的那个<b>函数</b>（<span class="mono">dataset.evaluate(task)</span>）。我们不这么跑 —— 逻辑在 git 的 workflow 里。</p>
+          <p class="map">在 EddPlatform，Task = 把<b>评估代码 + 怎么起它 + 它依赖什么 + 跑哪个题库</b>打成一份<b>可复用定义</b>，<b>刻意不含版本</b>。同一个 Task 在 v1、v2 各跑一次 → 两个 Experiment → 一个 Comparison。<b>入口 / 评估器 / HITL 都在评估代码里，不在这份定义里。</b></p>
         </div>
 
         <div class="section-title"><h3>本系统的任务定义</h3><button class="btn primary" onclick="openTask()">+ 新建任务定义</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>任务定义</th><th>入口适配器</th><th>用例集</th><th>评估器（尺子）</th><th>环境</th><th></th></tr></thead>
+          <thead><tr><th>任务定义</th><th>评估代码 (repo@ref)</th><th>启动脚本</th><th>依赖外部服务</th><th>Dataset</th><th></th></tr></thead>
           <tbody>
-            <tr><td><b>报价·前门端到端</b><div class="muted" style="font-size:12px">整系统黑盒</div></td>
-              <td class="mono">POST /quote<div class="muted" style="font-size:11px">同步 · JSON</div></td>
-              <td>保险报价 <span class="muted">(200)</span></td>
-              <td class="chips"><span class="tag">金额校验 v1</span><span class="tag">工具轨迹 v1</span><span class="tag">条款解释 v2</span><span class="tag">延迟 v1</span></td>
-              <td>默认-轻量</td>
+            <tr><td><b>报价·端到端</b></td>
+              <td class="mono">insur-evals@a3f1</td>
+              <td class="mono" style="font-size:11px">evalctl serve --tq evals</td>
+              <td class="muted">mock datamanager</td>
+              <td>保险 200 条</td>
               <td><button class="btn sm" onclick="toggleDetail('task1')">看定义</button></td></tr>
             <tr id="task1" class="detail" hidden><td colspan="6">
               <div class="kv">
-                <div class="k">系统</div><div>保险报价系统</div>
-                <div class="k">入口适配器</div><div><span class="mono">POST /quote</span> · 同步取 <span class="mono">{output, tool_calls, usage}</span> · OTel 轨迹经 5 服务传播到 Langfuse</div>
-                <div class="k">用例集 (Dataset)</div><div>保险报价 200 条</div>
-                <div class="k">评估器 (Evaluator)</div><div>金额校验 v1 · 工具轨迹 v1 · 条款解释 v2 · 延迟 v1 <span class="muted">（各带版本 = 尺子钉死）</span></div>
-                <div class="k">环境 (Sandbox)</div><div>默认-轻量（namespace + NetworkPolicy）· 跑完销毁</div>
+                <div class="k">评估代码仓库</div><div><span class="mono">git@…/insur-evals.git</span> @ <span class="mono">a3f1</span> <span class="muted">（ref 钉死 = 尺子钉死）</span></div>
+                <div class="k">启动脚本</div><div><span class="mono">evalctl serve --task-queue evals</span> <span class="muted">—— 起 worker，托管 RunCase + 按 code 的实现表</span></div>
+                <div class="k">依赖外部服务</div><div><span class="tag">mock datamanager :7001</span> <span class="muted">评估前拉起、跑完销毁；没有就留空</span></div>
+                <div class="k">Dataset</div><div>保险 200 条（选中的 cases）</div>
                 <div class="k mono">版本</div><div><span class="pill warn">不在定义里</span> —— 运行时选，见「评估任务运行」</div>
+                <div class="k mono">评估器</div><div><span class="pill warn">不在定义里</span> —— 在评估代码的 handler 里</div>
               </div>
-              <div class="note" style="margin-top:12px">🎯 这份定义 = 一个「怎么评保险报价系统」的模板。<b>点「运行」时选 v1 或 v2</b>，各得一个 Experiment；两个 Experiment 才能对比。</div>
+              <div class="note" style="margin-top:12px">🎯 这份定义 = 一个「怎么评保险报价系统」的模板。<b>点「运行」时选 v1 或 v2</b>，各得一个 Experiment；两个 Experiment 用<b>同一个 ref</b>（尺子一致）才能对比。</div>
               <div style="margin-top:10px"><button class="btn sm primary" onclick="openWizard()">▶ 运行此任务（选版本）</button> <button class="btn sm">编辑定义</button></div>
             </td></tr>
 
-            <tr><td><b>报价·仅报价引擎</b><div class="muted" style="font-size:12px">单模块直连</div></td>
-              <td class="mono">quote-engine :8080<div class="muted" style="font-size:11px">绕过对话层</div></td>
-              <td>保险报价 <span class="muted">(适用 120)</span></td>
-              <td class="chips"><span class="tag">金额校验 v1</span></td>
-              <td>默认-轻量</td>
+            <tr><td><b>报价·冒烟</b></td>
+              <td class="mono">insur-evals@a3f1</td>
+              <td class="mono" style="font-size:11px">evalctl serve --tq evals</td>
+              <td class="muted">—</td>
+              <td>冒烟 30 条</td>
               <td><button class="btn sm">看定义</button></td></tr>
           </tbody>
         </table></div>
-        <p class="hint">同一个系统可有<b>多个任务定义</b>（不同入口 / 不同用例子集 / 不同尺子组合）——如「前门端到端」vs「仅报价引擎」。
-          <b>入口适配器</b>把"这个系统怎么被喂输入、怎么读输出"声明出来（对应记忆里 chatagent 那轮手写的 <span class="mono">frontdoor.py</span>，应升为一等定义），
-          让任意被评系统<b>声明式接入</b>，而不是每个项目手写 target。</p>
+
+        <div class="section-title"><h3>输出契约：扁平 JSON <span class="muted" style="font-size:12px;font-weight:400">评估代码 ↔ 平台唯一硬接口</span></h3></div>
+        <div class="note" style="margin-top:0">每个用例（<span class="mono">RunCase</span>）跑完回吐一份<b>扁平 JSON</b>，平台按 <span class="mono">code</span> 收回、做对比 / 卷需求。骨架固定 <span class="mono">code</span> + <span class="mono">passed</span>；其余字段用例自定义、<b>强制一层 scalar</b>，按类型定角色（<span class="mono">bool→判定 / 数值→分数 / 字符串→标签</span>）。<b>平台不懂字段语义、不建评估器模型</b> —— 评估器全在评估代码里。</div>
+        <div class="codeblk">{ "code": "CASE-砍价-预算", "passed": false, "成交价": 1000, "低于预算": false, "砍价轮数": 3 }</div>
+
+        <p class="hint">同一个系统可有<b>多个任务定义</b>（不同 Dataset 子集 / 不同 eval ref / 不同外部服务）。<b>入口 / 评估器 / HITL 都在评估代码里</b>，平台只管：用哪个 <span class="mono">repo@ref</span>、怎么起、依赖什么、跑哪个题库。</p>
       </section>
 
-      <section id="view-evaluators" hidden>
-        <h2 class="page">评估规范 <span class="muted mono" style="font-size:15px">逻辑在 git · 平台只定标准</span></h2>
-        <p class="sub">用例的评估逻辑全在 git 的标准 pydantic-evals 代码里。这一页是平台 ↔ 代码之间的<b>规范</b>：输出格式、代码怎么绑用例、尺子怎么钉版本，以及代码里能直接用的现成尺子。</p>
-
-        <div class="concept ours">
-          <div class="concept-h"><b>Evaluator</b><span class="zh">评估器</span><span class="pill warn">平台不建模型</span></div>
-          <p class="def">框架里 Evaluator 给结果打分并<b>按返回类型归类</b>：<span class="mono">bool→判定(assertion) / 数值→分数(score) / 字符串→标签(label)</span>。</p>
-          <p class="map"><b>在 EddPlatform，评估器只活在用例的 workflow 代码里</b> —— 现成的 pydantic-evals 内置，或自己写的 <span class="mono">Evaluator</span> 子类。<b>平台不建评估器模型</b>（无 EvaluatorDef、不存参数、不分内置/自定义档）：它不理解你怎么打分，<b>只按约定的扁平 JSON 收结果</b>。谁定义 = 代码；平台只调度 + 收分 + 卷需求。</p>
-        </div>
-
-        <div class="section-title"><h3>评估代码放哪：eval 项目 = 一个通用 workflow + 按 code 的实现</h3><span class="muted" style="font-size:12px">见 docs/评估代码与数据边界_eval-entry模式.md</span></div>
-        <div class="note" style="margin-top:0">🧱 用例逻辑 = eval 项目里<b>按 code 登记的实现（handler）</b>，由一个通用 <span class="mono">RunCase</span> workflow 分派（model / tool 调用是 Temporal activity）。eval 项目<b>提供一条启动命令起 worker</b> 托管这些；<b>可同主库、可独立库</b>，平台都解耦。</div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th style="width:96px"></th><th>和主代码同库 · in-process</th><th>独立库 · 前门驱动</th></tr></thead>
-          <tbody>
-            <tr><td><b>怎么跑</b></td><td>直接 <span class="mono">import</span> agent 函数，无适配器层</td><td>打部署好的黑盒(HTTP/SSE)，适配器读回执</td></tr>
-            <tr><td><b>适合</b></td><td>同团队 · Python · 可信</td><td>跨团队 · 非 Python · 黑盒 · 不可信</td></tr>
-            <tr><td><b>天然场景</b></td><td><b>单版本自测 / CI 门禁</b></td><td><b>跨版本公平对比</b>（外环）</td></tr>
-          </tbody>
-        </table></div>
-
-        <div class="section-title"><h3>输出规范：扁平 JSON <span class="muted" style="font-size:12px;font-weight:400">平台 ↔ 代码唯一硬接口</span></h3></div>
-        <div class="note" style="margin-top:0">每条用例跑完回吐一份<b>扁平 JSON</b> —— 平台做管理 / 对比 / 卷需求的<b>全部依据</b>。骨架固定 <span class="mono">code</span> + <span class="mono">passed</span>，其余字段用例自定义、但<b>强制一层 scalar</b>。</div>
-        <div class="row-flex">
-          <div style="flex:1.1;min-width:0">
-            <div class="codeblk">{
-  "code": "CASE-砍价-预算",   <span style="color:#7dd3fc"># 哪条用例（对回平台）</span>
-  "passed": false,            <span style="color:#7dd3fc"># 总判定；卷"需求达标"只认它</span>
-  "成交价": 1000,             <span style="color:#7dd3fc"># 数值 → 分数</span>
-  "低于预算": false,          <span style="color:#7dd3fc"># bool  → 判定</span>
-  "砍价轮数": 3,              <span style="color:#7dd3fc"># 数值 → 分数</span>
-  "结果": "超预算成交"        <span style="color:#7dd3fc"># 字符串 → 标签</span>
-}</div>
-          </div>
-          <div style="flex:.9;min-width:0">
-            <div class="tbl-wrap" style="box-shadow:none"><table>
-              <thead><tr><th>字段类型</th><th>平台当成</th></tr></thead>
-              <tbody>
-                <tr><td class="mono">bool</td><td>判定 (assertion)</td></tr>
-                <tr><td class="mono">数值</td><td>分数 (score)</td></tr>
-                <tr><td class="mono">字符串</td><td>标签 (label)</td></tr>
-              </tbody>
-            </table></div>
-            <p class="hint">按类型定角色（同 pydantic-evals）。平台照类型画列 / 跨版本比 / 聚合，<b>不用懂字段语义</b>。<b>禁止嵌套、禁止对象数组</b>；"每轮报价"压成 <span class="mono">砍价轮数:3</span> 这种标量。</p>
-          </div>
-        </div>
-
-        <div class="section-title"><h3>用例怎么绑：一个通用 workflow + 按 code 分派</h3></div>
-        <div class="codeblk"># eval 项目侧（worker 托管）：一个通用 workflow，按 code 分派到该用例的实现
-@workflow.defn(name="RunCase")
-class RunCase:
-    @workflow.run
-    async def run(self, args) -&gt; dict:
-        return await CASE_HANDLERS[args["code"]](args["code"], args["target"])
-
-# 某条用例的实现（HITL：商家报价靠 signal 喂，durable 等，反应式，不是磁带）
-async def haggle_budget(code, target) -&gt; dict:
-    deal = await negotiate(goal="买二手相机", budget=900, merchant=reactive_merchant())
-    return {                              <span style="color:#7dd3fc"># ← 扁平 JSON（骨架 + 自定义 scalar）</span>
-        "code": code, "passed": deal.closed and deal.price &lt;= 900,
-        "成交价": deal.price, "低于预算": deal.price &lt;= 900, "砍价轮数": deal.rounds,
-    }
-CASE_HANDLERS = {"CASE-砍价-预算": haggle_budget}   <span style="color:#7dd3fc"># eval 项目按 code 登记</span></div>
-        <div class="note">🔗 <b>触发链路</b>：<b>平台(EDD) 只用 client</b> —— 逐 case <span class="mono">client.execute_workflow("RunCase", {code, target}, id="exp/"+code)</span> → 每个执行回吐扁平 JSON，按 <span class="mono">code</span> 收 → 卷需求 / 对比。<b>worker（托管 RunCase）在 eval 项目那侧、跑在沙箱里</b>,平台不碰。实现表里没这个 code（待实现）→ 触发即 fail loud。HITL 的暂停 / 等待 / 恢复全归 Temporal。</div>
-
-        <div class="note" style="background:var(--warn-weak);border-color:#fde68a;color:#92400e">
-          ⚖️ <b>尺子一致性 = 钉 ref</b>：跨版本对比要求两版用同一把尺子 —— 做法是 v1、v2 的子 workflow 跑在<b>同一个 eval 项目 ref 部署的 worker</b>上（同一批 workflow 代码 + 依赖）。钉一个 ref = 评估逻辑 + 依赖 + rubric 全钉死。单版本自测则无所谓，尺子跟着代码走反而对。
-        </div>
-
-        <div class="section-title"><h3>现成尺子 <span class="muted" style="font-size:12px;font-weight:400">代码里可直接用的 pydantic-evals 内置 · 参考，非平台管理</span></h3></div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th style="width:120px">维度</th><th>内置评估器</th><th>读 ctx 的</th></tr></thead>
-          <tbody>
-            <tr><td><b>结果正确性</b></td><td class="chips"><span class="tag">EqualsExpected</span><span class="tag">Equals</span><span class="tag">Contains</span><span class="tag">IsInstance</span></td><td class="mono muted">output / expected_output</td></tr>
-            <tr><td><b>轨迹 / 工具</b><div class="muted" style="font-size:12px">agent 核心维度</div></td>
-              <td class="chips"><span class="tag v">TrajectoryMatch</span><span class="tag v">ToolCorrectness</span><span class="tag v">ArgumentCorrectness</span><span class="tag v">MaxToolCalls</span><span class="tag v">MaxModelRequests</span><span class="tag">HasMatchingSpan</span></td>
-              <td class="mono muted">span_tree / metrics</td></tr>
-            <tr><td><b>速度</b></td><td class="chips"><span class="tag">MaxDuration</span></td><td class="mono muted">duration</td></tr>
-            <tr><td><b>主观质量</b></td><td class="chips"><span class="tag">LLMJudge</span><span class="tag v">GEval</span></td><td class="mono muted">output（+ inputs）</td></tr>
-          </tbody>
-        </table></div>
-        <p class="hint">这些在<b>代码里 import 就能用</b>，不用平台登记。轨迹类是 agent 核心：<span class="mono">TrajectoryMatch</span> 用 LCS-F1 给部分分；<span class="mono">ToolCorrectness</span> 比工具多重集；HITL 的"该停时停了没"用 <span class="mono">HasMatchingSpan</span> 查 deferral span。内置盖不住的（业务判定 / 注入检测 / 商家反应式模拟）才自己写 <span class="mono">Evaluator</span> 子类。 <button class="btn sm" onclick="go('eval-guide')">📖 Langfuse 评估标准指南</button></p>
-      </section>
-
-      <!-- Langfuse 评估标准指南（子页，从评估器页进） -->
-      <section id="view-eval-guide" hidden>
-        <a class="btn sm" onclick="go('evaluators')" style="cursor:pointer">← 返回评估器</a>
-        <h2 class="page" style="margin-top:12px">评估标准怎么设（对齐 Langfuse 语义）</h2>
-        <p class="sub">我们的评估引擎就是 <b>Langfuse</b>（不自研）。这页把「我们要评的维度」逐一对应到「在 Langfuse 里怎么设、能不能设」，配示例 + 官方文档，照着做即可。</p>
-
-        <div class="note">
-          🧭 <b>Langfuse 把"评估"分两层</b>：<br/>
-          <b>① 评估器 → Score</b>（你定义标准的地方）：<b>LLM-as-a-Judge</b>（主观质量）/ <b>Code evaluator</b>（确定性校验）/ <b>SDK 自定义 Score</b>。<br/>
-          <b>② 可观测指标</b>（自动采集，不用定义）：延迟 / 成本 / token / <b>TTFT</b> 自动挂在 trace/observation 上，用 Dashboard / Metrics API 看聚合；要把它变成"通过/不通过门禁"，就用 <b>SDK 自定义 Score</b> 回灌一条。
-        </div>
-
-        <div class="row-flex" style="margin-bottom:6px">
-          <div class="card" style="padding:14px 16px">
-            <div><span class="pill new">① 评估器 → Score</span></div>
-            <p class="muted" style="margin:8px 0 0"><b>LLM-as-a-Judge</b>：写 rubric 让模型打分（主观：质量/幻觉/语气）。<b>Code evaluator</b>：Python 函数确定性校验（exact match / JSON schema / 工具调用 / 自定义规则，2s 内跑完）。均可跑在 <b>experiment / trace / 单个 observation</b> 上。</p>
-          </div>
-          <div class="card" style="padding:14px 16px">
-            <div><span class="pill neutral">② 可观测指标</span></div>
-            <p class="muted" style="margin:8px 0 0"><b>延迟 / 成本 / token / TTFT</b> 由 Langfuse 自动采集（TTFT 需 emit <span class="mono">completion_start_time</span>）。看聚合走 <b>Metrics API / Latency & Cost Dashboard</b>；要做成发布门禁 → <b>SDK <span class="mono">create_score</span></b> 回灌一条 Boolean。</p>
-          </div>
-        </div>
-        <p class="hint chips" style="margin:10px 0 0">Score 数据类型（4 种）：
-          <span class="tag">Numeric 数值</span><span class="tag">Categorical 类别</span><span class="tag">Boolean 布尔</span><span class="tag">Text 文本</span>
-          <a class="mono" href="https://langfuse.com/docs/evaluation/scores/data-model" target="_blank" rel="noopener">Score 数据模型 ↗</a>
-        </p>
-
-        <div class="section-title"><h3>我们的维度 → 在 Langfuse 里怎么设</h3></div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>我们要评的维度</th><th>在 Langfuse 里用什么</th><th>数据来源</th><th>能做?</th><th>官方文档</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><b>结果正确性</b><div class="muted" style="font-size:12px">有标准答案（金额=规则引擎）</div></td>
-              <td>Code evaluator（exact match / JSON schema）</td>
-              <td class="mono">output vs expected</td>
-              <td><span class="pill ok">✅ 原生</span></td>
-              <td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators" target="_blank" rel="noopener">Code evaluators ↗</a></td>
-            </tr>
-            <tr>
-              <td><b>输出文字质量</b><div class="muted" style="font-size:12px">条款解释无幻觉 / 语气</div></td>
-              <td>LLM-as-a-Judge（写 rubric，输出 Numeric/Categorical）</td>
-              <td class="mono">output（+ input）</td>
-              <td><span class="pill ok">✅ 原生一键</span></td>
-              <td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener">LLM-as-a-Judge ↗</a></td>
-            </tr>
-            <tr>
-              <td><b>轨迹质量 / 最小链路</b><div class="muted" style="font-size:12px">工具调用对不对、有无冗余、步数</div></td>
-              <td>Code evaluator over observations（工具调用校验 / 自定义规则）+ observation-level eval</td>
-              <td class="mono">observation 树</td>
-              <td><span class="pill warn">⚠️ 能做·需自写 code</span></td>
-              <td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators" target="_blank" rel="noopener">Code evaluators ↗</a></td>
-            </tr>
-            <tr>
-              <td><b>速度 / 延迟</b><div class="muted" style="font-size:12px">总耗时、P95</div></td>
-              <td>指标自动采集；要门禁 → SDK <span class="mono">create_score</span> 读 latency 回灌 Boolean</td>
-              <td class="mono">trace / observation latency</td>
-              <td><span class="pill ok">✅ 指标原生</span> <span class="pill neutral">门禁需回灌</span></td>
-              <td><a href="https://langfuse.com/docs/metrics/features/metrics-api" target="_blank" rel="noopener">Metrics API ↗</a></td>
-            </tr>
-            <tr>
-              <td><b>TTFT</b><div class="muted" style="font-size:12px">首 token 时延</div></td>
-              <td>需被评系统 emit <span class="mono">completion_start_time</span>（流式）；自动算 TTFT；门禁 → SDK Score</td>
-              <td class="mono">generation.completion_start_time</td>
-              <td><span class="pill warn">⚠️ 需先 emit</span></td>
-              <td><a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener">Token & Cost / TTFT ↗</a></td>
-            </tr>
-            <tr>
-              <td><b>成本 / 用例</b><div class="muted" style="font-size:12px">token 花费</div></td>
-              <td>从 usage 自动算；Cost Dashboard；门禁 → SDK Score</td>
-              <td class="mono">generation.usage</td>
-              <td><span class="pill ok">✅ 指标原生</span> <span class="pill neutral">门禁需回灌</span></td>
-              <td><a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener">Token & Cost tracking ↗</a></td>
-            </tr>
-          </tbody>
-        </table></div>
-        <p class="hint">口径：<b>质量类维度</b>（正确性/文字/轨迹）= Langfuse <b>评估器→Score</b>；<b>信号类维度</b>（延迟/TTFT/成本）= Langfuse <b>可观测指标</b>，自动采、看 dashboard，要卡发布就回灌一条 Boolean Score。</p>
-
-        <div class="section-title"><h3>示例</h3></div>
-        <p class="hint" style="margin-top:0">① LLM-as-a-Judge rubric（在 Langfuse UI「+ Set up Evaluator」里填，<span class="mono">{{变量}}</span> 映射到 trace 字段）</p>
-        <div class="codeblk">评估「条款解释」质量（输出 Numeric 1-5）：
-
-Rate the accuracy of this insurance answer.
-{{input}}  was the user's question.
-{{output}} was the assistant's answer.
-Score 1 if it fabricates any discount/rule, 3 if partially correct,
-5 if fully accurate and grounded in real policy terms.
-
-# 变量映射：{{input}}→observation input，{{output}}→observation output
-# 嵌套取值用 JSONPath，如 $.choices[0].message.content</div>
-
-        <p class="hint">② Code evaluator（确定性校验；轨迹/最小链路在此写；跑在 experiment 或 observation 上）</p>
-        <div class="codeblk">def evaluate(ctx: EvaluationContext) -> EvaluationResult:
-    # 结果正确性：output == 期望
-    expected = ctx.experiment.item_expected_output
-    ok = expected is not None and ctx.observation.output == expected
-
-    # 轨迹/最小链路：数工具调用 observation，去重、限步数
-    tool_calls = [o for o in ctx.observation.children if o.type == "tool"]
-    minimal = len(tool_calls) <= 2 and len({t.name for t in tool_calls}) == len(tool_calls)
-
-    return EvaluationResult(scores=[
-        Score(name="金额校验", value=ok,      data_type="BOOLEAN"),
-        Score(name="最小链路", value=minimal, data_type="BOOLEAN"),
-    ])</div>
-
-        <p class="hint">③ SDK 自定义 Score —— 把"信号类指标"做成发布门禁（延迟 / TTFT / 成本回灌 Boolean）</p>
-        <div class="codeblk"># 延迟 / TTFT / 成本不是评估器内置字段 → 读 trace 上自动采的值，回灌一条 Score
-lf.create_score(trace_id=tid, name="延迟达标", value=(latency_ms <= 3000), data_type="BOOLEAN")
-lf.create_score(trace_id=tid, name="TTFT达标", value=(ttft_ms   <= 800),  data_type="BOOLEAN")
-lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), data_type="BOOLEAN")
-# 这些 Score 和评估器打的分并列进 dataset run，Compare 视图一起看老新对比</div>
-
-        <div class="section-title"><h3>官方文档</h3></div>
-        <div class="tbl-wrap"><table>
-          <tbody>
-            <tr><td>评估总览 / 核心概念</td><td><a href="https://langfuse.com/docs/evaluation/overview" target="_blank" rel="noopener">Evaluation Overview ↗</a> · <a href="https://langfuse.com/docs/evaluation/core-concepts" target="_blank" rel="noopener">Core Concepts ↗</a></td></tr>
-            <tr><td>Score 数据模型（4 类型）</td><td><a href="https://langfuse.com/docs/evaluation/scores/data-model" target="_blank" rel="noopener">Scores Data Model ↗</a></td></tr>
-            <tr><td>LLM-as-a-Judge</td><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge" target="_blank" rel="noopener">LLM-as-a-Judge ↗</a></td></tr>
-            <tr><td>Code evaluators</td><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators" target="_blank" rel="noopener">Code Evaluators ↗</a></td></tr>
-            <tr><td>SDK/API 自定义 Score</td><td><a href="https://langfuse.com/docs/evaluation/evaluation-methods/scores-via-sdk" target="_blank" rel="noopener">Scores via SDK/API ↗</a></td></tr>
-            <tr><td>数据集实验（老新对比）</td><td><a href="https://langfuse.com/docs/evaluation/experiments/datasets" target="_blank" rel="noopener">Datasets ↗</a> · <a href="https://langfuse.com/docs/evaluation/experiments/experiments-via-sdk" target="_blank" rel="noopener">Experiments via SDK ↗</a></td></tr>
-            <tr><td>延迟 / 成本 / TTFT / token</td><td><a href="https://langfuse.com/docs/observability/features/token-and-cost-tracking" target="_blank" rel="noopener">Token & Cost Tracking ↗</a> · <a href="https://langfuse.com/docs/metrics/features/metrics-api" target="_blank" rel="noopener">Metrics API ↗</a></td></tr>
-          </tbody>
-        </table></div>
-        <div style="margin-top:14px"><button class="btn primary" onclick="return false">在 Langfuse 打开评估器设置 ↗</button> <span class="hint">跳到自托管实例的 Evaluators 页（<span class="mono">$LANGFUSE_HOST/evaluators</span>）</span></div>
-      </section>
-
-      <!-- 环境/沙箱：可配置 + 运行中实例 -->
       <section id="view-environments" hidden>
         <h2 class="page">环境 / 沙箱</h2>
         <p class="sub">沙箱配置<b>可复用可选择</b>；运行 / 评估时从配置里选一套拉起</p>
@@ -1349,109 +1136,6 @@ cases:
   </div>
 </div>
 
-<!-- 定义评估器 -->
-<div class="modal" id="evalmodal">
-  <div class="dialog" style="width:900px">
-    <div class="dialog-h"><b>定义评估器</b> <span class="muted" style="font-size:12px;font-weight:400">选打分方式 → 填字段 → 生成 Pydantic Evals 定义</span><button class="btn sm" onclick="closeEvalDef()">✕</button></div>
-    <div class="dialog-b">
-      <div style="display:grid;grid-template-columns:1.05fr 1fr;gap:20px">
-        <!-- 左：表单 -->
-        <div>
-          <div class="row-flex">
-            <div class="field"><label>名称 (evaluation_name)</label><input type="text" value="金额校验"></div>
-            <div class="field"><label>版本 (get_evaluator_version)</label><input type="text" value="v1"></div>
-          </div>
-          <div class="note" style="margin:-4px 0 14px">🔒 <b>改了判定逻辑就必须 bump 版本</b>（rubric / 代码 / 阈值任一变化）。
-            尺子变了而版本没变，拿它评出的新分去和旧分比，「改善 / 回归」就是<b>假结论</b>。评估对比会校验两侧版本一致。</div>
-          <div class="field"><label>打分方式</label>
-            <div class="segmented" id="ekseg">
-              <button class="seg active" onclick="evalKind(this,'builtin')">内置代码</button>
-              <button class="seg" onclick="evalKind(this,'custom')">自定义代码</button>
-              <button class="seg" onclick="evalKind(this,'judge')">LLM 评委</button>
-            </div>
-          </div>
-
-          <div class="ekind" data-k="builtin">
-            <div class="field"><label>内置评估器</label>
-              <select>
-                <optgroup label="结果正确性">
-                  <option>EqualsExpected — 输出 == 期望</option>
-                  <option>Equals — 输出 == 指定值</option>
-                  <option>Contains — 输出包含子串 / 成员</option>
-                  <option>IsInstance — 输出类型匹配</option>
-                </optgroup>
-                <optgroup label="轨迹 / 工具（agent 核心维度）">
-                  <option>TrajectoryMatch — 工具调用顺序（LCS-F1 部分分）</option>
-                  <option>ToolCorrectness — 该调的工具都调了（多重集）</option>
-                  <option>ArgumentCorrectness — 某次工具调用的入参对不对</option>
-                  <option>MaxToolCalls — 工具调用数 ≤ 预算</option>
-                  <option>MaxModelRequests — 模型请求数 ≤ 预算</option>
-                  <option>HasMatchingSpan — 轨迹里存在某 span</option>
-                </optgroup>
-                <optgroup label="速度 / 主观质量">
-                  <option>MaxDuration — 耗时 ≤ 阈值</option>
-                  <option>GEval — 思维链评委（criteria + 显式步骤）</option>
-                </optgroup>
-              </select>
-            </div>
-            <div class="field"><label>参数</label><input type="text" value="（EqualsExpected 无参数）"></div>
-          </div>
-
-          <div class="ekind" data-k="custom" hidden>
-            <div class="field"><label>evaluate(ctx) 代码</label>
-              <textarea>def evaluate(self, ctx):
-    return ctx.output["premium"] == ctx.expected_output["premium"]</textarea>
-            </div>
-          </div>
-
-          <div class="ekind" data-k="judge" hidden>
-            <div class="field"><label>rubric（打分标准，可用 {{input}} {{output}}）</label>
-              <textarea>只依据真实条款，不得编造优惠/减免；1=严重编造，5=完全准确</textarea>
-            </div>
-            <div class="row-flex">
-              <div class="field"><label>评委模型</label><select><option>openai:gpt-5.2（默认）</option><option>anthropic:claude-opus-4-8</option><option>本地模型</option></select></div>
-              <div class="field"><label>附带</label><select><option>喂入 input（include_input）</option><option>只看 output</option></select></div>
-            </div>
-          </div>
-
-          <div class="field"><label>读取输入（EvaluatorContext 字段）</label>
-            <div class="row-flex">
-              <select>
-                <option>output（实际输出）</option><option>expected_output（期望）</option>
-                <option>inputs（用例输入）</option><option>metadata</option>
-                <option>duration（耗时）</option><option>span_tree（轨迹）</option>
-                <option>metrics（信号：token / 成本 / TTFT / 请求数…）</option>
-                <option>attributes（被评系统自带的任意属性）</option>
-              </select>
-              <input type="text" placeholder="JSONPath / key，如 $.premium 或 tokens.cache_read">
-            </div>
-            <p class="hint" style="margin-top:6px">📊 <b><span class="mono">metrics</span> 是开放 dict</b>（<span class="mono">dict[str, int|float]</span>），不是固定字段：
-              被评系统 emit 什么信号，评估器就能读什么——<b>加新信号不用改平台代码</b>。<br/>
-              <span class="muted">（对比：把 TTFT / usage / cost 各写成一个字段，每加一个信号就要改模型 + 改枚举 + 改这个下拉，三处。chatagent 那轮为了拿全 token 接 OTel collector 读 <span class="mono">gen_ai.client.token.usage</span>，走的正是这条路。）</span></p>
-          </div>
-          <div class="field"><label>输出类型 &amp; 通过阈值</label>
-            <div class="row-flex">
-              <select><option>assertion — 通过/不通过 (bool)</option><option>score — 数值</option><option>label — 类别 (字符串)</option></select>
-              <input type="text" placeholder="通过阈值（如 ≥ 4；bool 免填）">
-            </div>
-          </div>
-          <div class="field"><label>挂到</label>
-            <select><option>整个用例集（dataset 级）</option><option>指定用例（case 级）</option><option>聚合报告（report 级）</option></select>
-          </div>
-        </div>
-
-        <!-- 右：生成的定义 -->
-        <div>
-          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:600">生成的定义（登记为 Langfuse 评估器；pydantic-ai 项目可选 pydantic-evals）</label>
-          <div class="codeblk" id="evalPreview"></div>
-          <div class="note" style="margin-top:12px">保存后：① 登记到 <b>Langfuse</b>（引擎：可管理 / 自动跑生产流量 / dataset run 对比）；② 可选：pydantic-ai 项目落成 <b>pydantic-evals Evaluator</b> 执行。</div>
-        </div>
-      </div>
-    </div>
-    <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeEvalDef()">取消</button><button class="btn primary" onclick="closeEvalDef()">保存评估器</button></div>
-  </div>
-</div>
-
 <!-- 新建需求 -->
 <div class="modal" id="reqmodal">
   <div class="dialog" style="width:580px">
@@ -1500,19 +1184,20 @@ cases:
 <!-- 新建评估任务定义 Task：绑入口+用例集+评估器+环境，版本无关 -->
 <div class="modal" id="taskmodal">
   <div class="dialog" style="width:600px">
-    <div class="dialog-h"><b>新建评估任务定义</b> <span class="muted" style="font-size:12px;font-weight:400">Task · 怎么评这个系统（版本无关）</span><button class="btn sm" onclick="closeTask()">✕</button></div>
+    <div class="dialog-h"><b>新建评估任务定义</b> <span class="muted" style="font-size:12px;font-weight:400">Task · 绑评估代码 + 怎么起 + 依赖 + 题库（版本无关）</span><button class="btn sm" onclick="closeTask()">✕</button></div>
     <div class="dialog-b">
-      <div class="field"><label>名称</label><input type="text" value="报价·前门端到端"></div>
-      <div class="field"><label>入口适配器（怎么喂输入 / 读输出）</label>
-        <select><option>POST /quote — 同步，取 {output, tool_calls, usage}</option><option>前门 /chat/stream — SSE，聚合到一轮结束</option><option>quote-engine :8080 — 单模块直连</option><option>自定义 HTTP…</option></select>
-        <p class="hint" style="margin-top:6px">声明式入口，让任意被评系统接入，不用每个项目手写 target（对应 <span class="mono">frontdoor.py</span> 升为一等定义）。</p>
+      <div class="field"><label>名称</label><input type="text" value="报价·端到端"></div>
+      <div class="row-flex">
+        <div class="field"><label>评估代码仓库 <span class="mono">repo</span></label><input type="text" value="git@…/insur-evals.git"></div>
+        <div class="field"><label>ref <span class="muted" style="font-weight:400">钉死 = 尺子钉死</span></label><input type="text" value="a3f1"></div>
       </div>
-      <div class="field"><label>用例集 (Dataset)</label><select><option>保险报价 200 条</option><option>保险冒烟 30 条</option></select></div>
-      <div class="field"><label>评估器（尺子，各带版本）</label>
-        <div><span class="tag">金额校验 v1</span><span class="tag">工具轨迹 v1</span><span class="tag">条款解释 v2</span><span class="tag">延迟 v1</span><span class="tag muted" style="cursor:pointer">+ 选择评估器…</span></div>
+      <div class="field"><label>启动脚本 <span class="muted" style="font-weight:400">起 worker，托管 RunCase + 实现表</span></label><input type="text" value="evalctl serve --task-queue evals"></div>
+      <div class="field"><label>依赖的外部服务 <span class="muted" style="font-weight:400">评估前拉起，可留空</span></label>
+        <div><span class="tag">mock datamanager :7001</span><span class="tag muted" style="cursor:pointer">+ 加服务</span></div>
+        <p class="hint" style="margin-top:6px">为评估需要额外起的进程 / 服务（mock、中间件…）。<b>不需要就留空。</b></p>
       </div>
-      <div class="field"><label>环境 / 沙箱</label><select><option>默认-轻量（namespace + NetworkPolicy）</option><option>强隔离（vCluster）</option></select></div>
-      <div class="note">🎯 <b>这里不选版本</b>——版本是<b>运行时</b>才注入的参数。同一个任务定义分别在 v1、v2 上运行，得到两个 Experiment，才能组成一次 Comparison。</div>
+      <div class="field"><label>Dataset（跑哪个题库）</label><select><option>保险 200 条</option><option>保险冒烟 30 条</option><option>红队 40 条</option></select></div>
+      <div class="note">🎯 <b>这里不选版本、不选评估器</b> —— 版本是<b>运行时</b>注入；入口 / 评估器 / HITL 都在<b>评估代码</b>里。同一个定义在 v1、v2 各跑一次 = 两个 Experiment = 一次 Comparison。</div>
     </div>
     <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeTask()">取消</button><button class="btn primary" onclick="closeTask()">保存任务定义</button></div>
   </div>
@@ -1728,7 +1413,7 @@ cases:
 <script>
   // 两层：全局(global) / 系统(system)
   var gTitles={overview:'全局概览',systems:'系统管理',settings:'基础设置'};
-  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求树',datasets:'用例集',tasks:'评估任务定义',evaluators:'评估器','eval-guide':'Langfuse 评估标准指南',environments:'环境 / 沙箱',runs:'单独运行',run:'运行详情',evaluations:'评估任务运行',comparison:'评估对比',releases:'发布记录'};
+  var sTitles={'sys-overview':'系统概览','sys-modules':'模块 & Git','sys-versions':'系统版本',requirements:'需求树',datasets:'用例集',tasks:'评估任务定义',environments:'环境 / 沙箱',runs:'单独运行',run:'运行详情',evaluations:'评估任务运行',comparison:'评估对比',releases:'发布记录'};
   var curSys='保险报价系统', mode='global';
 
   // 登录门：Jira 账号（原型里不校验，点了就进）
@@ -1891,20 +1576,6 @@ cases:
       var det=tr.nextElementSibling; if(det&&det.classList.contains('detail')) det.hidden=true;
     });
   }
-  // 定义评估器
-  var evalPreviews={
-    builtin:'# YAML（EvaluatorSpec）——挂到用例集 / 单个用例\nevaluators:\n- EqualsExpected\n- MaxDuration: 3.0\n\n# 轨迹类：agent 的核心维度，全内置，别自己写\n- TrajectoryMatch:\n    expected_trajectory: ["intent.classify", "quote.calc", "dialog.explain"]\n    order: in_order          # LCS-F1 → 部分分，不是 bool\n- ToolCorrectness:\n    expected_tools: ["quote.calc", "dialog.explain"]\n    allow_extra: false\n- MaxToolCalls: {max_calls: 4}   # 失败的调用也算——照样烧 token',
-    custom:'from dataclasses import dataclass\nfrom pydantic_evals.evaluators import Evaluator, EvaluatorContext\n\n@dataclass\nclass 金额校验(Evaluator):\n    def evaluate(self, ctx: EvaluatorContext) -> bool:\n        return ctx.output["premium"] == ctx.expected_output["premium"]\n    # bool → assertion（通过 / 不通过）\n\n    def get_evaluator_version(self) -> str:\n        return "v1"     # ← 改判定逻辑必须 bump，否则新老分不可比',
-    judge:'from pydantic_evals.evaluators import LLMJudge\n\nLLMJudge(\n    rubric="只依据真实条款，不得编造优惠/减免；1-5 分",\n    model="openai:gpt-5.2",\n    include_input=True,\n    assertion={"include_reason": True},  # 通过/不通过 + 理由\n    score={"evaluation_name": "条款质量"},  # 另附 0-1 分\n)\n# 改了 rubric = 换了尺子 → get_evaluator_version() 必须 bump\n\n# 更稳的主观评判：GEval —— 把"怎么判"拆成显式步骤\nfrom pydantic_evals.evaluators import GEval\nGEval(\n    criteria="条款解释是否只依据真实条款、无编造减免",\n    evaluation_steps=[\n        "列出输出中提到的每一条优惠/减免",\n        "逐条在真实条款里查证是否存在",\n        "只要有一条查无实据，判低分",\n    ],\n    score_range=(1, 5),   # 先出推理轨迹，再给整数分\n)'
-  };
-  function openEvalDef(){document.getElementById('evalmodal').classList.add('open'); evalKind(document.querySelector('#ekseg .seg'),'builtin');}
-  function closeEvalDef(){document.getElementById('evalmodal').classList.remove('open')}
-  function evalKind(el,k){
-    document.querySelectorAll('#ekseg .seg').forEach(function(s){s.classList.remove('active')}); el.classList.add('active');
-    document.querySelectorAll('#evalmodal .ekind').forEach(function(p){p.hidden=p.dataset.k!==k});
-    document.getElementById('evalPreview').textContent=evalPreviews[k];
-  }
-
   // 运行详情 tab
   function runTab(el,rt){
     document.querySelectorAll('#view-run .tab').forEach(function(t){t.classList.remove('active')}); el.classList.add('active');
