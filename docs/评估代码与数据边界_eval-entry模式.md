@@ -1,106 +1,113 @@
-# 评估的代码/数据边界 · eval entry 模式（定死）
+# 评估架构（定死）：EDD 只做管理与调度，逻辑全在 pydantic-evals 代码
 
 > 本文档锁定 EddPlatform 里"评估到底由谁写、住在哪、平台管什么"这条架构线。
-> 结论是在走通 **自定义评估器、每用例参数、trace 导入、HITL 暂停恢复** 几个硬案例后收敛出来的，作为后续实现与原型的准绳。
+> 结论是在走通 **自定义评估器、每用例参数、trace 导入、HITL 暂停恢复** 几个硬案例、并做了大幅化简后收敛出来的，作为后续实现与原型的准绳。
 
 ## 结论（一句话）
 
-评估被切成两半：**声明式的部分是数据、住在平台**；**命令式的部分是代码、住在 git**。
-平台**不**引用"一个独立评估项目"，而引用一个 **eval entry** —— 一个 `{ git repo + ref + 运行命令 + 契约 }`。
-这个 repo **可以就是被评系统自己的主代码库**（评估代码和主代码写在一起），**也可以是独立评估库**；平台不关心放哪，只认契约。
+**EDD 平台 = 用例的管理 + 调度；用例的真逻辑 = git 里标准的 pydantic-evals 代码。**
+平台给每条用例挂"编号 + 说明 + 代码文件路径"，负责"跑哪些用例 × 哪个系统版本 × 哪个沙箱、把结果收回来"做需求卷积 / 版本对比 / 发布。
+**平台不理解、不校验用例逻辑 —— 即使说明和代码不一致，平台也感知不到。这是故意的。**
 
-## 一、评估拆两半
+## 一、用例（平台侧的登记项）
 
-| | 在哪 | 是什么 |
-|---|---|---|
-| **数据（声明式）** | **平台** | 用例 / Dataset（`inputs` · `expected_output` · `metadata.edd_*` · 需求标签）；**内置评估器 spec**（`ToolCorrectness: {expected_tools:[…]}`、`MaxDuration`… —— 连"每用例要哪个工具"都是数据）；HITL 的外部剧本 / persona 参数 |
-| **代码（命令式）** | **git** | **任务适配器**（driving 系统 · 读 output/tool_calls/usage · 发 span · **HITL resume 循环 + 模拟外部方**）；**自定义评估器**（内置盖不住的 `Evaluator` 子类 + 依赖）；**运行入口**；**钉死的依赖（lockfile）** |
+一个用例 = ：
 
-关键：**内置评估器不是代码。** 你在用例 YAML 里写 `ToolCorrectness / TrajectoryMatch / MaxDuration`，平台照存照跑，git 里一行都不用为它写。只有内置盖不住的（注入检测、业务判定、外部模拟器）才进 git。
+| 组成 | 说明 |
+|---|---|
+| `code` | 唯一编号，平台内主键，也是结果对回来的接缝 |
+| **说明** | ① yaml 式结构描述（inputs / 期望 / 元数据，可选）+ ② 一段纯文字描述；可选**关联一条 trace** |
+| **代码文件路径** | git 项目 + 具体代码文件，指向这条用例的实现 |
+| **状态** | 待实现 / 已实现（是否已回填代码路径） |
 
-## 二、eval entry 抽象
+平台还挂**管理元数据**（驱动外环，是平台的真价值）：需求标签（→ 需求达标卷积）、适用系统版本（→ 跨版本对比公平性）、Dataset 分组、启用 / 归档。
 
-平台引用的不是"评估项目"，而是：
+**生命周期**：新建时只填 `code` + 说明（可带 trace，可不带）→ 开发者打开平台看到这条用例、在 git 里实现它、把代码路径回填 → 用例才算完整。
+平台里的用例**退化成纯描述 + 管理**；真逻辑全在代码。
 
-```
-eval entry = { repo, ref(commit/tag), 运行命令, 契约 }
-```
+## 二、执行 = 一个个跑用例文件
 
-- `repo`：主代码库 **或** 独立评估库，皆可。
-- `ref`：钉死它 = 评估逻辑 + 依赖 + rubric 一起钉死。
-- 运行命令：平台在沙箱里怎么起这次 eval。
-- 契约：见第四节。
+真正执行 = 逐个跑用例的代码文件，**用例逻辑就是标准的 pydantic-evals 代码**：inputs、HITL 模拟、评估器、判定，全在代码文件里。
+EDD 只负责**调度**（哪些 case × 哪个版本 × 哪个沙箱）+ **采集结果**。它不进代码、不懂逻辑。
 
-## 三、两种放法 → 两种用法（不是纯风格）
+## 三、平台不做对齐（故意）
 
-| | 和主代码同库 · in-process | 独立库 · 前门驱动 |
-|---|---|---|
-| task 是什么 | 直接 `import` 你的 agent 函数，**没有适配器层** | 打部署好的黑盒（HTTP/SSE），适配器读回执 |
-| 评估器档 | ② in-process Python 类（typed `EvaluatorContext` + span 树） | ③ 独立项目 + 镜像 + JSON 契约 |
-| 适合 | 同团队 · Python · 可信 | 跨团队 · 非 Python · 黑盒 · 不可信 |
-| 天然场景 | **单版本自测 / CI 门禁**（evals-as-tests，跟单测放一起） | **跨版本公平对比**（外环） |
+平台**不校验**说明 ↔ 代码是否一致。代码是唯一真相，说明只是给人看 / 给管理用的元数据，两者漂移**不可见、可接受**。
+→ 这一刀砍掉了一整摊复杂度：评估器当数据存（EvaluatorDef / params）、内置 vs 自定义分档、schema 发布 + 双向校验、"平台引用一把没写的尺子再等开发回填"的来回 handoff —— **全部不需要了**。平台不再假装懂评估。
 
-（① 内置评估器永远是数据，和放哪无关。）
+## 四、输出 JSON 规范（平台 ↔ 代码唯一硬接口）
 
-## 四、契约（平台 ↔ eval entry）
+每条用例跑完，回吐一个**扁平**的 JSON。这是平台能做管理 / 对比 / 卷需求的**全部依据**。
 
-- 平台 **→** eval entry：注入 **dataset**（用例数据）+ **target**（某系统版本在沙箱里的前门地址 / 或 import 的 ref）+ 运行配置。
-- eval entry **→** 平台：每条 case 的结果（**`case_id`** + passed / scores / labels / metrics）。
+**骨架（固定两个字段）：**
 
-`case_id` 是接缝：平台管数据、eval entry 管评分，靠它对回去 → 平台做**需求卷积 / 版本对比 / 发布**。
-
-## 五、尺子一致性铁律
-
-评估代码和主代码同库时，**尺子会跟着代码一起演进**：
-
-- **单版本自测**：尺子跟着走反而对（"这个 commit 的 agent 过没过它自己的 evals"）。
-- **跨版本对比**：v1、v2 必须用**同一把尺子**。各用各库里的同库 eval → "改善 / 回归"是假结论。所以对比场景必须**把 eval 钉在单一 ref**（或前门驱动两版），不能各评各的。
-
-→ 落回铁律：**尺子必须钉版本**。同库方便，但一进对比，就得把尺子从代码里拎出来钉住。
-
-## 六、三档评估器（和"放哪"正交）
-
-1. **内置**（数据，平台）：`ToolCorrectness` / `TrajectoryMatch` / `ArgumentCorrectness` / `MaxToolCalls` / `MaxDuration` / `HasMatchingSpan`… 声明式 spec，YAML 里 `name + arguments(dict)`，零代码。
-2. **in-process Python 类**（同库，可信）：`Evaluator` 子类，实现 `evaluate(ctx)`，拿 typed `EvaluatorContext` + span 树。
-3. **独立项目 + 镜像 + JSON 契约**（重 / 非 Python / 不可信）：依赖烤进镜像，评估器在自己容器里跑，走序列化 JSON。
-
-## 七、HITL / deferred 的位置
-
-agent 中途暂停等外部（人审批 / tool 等商家报价）是 pydantic-ai 2.10 的一等机制：
-tool 里 `raise CallDeferred`（等外部执行）或 `raise ApprovalRequired`（等人批）→ 本轮 `agent.run` 返回 `DeferredToolRequests(calls, approvals)` → 用 `DeferredToolResults` 通过 `agent.run(message_history=…, deferred_tool_results=…)` resume。
-
-在评估里：
-
-- **任务适配器**（git）负责 resume 循环 + 扮演外部方（商家 persona / 审批策略）。
-- **外部剧本 / persona 参数**是 Case 数据（平台，进 `inputs` / `metadata`）。
-- 暂停/恢复**对评估器透明** —— 整个多轮 resume 在适配器里跑完，span 树覆盖全过程，`ToolCorrectness` / `TrajectoryMatch` / `MaxToolCalls` 照用。
-- HITL 多两把尺子：**该停时停了没**（deferred/approval 会产生带 `pydantic_ai.tool.deferral.name` 的 span → `HasMatchingSpan` 断言）+ **未授权别越权**（收到 `ToolDenied`/未批时没执行危险动作）。
-- 长流程可落在 **Temporal**（`pydantic_ai.durable_exec.temporal` 有 `_CallDeferred`/`_ApprovalRequired`）：等 3 天报价的 run 作为 workflow 存活，不占进程 —— 和我们已有的编排层同一个 Temporal。
-
-## 八、版本钉死 = 尺子钉死
-
-钉住 eval entry 一个 ref = 评估逻辑 + 依赖 + rubric 全钉死，比逐个匹配 N 个评估器版本简单。这和钉被评系统模块 tag 是**同一套纪律**（代码进 git、依赖进构建产物、平台只存引用不存代码）。
-
-## repo 形态示例
-
-**同库（in-process，自测）：**
-```
-你的系统仓库/
-  src/agent/...          主代码
-  evals/
-    run.py               入口：读注入 dataset → evaluate(agent) → 回传 case_id 结果
-    evaluators/          自定义评估器（内置的不在这）
-    edd.toml             eval entry 契约声明（读取契约、deferred 应答方式）
+```json
+{ "code": "CASE-砍价-预算", "passed": false, "...": "用例自定义的扁平字段" }
 ```
 
-**独立库（前门驱动，对比）：**
-```
-eval-<系统名>/
-  adapter.py             任务适配器：driving 前门 + resume 循环 + 模拟外部方
-  evaluators/            自定义评估器
-  run.py                 入口：读注入 dataset → evaluate(adapter) → 回传 case_id 结果
-  edd.toml               契约：前门 endpoint/协议(sync/sse)、读取契约、deferred 应答
-  pyproject.toml         依赖 + lockfile（钉死代码+依赖）
+- `code` —— 哪条用例，平台靠它对回去。
+- `passed` —— 总判定（bool），平台卷"需求达标"**只认它**。
+
+**其余字段用例自己定，但强制一层（scalar）：**
+
+```json
+{
+  "code": "CASE-砍价-预算",
+  "passed": false,
+  "成交价": 1000,
+  "低于预算": false,
+  "砍价轮数": 3,
+  "结果": "超预算成交"
+}
 ```
 
-两者对平台是**同一个契约**：注入 dataset + target → 回传 `case_id` 结果。
+- **按类型自动定角色**（和 pydantic-evals 一致）：`bool → 判定 / 数值 → 分数 / 字符串 → 标签`。平台照类型画列、跨版本比、聚合，**不用懂字段语义**。
+- **禁止嵌套、禁止对象数组**。要表达"每轮报价"就压成标量 `砍价轮数: 3`，别塞 list。
+- 与 pydantic-evals 结果天然对应：evaluator 的 `assertions(bool)` / `scores(数值)` / `labels(字符串)` 摊平即是这些字段；`passed` = 所有 assertion 为真。
+
+**好处**：同一条 case 的 v1 / v2 字段一致 → 直接可比；`passed` + 需求标签 → 卷达标；每个 scalar 就是一列，平台零理解成本。
+
+## 五、尺子一致性 = 钉 ref
+
+跨版本对比要求两版用**同一把尺子**。做法：一次 Comparison 里，v1、v2 跑**同一个 eval 项目 ref**。钉一个 ref = 评估逻辑 + 依赖 + rubric 全钉死。
+（单版本自测则无所谓，尺子跟着代码走反而对。）
+
+## 六、HITL / deferred（在用例代码里，平台无感）
+
+agent 中途暂停等外部（人审批 / tool 等商家报价）是 pydantic-ai 一等机制：tool 里 `raise CallDeferred` / `ApprovalRequired` → `agent.run` 返回 `DeferredToolRequests` → 用 `DeferredToolResults` resume。
+
+这些**全在用例的代码文件里**：
+
+- 任务适配器负责 resume 循环 + **反应式**模拟外部方（商家会对新还价做反应，**不是放固定磁带**）。
+- 暂停 / 恢复对评估透明 —— span 树覆盖整个多轮过程，`ToolCorrectness` / `TrajectoryMatch` 照用。
+- 长流程可落 Temporal（`pydantic_ai.durable_exec.temporal` 有 `_CallDeferred` / `_ApprovalRequired`），等 3 天报价的 run 作为 workflow 存活。
+- 平台对这一切**无感**，只在最后收那份扁平 JSON。
+
+## 七、评估器概念在平台侧退化
+
+因为逻辑全在代码，平台**不建评估器模型**（无 EvaluatorDef、无参数存储、无内置/自定义分档）。
+评估器只是用例代码里用到的东西 —— 现成的 pydantic-evals 内置（`EqualsExpected` / `ToolCorrectness` / `TrajectoryMatch` / `LLMJudge` / `GEval`…），或自己写的 `Evaluator` 子类。**平台一律不感知，只收扁平 JSON。**
+
+## 用例文件形态示例
+
+```python
+# cases/砍价_预算.py  ——  这条用例的全部逻辑（标准 pydantic-evals）
+from pydantic_evals import Case, Dataset
+
+def build_merchant(policy):     # 反应式商家：对 agent 的还价做反应，不是磁带
+    ...
+
+async def run():
+    # 1) driving 系统 + resume 循环（喂反应式商家的报价）
+    deal = await negotiate(goal="买二手相机", budget=900, merchant=build_merchant(...))
+    # 2) 判定 + 摊平成扁平 JSON（骨架 code/passed + 自定义 scalar）
+    return {
+        "code": "CASE-砍价-预算",
+        "passed": deal.closed and deal.price <= 900,
+        "成交价": deal.price,
+        "低于预算": deal.price <= 900,
+        "砍价轮数": deal.rounds,
+    }
+```
+
+平台侧只存：`code=CASE-砍价-预算`、说明（+ 可选 trace 链接）、代码路径 `myrepo/cases/砍价_预算.py`、需求标签、状态=已实现。**跑完收那份扁平 JSON，靠 `code` 对回去。**
