@@ -1019,7 +1019,7 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
       <!-- 评估（任务列表） -->
       <section id="view-evaluations" hidden>
         <h2 class="page">评估 <span class="muted mono" style="font-size:15px">Experiment</span></h2>
-        <p class="sub">一次运行 = 拿一个<b>评估任务定义</b> + 选<b>一个系统版本</b> → 建环境 → 逐 Case 跑 → 评分 → 一份 Report + 每条 Case 的结果</p>
+        <p class="sub">一次运行 = 选<b>一个系统版本 × 一个 Dataset × 沙箱</b> → <b>拉 eval ref → 起 worker → 逐 case 触发 workflow → 收扁平 JSON</b> → 一份 Report + 逐 Case 结果</p>
 
         <div class="concept">
           <div class="concept-h"><b>Experiment</b><span class="zh">评估任务运行实例（一次实验）</span><span class="pill new">pydantic-evals 概念</span></div>
@@ -1032,14 +1032,22 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
             所以一次运行要多做框架没有的两件事：<b>建/销一次性环境</b>、把结果登记成可被 <b>Comparison</b> 引用的对象。
             同一个 Task 定义跑 v1、v2 两次 → 两个 Experiment → 一个对比。</p>
         </div>
+        <div class="note" style="margin-top:0">
+          🔄 <b>启动一个 Experiment 的 4 步（就是一个父 workflow 编排）</b>：
+          <b>① 拉 ref</b>（checkout eval 项目钉住的 ref —— <u>尺子在这步就钉死</u>）→
+          <b>② 起 worker</b>（在沙箱里跑 eval 项目的启动命令，注册这批 workflow）→
+          <b>③ 逐 case 触发</b>（<span class="mono">start_workflow(name=code, args=[target])</span>，target = 版本 × 沙箱；HITL 用例 durable 等 signal，不阻塞整批）→
+          <b>④ 收结果</b>（每个 workflow 回吐扁平 JSON，按 <span class="mono">code</span> 收回 → Report）。
+          对比 = v1 / v2 各跑一遍这 4 步，但<b>同一个 eval ref 起的 worker</b> → 同一把尺子（下表 #E-3001 / #E-3002 的 eval ref 相同）。
+        </div>
         <div class="section-title"><h3>评估任务运行</h3><button class="btn primary" onclick="openWizard()">▶ 运行评估任务</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>运行实例</th><th>任务定义 (Task)</th><th>版本</th><th>环境</th><th>状态</th><th>Report</th><th>Case results</th><th></th></tr></thead>
+          <thead><tr><th>运行实例</th><th>任务定义 (Task)</th><th>版本</th><th>eval ref <span class="muted" style="font-weight:400">(尺子)</span></th><th>沙箱</th><th>状态</th><th>Report</th><th>Case results</th><th></th></tr></thead>
           <tbody>
-            <tr><td><b>#E-3002</b> 报价重构·候选</td><td>报价·前门端到端</td><td><span class="tag v">v2</span></td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono"><a href="#" onclick="go('run');return false;">178 条 ↗</a></td><td><button class="btn sm" onclick="go('comparison')">对比</button></td></tr>
-            <tr><td><b>#E-3001</b> 报价重构·基线</td><td>报价·前门端到端</td><td><span class="tag">v1</span></td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 82%</td><td class="mono"><a href="#" onclick="go('run');return false;">178 条 ↗</a></td><td><button class="btn sm" onclick="go('comparison')">对比</button></td></tr>
-            <tr><td><b>#E-3005</b> 客服升级·候选</td><td>客服·前门端到端</td><td><span class="tag v">v5</span></td><td class="mono">强隔离</td><td><span class="pill run">● 运行中</span></td><td class="muted">64%…</td><td class="mono muted">218 / 340</td><td><button class="btn sm" onclick="go('run')">查看</button></td></tr>
-            <tr><td class="muted">（草稿）项目推荐·候选</td><td>推荐·端到端</td><td><span class="tag v">v3</span></td><td class="muted">—</td><td><span class="pill neutral">草稿</span></td><td class="muted">—</td><td class="muted">—</td><td><button class="btn sm" onclick="openWizard()">配置</button></td></tr>
+            <tr><td><b>#E-3002</b> 报价重构·候选</td><td>报价·前门端到端</td><td><span class="tag v">v2</span></td><td class="mono">evals@a3f1</td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 86%</td><td class="mono"><a href="#" onclick="go('run');return false;">178 条 ↗</a></td><td><button class="btn sm" onclick="go('comparison')">对比</button></td></tr>
+            <tr><td><b>#E-3001</b> 报价重构·基线</td><td>报价·前门端到端</td><td><span class="tag">v1</span></td><td class="mono">evals@a3f1</td><td class="mono">默认-轻量</td><td><span class="pill ok">✓ 完成</span></td><td>通过 82%</td><td class="mono"><a href="#" onclick="go('run');return false;">178 条 ↗</a></td><td><button class="btn sm" onclick="go('comparison')">对比</button></td></tr>
+            <tr><td><b>#E-3005</b> 客服升级·候选</td><td>客服·前门端到端</td><td><span class="tag v">v5</span></td><td class="mono">evals@c7d2</td><td class="mono">强隔离</td><td><span class="pill run">● 运行中</span></td><td class="muted">64%…</td><td class="mono muted">218 / 340</td><td><button class="btn sm" onclick="go('run')">查看</button></td></tr>
+            <tr><td class="muted">（草稿）项目推荐·候选</td><td>推荐·端到端</td><td><span class="tag v">v3</span></td><td class="muted">—</td><td class="muted">—</td><td><span class="pill neutral">草稿</span></td><td class="muted">—</td><td class="muted">—</td><td><button class="btn sm" onclick="openWizard()">配置</button></td></tr>
           </tbody>
         </table></div>
 
