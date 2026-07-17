@@ -784,7 +784,7 @@ evaluators:
         <div class="tbl-wrap"><table>
           <thead><tr><th>环节</th><th>被评系统模块</th><th>自定义评估器</th></tr></thead>
           <tbody>
-            <tr><td>代码</td><td>模块 git 仓库</td><td>evals git 仓库</td></tr>
+            <tr><td>代码</td><td>模块 git 仓库</td><td>eval entry 的 git（可同主库）</td></tr>
             <tr><td>依赖</td><td class="mono">Dockerfile → 镜像</td><td class="mono">pyproject → 包/镜像</td></tr>
             <tr><td>钉版本</td><td class="mono">module_pins（tag）</td><td class="mono">evals 包@版本</td></tr>
             <tr><td>运行在</td><td>k8s 一次性沙箱</td><td>eval worker <span class="muted">/ 隔离容器</span></td></tr>
@@ -797,6 +797,30 @@ evaluators:
           ⚠️ <b>Langfuse 沙箱代码评估器有包限制 + 2s 超时</b>——<span class="mono">sentence-transformers</span> 这类重依赖跑不进它的沙箱，得走我们自己的 worker。
           代价：自定义评估器<b>不能在 UI 里现写</b>，得提交代码 + 声明依赖。这代价是对的——<b>一把影响发布决策的尺子，本就该走代码评审</b>。
         </p>
+
+        <div class="section-title"><h3>评估代码放哪：eval entry（定死）</h3><span class="muted" style="font-size:12px">见 docs/评估代码与数据边界_eval-entry模式.md</span></div>
+        <div class="note" style="margin-top:0">
+          🧱 评估拆两半：<b>声明式 = 数据（住平台）</b>、<b>命令式 = 代码（住 git）</b>。平台<b>不</b>引用"一个独立评估项目"，而引用一个
+          <b>eval entry = { git repo · ref · 运行命令 · 契约 }</b> —— 这个 repo <b>可以就是被评系统的主代码库</b>（评估代码和主代码写一起），
+          <b>也可以是独立评估库</b>；平台只认契约，不关心放哪。<b>内置评估器永远是数据，和放哪无关。</b>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th style="width:96px"></th><th>和主代码同库 · in-process</th><th>独立库 · 前门驱动</th></tr></thead>
+          <tbody>
+            <tr><td><b>task 是什么</b></td><td>直接 <span class="mono">import</span> 你的 agent 函数，<b>无适配器层</b></td><td>打部署好的黑盒(HTTP/SSE)，适配器读回执</td></tr>
+            <tr><td><b>评估器档</b></td><td>② in-process Python 类（typed <span class="mono">ctx</span> + span 树）</td><td>③ 独立项目 + 镜像 + JSON 契约</td></tr>
+            <tr><td><b>适合</b></td><td>同团队 · Python · 可信</td><td>跨团队 · 非 Python · 黑盒 · 不可信</td></tr>
+            <tr><td><b>天然场景</b></td><td><b>单版本自测 / CI 门禁</b><div class="muted" style="font-size:12px">evals-as-tests</div></td><td><b>跨版本公平对比</b><div class="muted" style="font-size:12px">外环</div></td></tr>
+          </tbody>
+        </table></div>
+        <div class="note" style="background:var(--warn-weak);border-color:#fde68a;color:#92400e">
+          ⚖️ <b>尺子一致性铁律</b>：评估代码和主代码同库时，尺子跟着代码一起变。<b>单版本自测无所谓</b>；<b>跨版本对比要命</b> ——
+          两版必须用同一把尺子，所以对比时必须<b>把 eval 钉在单一 ref</b>（或前门驱动两版），不能各评各的，否则"改善 / 回归"是假的。
+        </div>
+        <div class="note">
+          🔌 <b>契约（平台 ↔ eval entry）</b>：平台注入 <b>dataset</b>（用例数据）+ <b>target</b>（某系统版本在沙箱的前门 / <span class="mono">import</span> 的 ref）；
+          eval entry 回传每条 case 的结果（<b><span class="mono">case_id</span></b> + passed / scores / labels / metrics）→ 平台做需求卷积 / 对比 / 发布。<span class="mono">case_id</span> 是接缝。
+        </div>
 
         <div class="section-title"><h3>能否与 pydantic-evals 一一对应？<span class="muted" style="font-weight:400;font-size:12px">　—— 不能，而卡点不是"少几个"</span></h3></div>
         <div class="note">
