@@ -537,8 +537,8 @@ baseServices:
         <div class="concept ours">
           <div class="concept-h"><b>Case</b><span class="zh">用例</span><span class="pill warn">EddPlatform：退化成登记项</span></div>
           <p class="def">框架里 Case 带输入 / 期望 / evaluators —— 那是<b>逻辑</b>。<b>在 EddPlatform，用例的逻辑全在 git 的标准 pydantic-evals 代码里，平台不碰。</b></p>
-          <p class="map">平台侧一条用例 = <b>登记项</b>：<span class="mono">code</span>（编号，<b>同时就是 workflow 名</b>）+ <b>说明</b>（一段纯文字 + 可选 yaml 式结构，可选<b>关联 trace</b>）+ <b>状态</b>（待实现 / 已实现）。<b>不存文件路径</b> —— 绑定靠命名约定：<b>workflow 名 = code</b>。
-            新建时只填 <span class="mono">code</span> + 说明；开发者在 git eval 项目里注册一个<b>同名 workflow</b>（= code）→ 状态转已实现。<b>平台不校验说明与代码是否一致，漂移也感知不到 —— 这是故意的</b>。跑完平台按 <span class="mono">code</span> 收一份<b>扁平 JSON</b>（<span class="mono">{code, passed, …scalar}</span>）。</p>
+          <p class="map">平台侧一条用例 = <b>登记项</b>：<span class="mono">code</span>（编号）+ <b>说明</b>（一段纯文字 + 可选 yaml 式结构，可选<b>关联 trace</b>）+ <b>状态</b>（待实现 / 已实现）。<b>不存文件路径</b> —— 绑定靠 <span class="mono">code</span>：eval 项目按 code 登记实现，平台按 code 触发。
+            新建时只填 <span class="mono">code</span> + 说明；开发者在 git eval 项目里<b>按 code 注册这条用例的实现</b> → 状态转已实现。<b>平台不校验说明与代码是否一致，漂移也感知不到 —— 这是故意的</b>。跑完平台按 <span class="mono">code</span> 收一份<b>扁平 JSON</b>（<span class="mono">{code, passed, …scalar}</span>）。</p>
         </div>
 
         <div class="section-title"><h3>Dataset（题库）</h3><button class="btn primary" onclick="openYaml()">📥 导入用例 / 新建 Dataset</button></div>
@@ -572,7 +572,7 @@ baseServices:
         <div class="section-title"><h3>用例 <span class="muted" style="font-size:13px;font-weight:400">跨 Dataset 抽样 · 登记项 · 可按 Dataset / 需求过滤</span></h3><span><button class="btn primary" onclick="openCase()">+ 新建用例</button> <button class="btn" onclick="openYaml()">📥 导入说明(YAML)</button> <button class="btn" onclick="openTrace()">+ 导入自真实 trace</button></span></div>
         <div class="note">🧬 <b>用例是登记项，逻辑在 git</b>：新建 = 填 <span class="mono">code</span> + 说明（三种来源：手填 / 导入 yaml 式说明 / 从 trace 生成）。开发者在 git eval 项目里注册一个<b>名字 = <span class="mono">code</span> 的 Temporal workflow</b>（标准 pydantic-evals），状态转「已实现」。<b>平台不解析、不校验代码</b>（漂移感知不到，故意的）—— 它按 <span class="mono">code</span> <b>触发 workflow</b>、收<b>扁平 JSON</b>（<span class="mono">{code, passed, …scalar}</span>）。</div>
         <div class="tbl-wrap"><table id="dsTbl">
-          <thead><tr><th>code <span class="muted" style="font-weight:400">= workflow 名</span></th><th>用例名</th><th>Dataset</th><th>需求</th><th>适用系统版本</th><th>关联 trace</th><th>状态</th></tr></thead>
+          <thead><tr><th>code <span class="muted" style="font-weight:400">= 触发键</span></th><th>用例名</th><th>Dataset</th><th>需求</th><th>适用系统版本</th><th>关联 trace</th><th>状态</th></tr></thead>
           <tbody>
             <tr data-req="R-101" data-ds="ins200"><td class="mono">CASE-0017</td><td>新能源车型报价</td><td><span class="tag">保险 200</span></td><td><span class="tag">R-101</span></td><td><span class="tag">v1</span><span class="tag">v2</span><span class="tag">v3</span></td><td class="mono muted" style="font-size:11px">bge3d9</td><td><span class="pill ok">已实现</span></td></tr>
             <tr data-req="R-102" data-ds="ins200"><td class="mono">CASE-0063</td><td>多车型比价</td><td><span class="tag">保险 200</span></td><td><span class="tag">R-102</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="muted">—</td><td><span class="pill ok">已实现</span></td></tr>
@@ -582,7 +582,7 @@ baseServices:
             <tr data-req="R-104" data-ds="red40"><td class="mono">CASE-0044</td><td>过户后保单变更 <span class="muted" style="font-size:11px">(HITL)</span></td><td><span class="tag">红队 40</span></td><td><span class="tag">R-104</span></td><td><span class="tag">v1</span><span class="tag">v2</span></td><td class="mono muted" style="font-size:11px">7c2e9e</td><td><span class="pill ok">已实现</span></td></tr>
           </tbody>
         </table></div>
-        <p class="hint"><b>code 既是用例编号、又是 workflow 名</b>：EDD 按 code 触发对应 workflow，跑完的扁平 JSON 靠 code 对回这一行。<b>已实现 = eval 项目里注册了同名 workflow</b>；<span class="mono">CASE-0102</span> 还<span class="pill warn">待实现</span>（没注册，触发即报错）。<span class="mono">CASE-0044</span> 是 HITL 用例（商家报价靠 Temporal signal 喂，反应式）。<b>需求</b>标签卷达标 + 过滤；<b>适用系统版本</b>决定跨版本对比算不算它。</p>
+        <p class="hint"><b>code = 触发键 + 结果接缝</b>：平台按 code 触发（<span class="mono">RunCase(code)</span>），跑完的扁平 JSON 靠 code 对回这一行。<b>已实现 = eval 项目的实现表里登记了这个 code</b>；<span class="mono">CASE-0102</span> 还<span class="pill warn">待实现</span>（没登记，触发即报错）。<span class="mono">CASE-0044</span> 是 HITL 用例（商家报价靠 Temporal signal 喂，反应式）。<b>需求</b>标签卷达标 + 过滤；<b>适用系统版本</b>决定跨版本对比算不算它。</p>
       </section>
 
       <!-- 评估任务定义 Task：怎么评这个系统（版本无关的可复用定义） -->
@@ -645,8 +645,8 @@ baseServices:
           <p class="map"><b>在 EddPlatform，评估器只活在用例的 workflow 代码里</b> —— 现成的 pydantic-evals 内置，或自己写的 <span class="mono">Evaluator</span> 子类。<b>平台不建评估器模型</b>（无 EvaluatorDef、不存参数、不分内置/自定义档）：它不理解你怎么打分，<b>只按约定的扁平 JSON 收结果</b>。谁定义 = 代码；平台只调度 + 收分 + 卷需求。</p>
         </div>
 
-        <div class="section-title"><h3>评估代码放哪：eval 项目 = 一组 Temporal workflow</h3><span class="muted" style="font-size:12px">见 docs/评估代码与数据边界_eval-entry模式.md</span></div>
-        <div class="note" style="margin-top:0">🧱 用例逻辑 = git eval 项目里的一个 <b>Temporal workflow</b>（用 <span class="mono">TemporalAgent</span> 跑成 durable workflow，model / tool 调用是 activity）。eval 项目<b>提供一条启动命令</b>、把 workflow 注册在 worker 上；<b>可同主库、可独立库</b>，平台都解耦。</div>
+        <div class="section-title"><h3>评估代码放哪：eval 项目 = 一个通用 workflow + 按 code 的实现</h3><span class="muted" style="font-size:12px">见 docs/评估代码与数据边界_eval-entry模式.md</span></div>
+        <div class="note" style="margin-top:0">🧱 用例逻辑 = eval 项目里<b>按 code 登记的实现（handler）</b>，由一个通用 <span class="mono">RunCase</span> workflow 分派（model / tool 调用是 Temporal activity）。eval 项目<b>提供一条启动命令起 worker</b> 托管这些；<b>可同主库、可独立库</b>，平台都解耦。</div>
         <div class="tbl-wrap"><table>
           <thead><tr><th style="width:96px"></th><th>和主代码同库 · in-process</th><th>独立库 · 前门驱动</th></tr></thead>
           <tbody>
@@ -682,20 +682,23 @@ baseServices:
           </div>
         </div>
 
-        <div class="section-title"><h3>用例怎么绑 workflow：名字 = code</h3></div>
-        <div class="codeblk"># eval 项目：一条用例 = 一个 workflow，名字 = case code（绑定约定，不填路径）
-@workflow.defn(name="CASE-砍价-预算")           <span style="color:#7dd3fc"># ← 名字 = 用例 code</span>
-class HaggleBudgetCase:
+        <div class="section-title"><h3>用例怎么绑：一个通用 workflow + 按 code 分派</h3></div>
+        <div class="codeblk"># eval 项目侧（worker 托管）：一个通用 workflow，按 code 分派到该用例的实现
+@workflow.defn(name="RunCase")
+class RunCase:
     @workflow.run
-    async def run(self, target) -&gt; dict:
-        # HITL：商家报价靠 Temporal signal 喂进来，durable 等（反应式，不是磁带）
-        deal = await negotiate(goal="买二手相机", budget=900, merchant=reactive_merchant())
-        return {                              <span style="color:#7dd3fc"># ← 扁平 JSON（骨架 + 自定义 scalar）</span>
-            "code": "CASE-砍价-预算",
-            "passed": deal.closed and deal.price &lt;= 900,
-            "成交价": deal.price, "低于预算": deal.price &lt;= 900, "砍价轮数": deal.rounds,
-        }</div>
-        <div class="note">🔗 <b>触发链路</b>：EDD（调度）起一个<b>父 workflow</b>（一次运行 = Dataset × 版本）→ 逐 case fan-out <b>子 workflow</b>（名 = 各 <span class="mono">code</span>，传 <span class="mono">target</span> = 版本 × 沙箱）→ 每个子 workflow 返回扁平 JSON → 父 workflow 汇总 → 卷需求 / 对比。<b>平台按 code 触发，不知道也不需要知道它是哪个文件</b>；worker 上没注册同名 workflow（待实现）→ 触发即 fail loud。HITL 的暂停 / 等待 / 恢复全归 Temporal。</div>
+    async def run(self, args) -&gt; dict:
+        return await CASE_HANDLERS[args["code"]](args["code"], args["target"])
+
+# 某条用例的实现（HITL：商家报价靠 signal 喂，durable 等，反应式，不是磁带）
+async def haggle_budget(code, target) -&gt; dict:
+    deal = await negotiate(goal="买二手相机", budget=900, merchant=reactive_merchant())
+    return {                              <span style="color:#7dd3fc"># ← 扁平 JSON（骨架 + 自定义 scalar）</span>
+        "code": code, "passed": deal.closed and deal.price &lt;= 900,
+        "成交价": deal.price, "低于预算": deal.price &lt;= 900, "砍价轮数": deal.rounds,
+    }
+CASE_HANDLERS = {"CASE-砍价-预算": haggle_budget}   <span style="color:#7dd3fc"># eval 项目按 code 登记</span></div>
+        <div class="note">🔗 <b>触发链路</b>：<b>平台(EDD) 只用 client</b> —— 逐 case <span class="mono">client.execute_workflow("RunCase", {code, target}, id="exp/"+code)</span> → 每个执行回吐扁平 JSON，按 <span class="mono">code</span> 收 → 卷需求 / 对比。<b>worker（托管 RunCase）在 eval 项目那侧、跑在沙箱里</b>,平台不碰。实现表里没这个 code（待实现）→ 触发即 fail loud。HITL 的暂停 / 等待 / 恢复全归 Temporal。</div>
 
         <div class="note" style="background:var(--warn-weak);border-color:#fde68a;color:#92400e">
           ⚖️ <b>尺子一致性 = 钉 ref</b>：跨版本对比要求两版用同一把尺子 —— 做法是 v1、v2 的子 workflow 跑在<b>同一个 eval 项目 ref 部署的 worker</b>上（同一批 workflow 代码 + 依赖）。钉一个 ref = 评估逻辑 + 依赖 + rubric 全钉死。单版本自测则无所谓，尺子跟着代码走反而对。
@@ -1036,7 +1039,7 @@ lf.create_score(trace_id=tid, name="成本达标", value=(cost_usd  <= 0.02), da
           🔄 <b>启动一个 Experiment 的 4 步（就是一个父 workflow 编排）</b>：
           <b>① 拉 ref</b>（checkout eval 项目钉住的 ref —— <u>尺子在这步就钉死</u>）→
           <b>② 起 worker</b>（在沙箱里跑 eval 项目的启动命令，注册这批 workflow）→
-          <b>③ 逐 case 触发</b>（<span class="mono">start_workflow(name=code, args=[target])</span>，target = 版本 × 沙箱；HITL 用例 durable 等 signal，不阻塞整批）→
+          <b>③ 逐 case 触发</b>（平台只用 client：<span class="mono">execute_workflow("RunCase", {code, target})</span>，target = 版本 × 沙箱；HITL 用例 durable 等 signal，不阻塞整批）→
           <b>④ 收结果</b>（每个 workflow 回吐扁平 JSON，按 <span class="mono">code</span> 收回 → Report）。
           对比 = v1 / v2 各跑一遍这 4 步，但<b>同一个 eval ref 起的 worker</b> → 同一把尺子（下表 #E-3001 / #E-3002 的 eval ref 相同）。
         </div>
@@ -1202,7 +1205,7 @@ inputs: {goal: 买二手相机, budget: 900}
         <div class="field"><label>需求标签</label><div><span class="tag">R-104</span><span class="tag muted" style="cursor:pointer">+</span></div></div>
       </div>
       <div class="field"><label>适用系统版本</label><select><option>v1 + v2</option><option>全部版本</option><option>仅 v2 专属</option></select></div>
-      <div class="note">⚙️ workflow <span class="muted">—— 不用填路径。开发者在 eval 项目注册一个 <span class="mono">@workflow.defn(name="&lt;这个 code&gt;")</span>；未注册 = <span class="pill warn">待实现</span>，触发即报错。</span></div>
+      <div class="note">⚙️ 实现 <span class="muted">—— 不用填路径。开发者在 eval 项目的实现表里按这个 code 登记一个 handler（<span class="mono">CASE_HANDLERS[code]=…</span>）；未登记 = <span class="pill warn">待实现</span>，触发即报错。</span></div>
     </div>
     <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeCase()">取消</button><button class="btn primary" onclick="closeCase()">创建（待实现）</button></div>
   </div>
@@ -1214,7 +1217,7 @@ inputs: {goal: 买二手相机, budget: 900}
     <div class="dialog-h"><b>导入用例</b> <span class="muted mono" style="font-size:12px;font-weight:400">选 Dataset + 选 .yaml 文件</span><button class="btn sm" onclick="closeYaml()">✕</button></div>
     <div class="dialog-b">
       <div class="note" style="margin-top:0">
-        ✅ <b>导入 = 选目标 Dataset + 选一个 yaml 文件</b>，把里面每条 case 登记成一条<b>用例（说明）</b>。<b>平台只把 YAML 当说明存、不执行它</b> —— 里面的 evaluators / inputs 都是描述；真逻辑仍由开发者在 git 注册同名 workflow。导入后即 <span class="pill warn">待实现</span>。
+        ✅ <b>导入 = 选目标 Dataset + 选一个 yaml 文件</b>，把里面每条 case 登记成一条<b>用例（说明）</b>。<b>平台只把 YAML 当说明存、不执行它</b> —— 里面的 evaluators / inputs 都是描述；真逻辑仍由开发者在 git 按 code 登记实现。导入后即 <span class="pill warn">待实现</span>。
       </div>
       <div class="field"><label>① 目标 Dataset</label>
         <select><option>保险 200 条（全量回归）· 200</option><option>保险冒烟 30 条 · 30</option><option>红队注入 40 条 · 40</option><option>＋ 新建 Dataset…</option></select>
@@ -1311,7 +1314,7 @@ evaluators:                     # PE · dataset 级评估器（跑全部 case）
       </div>
 
       <div class="tstep" data-step="3" hidden>
-        <div class="note" style="margin-top:0">✅ 这份 YAML 存成<b>用例的说明（登记项）</b>，<span style="color:#0ea5e9">蓝字</span>标出它<b>来自 trace 的哪里</b>，<span style="color:#e11d48">红字</span>=人工补。这只是<b>说明 + 抓到的参考数据</b>；<b>真逻辑（含 HITL 商家反应式模拟）由开发者在 git 实现</b>，注册同名 workflow 后才「已实现」。导入即 <span class="pill warn">待实现</span>。</div>
+        <div class="note" style="margin-top:0">✅ 这份 YAML 存成<b>用例的说明（登记项）</b>，<span style="color:#0ea5e9">蓝字</span>标出它<b>来自 trace 的哪里</b>，<span style="color:#e11d48">红字</span>=人工补。这只是<b>说明 + 抓到的参考数据</b>；<b>真逻辑（含 HITL 商家反应式模拟）由开发者在 git 实现</b>，按 code 登记实现后才「已实现」。导入即 <span class="pill warn">待实现</span>。</div>
         <div class="codeblk">name: 保险报价                          <span style="color:#7dd3fc"># 目标 Dataset</span>
 cases:
 - name: trace a1f3d9 · ev 上海          <span style="color:#7dd3fc"># ← 派生：trace_id + input 摘要</span>
