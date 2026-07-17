@@ -569,7 +569,7 @@ baseServices:
           <span class="chip" data-r="R-102" onclick="filterDS(this,'req','R-102')">R-102 条款解释 1</span>
           <span class="chip" data-r="R-103" onclick="filterDS(this,'req','R-103')">R-103 延迟 1</span>
         </div>
-        <div class="section-title"><h3>用例 <span class="muted" style="font-size:13px;font-weight:400">跨 Dataset 抽样 · 可按 Dataset / 需求过滤</span></h3><span><button class="btn primary" onclick="openYaml()">📥 导入用例</button> <button class="btn">+ 导入自真实 trace</button></span></div>
+        <div class="section-title"><h3>用例 <span class="muted" style="font-size:13px;font-weight:400">跨 Dataset 抽样 · 可按 Dataset / 需求过滤</span></h3><span><button class="btn primary" onclick="openYaml()">📥 导入用例</button> <button class="btn" onclick="openTrace()">+ 导入自真实 trace</button></span></div>
         <div class="note">📥 <b>平台只做一件事：登记用例（数据）</b>——用<b>标准 pydantic-evals YAML</b> 导入（它的原生格式，能 round-trip，已在用的团队零重录），或从生产 trace 抓真实用例。<b>不做"新建用例"表单</b>：一条用例就是一段标准 YAML，没必要在页面里把它的字段重画一遍。<br/>🧬 <b>评估的代码不在这里</b>：自定义评估器 + 任务适配器全在 <b>git 的 eval 项目</b>。YAML 里的内置评估器（如 <span class="mono">ToolCorrectness: {expected_tools:[…]}</span>）是<b>声明式数据、不是代码</b>——连"这条用例必须调哪个工具"都写在数据里，平台照存；真正的评估代码在 git。</div>
         <div class="tbl-wrap"><table id="dsTbl">
           <thead><tr><th>#</th><th>用例名</th><th>Dataset</th><th>需求</th><th>用例版本</th><th>适用系统版本</th><th>判定标准</th><th>来源</th><th>状态</th></tr></thead>
@@ -1353,6 +1353,91 @@ evaluators:                     # PE · dataset 级评估器（跑全部 case）
   </div>
 </div>
 
+<!-- 导入自真实 trace：Langfuse trace → 生成标准 YAML → 预览确认 -->
+<div class="modal" id="tracemodal">
+  <div class="dialog" style="width:800px">
+    <div class="dialog-h"><b>导入用例 · 自真实 trace</b> <span class="muted mono" style="font-size:12px;font-weight:400">Langfuse trace → 生成标准 YAML</span><button class="btn sm" onclick="closeTrace()">✕</button></div>
+    <div class="steps" id="tsteps">
+      <span class="s active">① 筛选源 traces</span><span class="s">② 逐条策展</span><span class="s">③ 预览生成的 YAML</span>
+    </div>
+    <div class="dialog-b">
+
+      <div class="tstep" data-step="1">
+        <div class="row-flex">
+          <div class="field"><label>来源项目 / 会话（Langfuse）</label><select><option>保险报价 · 全部会话</option><option>保险报价 · sess_331</option></select></div>
+          <div class="field"><label>时间范围</label><select><option>近 7 天</option><option>近 30 天</option><option>自定义…</option></select></div>
+        </div>
+        <div class="field"><label>过滤 —— 挑"值得变成测试"的（出错的 / 低分的 / 走了某工具的）</label>
+          <div><span class="tag">有报错</span><span class="tag">prod 评分 &lt; 3</span><span class="tag">调用了 search_policy</span><span class="tag">延迟 &gt; 3s</span><span class="tag muted">采样 20%</span></div>
+        </div>
+        <div class="tbl-wrap" style="box-shadow:none"><table>
+          <thead><tr><th style="width:26px"></th><th>trace_id</th><th>时间</th><th>输入</th><th>输出</th><th>工具轨迹</th><th>延迟</th><th>prod</th></tr></thead>
+          <tbody>
+            <tr><td><input type="checkbox" checked></td><td class="mono">a1f3d9</td><td class="muted">09:12</td><td>新能源报价·上海</td><td>保费 4260</td><td class="mono" style="font-size:11px">search_policy→calc_premium</td><td class="muted">2.1s</td><td><span class="pill warn">2 ⚠</span></td></tr>
+            <tr><td><input type="checkbox" checked></td><td class="mono">7c2e9e</td><td class="muted">08:40</td><td>过户后改保单</td><td>已提交工单</td><td class="mono" style="font-size:11px">transfer→notify</td><td class="muted">3.4s</td><td class="muted">—</td></tr>
+            <tr><td><input type="checkbox"></td><td class="mono">3b8a11</td><td class="muted">昨天</td><td>多车型比价</td><td>3 款对比</td><td class="mono" style="font-size:11px">search×3→rank</td><td class="muted">4.8s</td><td><span class="pill warn">1</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="hint">勾选要抓的 trace。<b>原始 trace 还不是用例</b>——下一步策展成 Case。</p>
+      </div>
+
+      <div class="tstep" data-step="2" hidden>
+        <div class="note" style="margin-top:0">已选 <b>2 条</b>。逐条决定：这条是<b>好样本</b>（钉住当前行为当护栏）还是<b>坏样本</b>（抓来就因为它错了 → 期望要改成"应该的"）。</div>
+        <div class="field"><label>采纳模式</label>
+          <div class="segmented"><button class="seg active" onclick="segPick(this)">回归守护（好样本：观测 = 期望，全采纳）</button><button class="seg" onclick="segPick(this)">修复用例（坏样本：改期望）</button></div>
+        </div>
+        <div class="field"><label><span class="mono">expected_output</span>（← trace.output）</label>
+          <div class="segmented"><button class="seg active" onclick="segPick(this)">采纳 trace 输出为 golden</button><button class="seg" onclick="segPick(this)">置空（走 judge / 轨迹）</button></div>
+          <p class="hint" style="margin-top:6px">好样本才该采纳；坏样本请置空或改写，<b>别把 bug 固化成标准答案</b>。</p>
+        </div>
+        <div class="field"><label>轨迹评估器（← 从 span 树读到的真实工具）</label>
+          <div><label style="font-size:13px;font-weight:400"><input type="checkbox" checked> 生成 <span class="mono">ToolCorrectness</span> + <span class="mono">TrajectoryMatch</span>（工具序列自动填）</label></div>
+          <div style="margin-top:6px"><label style="font-size:13px;font-weight:400"><input type="checkbox" checked> 生成 <span class="mono">MaxDuration</span> = 观测延迟 ×1.2</label></div>
+        </div>
+        <hr style="border:none;border-top:1px dashed var(--line);margin:14px 0">
+        <div class="row-flex">
+          <div class="field"><label>需求标签 <span class="pill warn">metadata.edd_*</span></label><div><span class="tag">R-101</span><span class="tag muted" style="cursor:pointer">+</span></div></div>
+          <div class="field"><label>适用系统版本</label><select><option>v1 + v2</option><option>全部版本</option><option>仅 v2</option></select></div>
+        </div>
+        <div class="field"><label>目标 Dataset</label><select><option>保险 200 条（全量回归）</option><option>红队注入 40 条</option><option>＋ 新建 Dataset…</option></select></div>
+      </div>
+
+      <div class="tstep" data-step="3" hidden>
+        <div class="note" style="margin-top:0">✅ 生成的<b>标准 pydantic-evals YAML</b>（可编辑）。<span style="color:#0ea5e9">蓝字</span>标出每个字段<b>来自 trace 的哪里</b>，<span style="color:#e11d48">红字</span>=人工补——两条导入路到这里<b>合流</b>，落库的和 YAML 导入一模一样。</div>
+        <div class="codeblk">name: 保险报价                          <span style="color:#7dd3fc"># 目标 Dataset</span>
+cases:
+- name: trace a1f3d9 · ev 上海          <span style="color:#7dd3fc"># ← 派生：trace_id + input 摘要</span>
+  inputs:                              <span style="color:#7dd3fc"># ← trace.input（根输入，原样）</span>
+    car: ev
+    city: 上海
+    claims_last_year: 0
+  expected_output:                     <span style="color:#7dd3fc"># ← trace.output（好样本·已采纳为 golden）</span>
+    premium: 4260
+    text: 为您报价 4260 元
+  metadata:
+    edd_trace_id: a1f3d9c2-77b4        <span style="color:#7dd3fc"># ← trace.id（回链溯源）</span>
+    edd_source: langfuse:保险报价/sess_331
+    edd_produced_by: v2                <span style="color:#7dd3fc"># ← trace.release（产出它的版本）</span>
+    edd_prod_score: 2                  <span style="color:#7dd3fc"># ← trace.scores（生产打分）</span>
+    edd_requirement_ids: [R-101]       <span style="color:#fca5a5"># ← 人工打标</span>
+    edd_applicable_versions: [v1, v2]  <span style="color:#fca5a5"># ← 人工设</span>
+  evaluators:                          <span style="color:#7dd3fc"># ← 从 trace 的 span 树读真实行为</span>
+  - TrajectoryMatch: [search_policy, calc_premium]   <span style="color:#7dd3fc"># ← gen_ai.tool.name 有序序列</span>
+  - ToolCorrectness: [search_policy, calc_premium]   <span style="color:#7dd3fc"># ← 必须调这些工具</span>
+  - MaxDuration: 2.5                   <span style="color:#7dd3fc"># ← latencyMs 2.1s ×1.2</span>
+  - MaxToolCalls: 2                    <span style="color:#7dd3fc"># ← 工具 span 计数</span></div>
+        <p class="hint"><span style="color:#0ea5e9">蓝</span> = 自动来自 trace；<span style="color:#e11d48">红</span> = 人工补（需求标签 / 适用版本）。确认无误即导入。</p>
+      </div>
+
+    </div>
+    <div class="dialog-f">
+      <button class="btn" id="tback" onclick="tnav(-1)" hidden>← 上一步</button>
+      <span style="flex:1"></span>
+      <button class="btn primary" id="tnext" onclick="tnav(1)">下一步 →</button>
+    </div>
+  </div>
+</div>
+
 <!-- 定义评估器 -->
 <div class="modal" id="evalmodal">
   <div class="dialog" style="width:900px">
@@ -1917,6 +2002,24 @@ evaluators:                     # PE · dataset 级评估器（跑全部 case）
   var step=1;
   function openVersionNew(){document.getElementById('versionmodal').classList.add('open')}
   function closeVersionModal(){document.getElementById('versionmodal').classList.remove('open')}
+
+  // 通用：分段选择器高亮
+  function segPick(el){ el.parentElement.querySelectorAll('.seg').forEach(function(s){s.classList.remove('active')}); el.classList.add('active'); }
+
+  // 导入自 trace：三步 → 生成 YAML
+  var tstep=1;
+  function openTrace(){tstep=1;renderTStep();document.getElementById('tracemodal').classList.add('open')}
+  function closeTrace(){document.getElementById('tracemodal').classList.remove('open')}
+  function renderTStep(){
+    document.querySelectorAll('#tracemodal .tstep').forEach(function(s){s.hidden=(+s.dataset.step!==tstep)});
+    document.querySelectorAll('#tsteps .s').forEach(function(s,i){s.classList.toggle('active',i+1===tstep);s.classList.toggle('done',i+1<tstep)});
+    document.getElementById('tback').hidden = tstep===1;
+    document.getElementById('tnext').textContent = tstep===3 ? '📥 导入到 Dataset' : '下一步 →';
+  }
+  function tnav(d){
+    if(tstep===3 && d===1){ closeTrace(); go('datasets'); return; }
+    tstep=Math.max(1,Math.min(3,tstep+d)); renderTStep();
+  }
   function openWizard(){step=1;renderStep();document.getElementById('wizard').classList.add('open')}
   function closeWizard(){document.getElementById('wizard').classList.remove('open')}
   function renderStep(){
