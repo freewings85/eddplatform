@@ -118,6 +118,26 @@ class SystemVersion(BaseModel):
     note: str | None = None
 
 
+class EvalProgram(BaseModel):
+    """评估程序（评估代码库）——**独立于系统代码**的另一套 git 仓库。
+
+    实现评估逻辑（怎么算分），按 ``.eddplatform.yaml`` 约定被拉起来评估系统。
+    与被测系统的 Module/SystemVersion 对称：各自版本化。用例的 ``evaluator_names``
+    声明用哪个评估器，由某个版本的评估程序提供其实现。
+    """
+
+    id: str
+    system_id: str                    # 评估哪个系统
+    name: str
+    git_url: str
+    branch: str = "main"
+    image: str
+    dockerfile: str = "./Dockerfile"
+    owner: str | None = None
+    versions: list[str] = []          # 该评估仓库的 tag/版本
+    prod_tag: str | None = None
+
+
 # --------------------------------------------------------------------------- 环境 / 沙箱
 class SandboxConfig(BaseModel):
     """可复用可选择的沙箱配置；运行/评估时选一套拉起。"""
@@ -310,3 +330,18 @@ class Precondition(BaseModel):
     git_url: str | None = None               # start_system / start_eval_program 的仓库
     ref: str | None = None                   # 选定的 git ref（版本）
     script: str | None = None                # custom_script 的脚本内容
+
+
+class Task(BaseModel):
+    """评估任务定义：数据集 + **有序前置条件** + 评估观测目标。
+
+    运行一次 task = 一条运行记录(experiment)：前置条件把被测系统、评估程序按序拉起，
+    再用数据集跑评估。前置条件包含：启动系统 / 启动评估程序 / 自定义脚本。
+    """
+
+    id: str = ""
+    name: str
+    system_id: str
+    dataset_name: str | None = None
+    preconditions: list[Precondition] = []
+    eval_target: str | None = None           # 评估观测的被测服务（如 quote）

@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import Datasets from "./Datasets";
 import Tags from "./Tags";
+import Tasks from "./Tasks";
 import type {
   Comparison,
+  EvalProgram,
   EvaluatorDef,
   Evaluation,
   RunRecord,
@@ -38,12 +40,12 @@ const GLOBAL_NAV: Nav[] = [
 ];
 
 const SYSTEM_NAV: Nav[] = [
-  { view: "sys-overview", label: "系统概览", icon: "🏠" },
-  { view: "datasets", label: "用例库", icon: "📁" },
+  { view: "system-code", label: "系统代码", icon: "🧩" }, // 被测系统 git/版本
+  { view: "eval-programs", label: "评估程序", icon: "🧪" }, // 评估代码 git/版本
+  { view: "datasets", label: "用例库", icon: "📁" }, // 评估数据
   { view: "tags", label: "标签", icon: "🏷️" },
-  { view: "evaluators", label: "评估器", icon: "⚗️" },
-  { view: "runs", label: "运行记录", icon: "🏃" },
-  { view: "evaluations", label: "评估", icon: "✅" },
+  { view: "tasks", label: "评估任务", icon: "🎯" }, // task + 前置条件
+  { view: "runs", label: "运行记录", icon: "🏃" }, // experiment = 运行记录
   { view: "comparison", label: "评估对比", icon: "🔀" },
 ];
 
@@ -61,7 +63,7 @@ export default function App() {
     setSysId(id);
     setSysName(name);
     setMode("system");
-    setView("sys-overview");
+    setView("system-code");
   }
   function backToGlobal() {
     setMode("global");
@@ -125,18 +127,18 @@ export default function App() {
           {mode === "global" && view === "systems" && (
             <Systems onOpen={openSystem} />
           )}
-          {mode === "system" && sysId && view === "sys-overview" && (
+          {mode === "system" && sysId && view === "system-code" && (
             <SysOverview sysId={sysId} />
+          )}
+          {mode === "system" && sysId && view === "eval-programs" && (
+            <EvalPrograms sysId={sysId} />
           )}
           {mode === "system" && sysId && view === "datasets" && (
             <Datasets sysId={sysId} />
           )}
           {mode === "system" && sysId && view === "tags" && <Tags sysId={sysId} />}
-          {mode === "system" && sysId && view === "evaluators" && (
-            <Evaluators sysId={sysId} />
-          )}
+          {mode === "system" && sysId && view === "tasks" && <Tasks sysId={sysId} />}
           {mode === "system" && view === "runs" && <Runs />}
-          {mode === "system" && view === "evaluations" && <Evaluations />}
           {mode === "system" && view === "comparison" && <ComparisonView />}
         </div>
       </main>
@@ -209,10 +211,12 @@ function SysOverview({ sysId }: { sysId: string }) {
   const versions = useData(() => api.versions(sysId), [sysId]);
   return (
     <>
-      <h2 className="page">{sys.data?.name ?? "系统"}</h2>
-      <p className="sub">模块 &amp; Git · 系统版本</p>
+      <h2 className="page">系统代码 · {sys.data?.name ?? ""}</h2>
+      <p className="sub">
+        被测系统的代码库：各模块的 Git 仓库 + 按版本钉住 tag 的快照。与「评估程序」对称，各自版本化。
+      </p>
 
-      <div className="section-title">模块（{sys.data?.modules.length ?? 0}）</div>
+      <div className="section-title">模块 &amp; Git（{sys.data?.modules.length ?? 0}）</div>
       <div className="card">
         <table>
           <thead>
@@ -271,6 +275,65 @@ function SysOverview({ sysId }: { sysId: string }) {
                 </td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function EvalPrograms({ sysId }: { sysId: string }) {
+  const { data, error } = useData<EvalProgram[]>(() => api.evalPrograms(sysId), [sysId]);
+  return (
+    <>
+      <h2 className="page">评估程序（评估代码）</h2>
+      <p className="sub">
+        独立于系统代码的<b>另一套 git 代码库</b>：实现评估逻辑（怎么算分），按 .eddplatform.yaml
+        约定被拉起来评估系统。与「系统代码」对称，各自版本化。
+      </p>
+      {error && <p className="err">{error}</p>}
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>评估程序</th>
+              <th>Git 仓库</th>
+              <th>分支</th>
+              <th>镜像</th>
+              <th>版本</th>
+              <th>生产 tag</th>
+              <th>负责人</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data ?? []).map((e) => (
+              <tr key={e.id}>
+                <td>
+                  <b>{e.name}</b>
+                </td>
+                <td className="mono">{e.git_url}</td>
+                <td>
+                  <span className="tag">{e.branch}</span>
+                </td>
+                <td className="mono">{e.image}</td>
+                <td>
+                  {e.versions.map((v) => (
+                    <span key={v} className="tag v">
+                      {v}
+                    </span>
+                  ))}
+                </td>
+                <td className="mono">{e.prod_tag ?? "—"}</td>
+                <td>{e.owner}</td>
+              </tr>
+            ))}
+            {data && data.length === 0 && (
+              <tr>
+                <td colSpan={7} className="empty">
+                  该系统还没有登记评估程序。
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

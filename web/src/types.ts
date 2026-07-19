@@ -26,6 +26,39 @@ export interface SystemVersion {
   note?: string | null;
 }
 
+export interface EvalProgram {
+  id: string;
+  system_id: string;
+  name: string;
+  git_url: string;
+  branch: string;
+  image: string;
+  owner?: string | null;
+  versions: string[];
+  prod_tag?: string | null;
+}
+
+export type PreconditionKind = "start_system" | "start_eval_program" | "custom_script";
+
+export interface Precondition {
+  kind: PreconditionKind;
+  name?: string | null;
+  git_url?: string | null;
+  ref?: string | null; // 选定的版本
+  script?: string | null;
+}
+
+export interface Task {
+  id: string;
+  name: string;
+  system_id: string;
+  dataset_name?: string | null;
+  preconditions: Precondition[];
+  eval_target?: string | null;
+}
+
+export type TaskInput = Omit<Task, "id"> & { id?: string };
+
 export interface CaseTrace {
   ref: string;
   url?: string | null;

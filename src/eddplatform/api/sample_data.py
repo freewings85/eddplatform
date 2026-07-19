@@ -11,6 +11,7 @@ from eddplatform.domain.models import (
     ContextField,
     Dataset,
     Environment,
+    EvalProgram,
     EvalResult,
     EvalStatus,
     Evaluation,
@@ -49,6 +50,16 @@ SYSTEMS = [
     System(id="cs", name="智能客服系统", owner="韩梅", prod_version="v4"),
     System(id="store", name="门店服务系统", owner="王强", prod_version="v2"),
     System(id="reco", name="项目推荐系统", owner="刘敏", prod_version="v3"),
+]
+
+# --- 评估程序（评估代码库，独立于系统代码的另一套 git）--------------------
+EVAL_PROGRAMS = [
+    EvalProgram(id="insurance-eval", system_id="insurance", name="保险报价评估程序",
+                git_url="git@git.co/insur/eval.git", branch="main", image="registry/insur-eval",
+                owner="韩梅", versions=["1.0.0", "1.1.0"], prod_tag="1.0.0"),
+    EvalProgram(id="insurance-safety-eval", system_id="insurance", name="安全/注入评估程序",
+                git_url="git@git.co/insur/safety-eval.git", image="registry/insur-safety",
+                owner="赵敏", versions=["0.3.0"], prod_tag="0.3.0"),
 ]
 
 VERSIONS = [

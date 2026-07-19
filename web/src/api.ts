@@ -4,6 +4,7 @@ import type {
   Comparison,
   Dataset,
   Environment,
+  EvalProgram,
   Evaluation,
   EvaluatorDef,
   ImportResult,
@@ -11,6 +12,8 @@ import type {
   System,
   SystemVersion,
   TagNode,
+  Task,
+  TaskInput,
 } from "./types";
 
 async function get<T>(path: string): Promise<T> {
@@ -36,6 +39,7 @@ export const api = {
   systems: () => get<System[]>("/systems"),
   system: (id: string) => get<System>(`/systems/${id}`),
   versions: (id: string) => get<SystemVersion[]>(`/systems/${id}/versions`),
+  evalPrograms: (id: string) => get<EvalProgram[]>(`/systems/${id}/eval-programs`),
   dataset: (id: string) => get<Dataset>(`/systems/${id}/dataset`),
   evaluators: (id: string) => get<EvaluatorDef[]>(`/systems/${id}/evaluators`),
   environments: () => get<Environment[]>("/environments"),
@@ -62,4 +66,9 @@ export const api = {
     send<TagNode>("PUT", `/systems/${sysId}/tags/${tagId}`, { name }),
   deleteTag: (sysId: string, tagId: string) =>
     send<void>("DELETE", `/systems/${sysId}/tags/${tagId}`),
+
+  // 评估任务（含前置条件）
+  tasks: (sysId: string) => get<Task[]>(`/systems/${sysId}/tasks`),
+  createTask: (sysId: string, t: TaskInput) =>
+    send<Task>("POST", `/systems/${sysId}/tasks`, t),
 };

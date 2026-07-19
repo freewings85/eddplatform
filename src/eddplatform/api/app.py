@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from eddplatform.api import sample_data as sd
-from eddplatform.domain.models import Case, Dataset, TagNode
+from eddplatform.domain.models import Case, Dataset, TagNode, Task
 from eddplatform.store import CaseStore, TagStore
 
 app = FastAPI(
@@ -84,6 +84,30 @@ def get_system(system_id: str):
 @app.get("/api/systems/{system_id}/versions")
 def list_versions(system_id: str):
     return [v for v in sd.VERSIONS if v.system_id == system_id]
+
+
+@app.get("/api/systems/{system_id}/eval-programs")
+def list_eval_programs(system_id: str):
+    """评估程序（评估代码库）——独立于系统代码的另一套 git 仓库。"""
+    return [e for e in sd.EVAL_PROGRAMS if e.system_id == system_id]
+
+
+# --- 评估任务（task + 前置条件）-------------------------------------------
+_TASKS: list[Task] = []
+
+
+@app.get("/api/systems/{system_id}/tasks")
+def list_tasks(system_id: str) -> list[Task]:
+    return [t for t in _TASKS if t.system_id == system_id]
+
+
+@app.post("/api/systems/{system_id}/tasks", status_code=201)
+def create_task(system_id: str, task: Task) -> Task:
+    task.system_id = system_id
+    if not task.id:
+        task.id = f"T-{len(_TASKS) + 1:04d}"
+    _TASKS.append(task)
+    return task
 
 
 # --- 用例集（dataset 元信息静态 + cases 落 sqlite）------------------------
