@@ -27,7 +27,6 @@ function splitList(text: string): string[] {
 
 type Props = {
   initial?: Case | null; // 有 = 编辑，无 = 新增
-  availableEvaluators: string[];
   availableTags: string[]; // 标签树的完整路径
   onCancel: () => void;
   onSubmit: (payload: CaseInput) => Promise<void>;
@@ -35,7 +34,6 @@ type Props = {
 
 export default function CaseForm({
   initial,
-  availableEvaluators,
   availableTags,
   onCancel,
   onSubmit,
@@ -48,7 +46,6 @@ export default function CaseForm({
   const [extraTags, setExtraTags] = useState("");
   const [caseVersion, setCaseVersion] = useState(initial?.case_version ?? "v1");
   const [applicable, setApplicable] = useState((initial?.applicable_versions ?? []).join(", "));
-  const [evaluators, setEvaluators] = useState<string[]>(initial?.evaluator_names ?? []);
   const [traceRef, setTraceRef] = useState(initial?.trace?.ref ?? "");
   const [traceUrl, setTraceUrl] = useState(initial?.trace?.url ?? "");
   const [traceNote, setTraceNote] = useState(initial?.trace?.note ?? "");
@@ -57,10 +54,6 @@ export default function CaseForm({
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  function toggleEvaluator(n: string) {
-    setEvaluators((cur) => (cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]));
-  }
 
   function toggleTag(t: string) {
     setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
@@ -88,7 +81,6 @@ export default function CaseForm({
       metadata: (meta as Record<string, unknown>) ?? {},
       case_version: caseVersion.trim() || "v1",
       applicable_versions: splitList(applicable),
-      evaluator_names: evaluators,
       trace: traceRef.trim()
         ? { ref: traceRef.trim(), url: traceUrl.trim() || null, note: traceNote.trim() || null }
         : null,
@@ -173,23 +165,6 @@ export default function CaseForm({
             <span>适用系统版本（逗号分隔，空 = 全部通用）</span>
             <input value={applicable} onChange={(e) => setApplicable(e.target.value)} placeholder="v1, v2" />
           </label>
-
-          <div className="fld">
-            <span>评估器</span>
-            <div className="chips">
-              {availableEvaluators.length === 0 && <i className="muted">该系统暂无评估器</i>}
-              {availableEvaluators.map((n) => (
-                <label key={n} className={`chip ${evaluators.includes(n) ? "on" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={evaluators.includes(n)}
-                    onChange={() => toggleEvaluator(n)}
-                  />
-                  {n}
-                </label>
-              ))}
-            </div>
-          </div>
 
           <fieldset className="fld trace-box">
             <legend>对应轨迹（Langfuse，可空）</legend>

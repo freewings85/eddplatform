@@ -41,7 +41,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
   }, [reload]);
 
   const cases = dataset?.cases ?? [];
-  const evaluators = dataset?.evaluator_names ?? [];
 
   // 过滤标签来源：标签树 ∪ 用例上已用的标签（去重、排序）；分层过滤（且）
   const allTags = [...new Set([...taxonomy, ...cases.flatMap((c) => c.tags)])].sort();
@@ -136,7 +135,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
               <th>标签</th>
               <th>用例版本</th>
               <th>适用系统版本</th>
-              <th>评估器</th>
               <th>轨迹</th>
               <th>启用</th>
               <th></th>
@@ -173,7 +171,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
                     ))
                   )}
                 </td>
-                <td className="mono sm">{c.evaluator_names.join(" · ") || "—"}</td>
                 <td>
                   {c.trace ? (
                     <a
@@ -207,14 +204,14 @@ export default function Datasets({ sysId }: { sysId: string }) {
             ))}
             {dataset && cases.length === 0 && (
               <tr>
-                <td colSpan={9} className="empty">
+                <td colSpan={8} className="empty">
                   还没有用例，点「新增用例」或「导入」开始。
                 </td>
               </tr>
             )}
             {dataset && cases.length > 0 && visible.length === 0 && (
               <tr>
-                <td colSpan={9} className="empty">
+                <td colSpan={8} className="empty">
                   没有同时含全部所选标签的用例。
                   <a className="filter-clear" onClick={() => setActiveTags([])}>
                     清除筛选
@@ -229,7 +226,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
       {editing !== undefined && (
         <CaseForm
           initial={editing}
-          availableEvaluators={evaluators}
           availableTags={taxonomy}
           onCancel={() => setEditing(undefined)}
           onSubmit={saveCase}

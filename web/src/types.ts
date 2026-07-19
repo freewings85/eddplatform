@@ -82,7 +82,6 @@ export interface Case {
   metadata: Record<string, unknown>;
   case_version: string;
   applicable_versions: string[];
-  evaluator_names: string[];
   trace?: CaseTrace | null;
   author?: string | null;
   enabled: boolean;
