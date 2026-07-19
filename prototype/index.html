@@ -597,20 +597,22 @@ baseServices:
 
         <div class="section-title"><h3>本系统的任务定义</h3><button class="btn primary" onclick="openTask()">+ 新建任务定义</button></div>
         <div class="tbl-wrap"><table>
-          <thead><tr><th>任务定义</th><th>评估代码 (repo@ref)</th><th>启动脚本</th><th>依赖外部服务</th><th>Dataset</th><th></th></tr></thead>
+          <thead><tr><th>任务定义</th><th>评估代码 (repo@ref)</th><th>启动脚本</th><th>依赖外部服务</th><th>Dataset</th><th>默认沙箱</th><th></th></tr></thead>
           <tbody>
             <tr><td><b>报价·端到端</b></td>
               <td class="mono">insur-evals@a3f1</td>
               <td class="mono" style="font-size:11px">evalctl serve --tq evals</td>
               <td class="muted">mock datamanager</td>
               <td>保险 200 条</td>
+              <td class="muted">默认-轻量</td>
               <td><button class="btn sm" onclick="toggleDetail('task1')">看定义</button></td></tr>
-            <tr id="task1" class="detail" hidden><td colspan="6">
+            <tr id="task1" class="detail" hidden><td colspan="7">
               <div class="kv">
                 <div class="k">评估代码仓库</div><div><span class="mono">git@…/insur-evals.git</span> @ <span class="mono">a3f1</span> <span class="muted">（ref 钉死 = 尺子钉死）</span></div>
                 <div class="k">启动脚本</div><div><span class="mono">evalctl serve --task-queue evals</span> <span class="muted">—— 起 worker，托管 RunCase + 按 code 的实现表</span></div>
                 <div class="k">依赖外部服务</div><div><span class="tag">mock datamanager :7001</span> <span class="muted">评估前拉起、跑完销毁；没有就留空</span></div>
                 <div class="k">Dataset</div><div>保险 200 条（选中的 cases）</div>
+                <div class="k">默认沙箱 / 环境</div><div>默认-轻量 <span class="muted">（选自「环境 / 沙箱」预设；运行时可覆盖）</span></div>
                 <div class="k mono">版本</div><div><span class="pill warn">不在定义里</span> —— 运行时选，见「评估任务运行」</div>
                 <div class="k mono">评估器</div><div><span class="pill warn">不在定义里</span> —— 在评估代码的 handler 里</div>
               </div>
@@ -623,6 +625,7 @@ baseServices:
               <td class="mono" style="font-size:11px">evalctl serve --tq evals</td>
               <td class="muted">—</td>
               <td>冒烟 30 条</td>
+              <td class="muted">默认-轻量</td>
               <td><button class="btn sm">看定义</button></td></tr>
           </tbody>
         </table></div>
@@ -635,9 +638,9 @@ baseServices:
       </section>
 
       <section id="view-environments" hidden>
-        <h2 class="page">环境 / 沙箱</h2>
-        <p class="sub">沙箱配置<b>可复用可选择</b>；运行 / 评估时从配置里选一套拉起</p>
-        <div class="section-title"><h3>沙箱配置（可选择）</h3><button class="btn primary" onclick="openEnv()">+ 新建配置</button></div>
+        <h2 class="page">环境 / 沙箱 <span class="muted mono" style="font-size:15px">默认配置</span></h2>
+        <p class="sub">预设几套常用的沙箱 / 环境<b>默认配置</b>；Task 和运行时<b>选一下就用</b>，不用每次重设 —— 需要时可覆盖每一项。</p>
+        <div class="section-title"><h3>默认配置（预设 · 可选可覆盖）</h3><button class="btn primary" onclick="openEnv()">+ 新建预设</button></div>
         <div class="tbl-wrap"><table>
           <thead><tr><th>配置名</th><th>隔离级别</th><th>资源</th><th>默认 TTL</th><th>流量</th><th>说明</th><th></th></tr></thead>
           <tbody>
@@ -1197,7 +1200,8 @@ cases:
         <p class="hint" style="margin-top:6px">为评估需要额外起的进程 / 服务（mock、中间件…）。<b>不需要就留空。</b></p>
       </div>
       <div class="field"><label>Dataset（跑哪个题库）</label><select><option>保险 200 条</option><option>保险冒烟 30 条</option><option>红队 40 条</option></select></div>
-      <div class="note">🎯 <b>这里不选版本、不选评估器</b> —— 版本是<b>运行时</b>注入；入口 / 评估器 / HITL 都在<b>评估代码</b>里。同一个定义在 v1、v2 各跑一次 = 两个 Experiment = 一次 Comparison。</div>
+      <div class="field"><label>默认沙箱 / 环境 <span class="muted" style="font-weight:400">选一个预设，运行时可覆盖</span></label><select><option>默认-轻量</option><option>强隔离</option><option>高危工具</option><option>＋ 新建预设…</option></select></div>
+      <div class="note">🎯 <b>这里不选版本、不选评估器</b> —— 版本是<b>运行时</b>注入；入口 / 评估器 / HITL 都在<b>评估代码</b>里。沙箱选一个<b>默认预设</b>就行，不用每次重设。同一个定义在 v1、v2 各跑一次 = 两个 Experiment = 一次 Comparison。</div>
     </div>
     <div class="dialog-f"><span style="flex:1"></span><button class="btn" onclick="closeTask()">取消</button><button class="btn primary" onclick="closeTask()">保存任务定义</button></div>
   </div>
