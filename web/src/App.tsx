@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import Datasets from "./Datasets";
+import Tags from "./Tags";
 import type {
   Comparison,
   EvaluatorDef,
@@ -39,6 +40,7 @@ const GLOBAL_NAV: Nav[] = [
 const SYSTEM_NAV: Nav[] = [
   { view: "sys-overview", label: "系统概览", icon: "🏠" },
   { view: "datasets", label: "用例库", icon: "📁" },
+  { view: "tags", label: "标签", icon: "🏷️" },
   { view: "evaluators", label: "评估器", icon: "⚗️" },
   { view: "runs", label: "运行记录", icon: "🏃" },
   { view: "evaluations", label: "评估", icon: "✅" },
@@ -129,6 +131,7 @@ export default function App() {
           {mode === "system" && sysId && view === "datasets" && (
             <Datasets sysId={sysId} />
           )}
+          {mode === "system" && sysId && view === "tags" && <Tags sysId={sysId} />}
           {mode === "system" && sysId && view === "evaluators" && (
             <Evaluators sysId={sysId} />
           )}

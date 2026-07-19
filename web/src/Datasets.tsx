@@ -12,8 +12,14 @@ function toInput(c: Case): CaseInput {
   return rest;
 }
 
+/** 用例是否匹配某标签 p（分层：命中该标签或其任一子孙）。 */
+function matchTag(tags: string[], p: string): boolean {
+  return tags.some((t) => t === p || t.startsWith(p + "/"));
+}
+
 export default function Datasets({ sysId }: { sysId: string }) {
   const [dataset, setDataset] = useState<Dataset | null>(null);
+  const [taxonomy, setTaxonomy] = useState<string[]>([]); // 标签树的完整路径
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Case | null | undefined>(undefined); // undefined=关闭, null=新增
   const [importing, setImporting] = useState(false);
@@ -21,9 +27,10 @@ export default function Datasets({ sysId }: { sysId: string }) {
 
   const reload = useCallback(() => {
     setError(null);
+    api.dataset(sysId).then(setDataset).catch((e) => setError(String(e)));
     api
-      .dataset(sysId)
-      .then(setDataset)
+      .tags(sysId)
+      .then((ts) => setTaxonomy(ts.map((t) => t.path)))
       .catch((e) => setError(String(e)));
   }, [sysId]);
 
@@ -36,10 +43,10 @@ export default function Datasets({ sysId }: { sysId: string }) {
   const cases = dataset?.cases ?? [];
   const evaluators = dataset?.evaluator_names ?? [];
 
-  // 全部标签（去重、排序）与按标签过滤（且：需含全部选中标签）
-  const allTags = [...new Set(cases.flatMap((c) => c.tags))].sort();
+  // 过滤标签来源：标签树 ∪ 用例上已用的标签（去重、排序）；分层过滤（且）
+  const allTags = [...new Set([...taxonomy, ...cases.flatMap((c) => c.tags)])].sort();
   const visible = activeTags.length
-    ? cases.filter((c) => activeTags.every((t) => c.tags.includes(t)))
+    ? cases.filter((c) => activeTags.every((t) => matchTag(c.tags, t)))
     : cases;
 
   function toggleTag(t: string) {
@@ -223,6 +230,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
         <CaseForm
           initial={editing}
           availableEvaluators={evaluators}
+          availableTags={taxonomy}
           onCancel={() => setEditing(undefined)}
           onSubmit={saveCase}
         />

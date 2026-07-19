@@ -154,6 +154,15 @@ class CaseTrace(BaseModel):
     note: str | None = None               # 这条轨迹的问题简述
 
 
+class TagNode(BaseModel):
+    """标签树节点（每系统一棵树）。case 用完整路径（如 ``业务/报价``）引用标签。"""
+
+    id: str
+    name: str                             # 单层名字，不含 "/"
+    parent_id: str | None = None          # None = 根
+    path: str = ""                        # 计算得到的完整路径（业务/报价）
+
+
 class Case(BaseModel):
     """用例：有自身版本(编辑历史) + 适用系统版本(多版本通用/某版本专属)。"""
 

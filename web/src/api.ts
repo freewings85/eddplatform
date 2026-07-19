@@ -10,6 +10,7 @@ import type {
   RunRecord,
   System,
   SystemVersion,
+  TagNode,
 } from "./types";
 
 async function get<T>(path: string): Promise<T> {
@@ -52,4 +53,13 @@ export const api = {
   exportCases: (sysId: string) => get<Case[]>(`/systems/${sysId}/cases/export`),
   importCases: (sysId: string, cases: Case[], mode: "append" | "replace") =>
     send<ImportResult>("POST", `/systems/${sysId}/cases/import`, { cases, mode }),
+
+  // 标签管理（分层）
+  tags: (sysId: string) => get<TagNode[]>(`/systems/${sysId}/tags`),
+  createTag: (sysId: string, name: string, parentId: string | null) =>
+    send<TagNode>("POST", `/systems/${sysId}/tags`, { name, parent_id: parentId }),
+  renameTag: (sysId: string, tagId: string, name: string) =>
+    send<TagNode>("PUT", `/systems/${sysId}/tags/${tagId}`, { name }),
+  deleteTag: (sysId: string, tagId: string) =>
+    send<void>("DELETE", `/systems/${sysId}/tags/${tagId}`),
 };

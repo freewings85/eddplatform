@@ -4,5 +4,6 @@
 """
 
 from eddplatform.store.case_store import CaseStore, ImportResult
+from eddplatform.store.tag_store import TagStore
 
-__all__ = ["CaseStore", "ImportResult"]
+__all__ = ["CaseStore", "ImportResult", "TagStore"]

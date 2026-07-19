@@ -14,8 +14,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from eddplatform.api import sample_data as sd
-from eddplatform.domain.models import Case, Dataset
-from eddplatform.store import CaseStore
+from eddplatform.domain.models import Case, Dataset, TagNode
+from eddplatform.store import CaseStore, TagStore
 
 app = FastAPI(
     title="EddPlatform",
@@ -26,9 +26,11 @@ app = FastAPI(
 # 仓库根：src/eddplatform/api/app.py -> parents[3]
 PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
 
-# 用例持久化（sqlite）。首次用示例数据播种，保证 UI 不空。
+# 用例 + 标签持久化（sqlite）。首次用示例数据播种，保证 UI 不空。
 store = CaseStore()
 store.seed_if_empty(sd.DATASET.system_id, sd.DATASET.cases)
+tag_store = TagStore()
+tag_store.seed_if_empty(sd.DATASET.system_id, sd.SEED_TAGS)
 
 
 def _dataset_meta(system_id: str) -> tuple[str, list[str]]:
@@ -42,6 +44,15 @@ def _dataset_meta(system_id: str) -> tuple[str, list[str]]:
 class ImportRequest(BaseModel):
     cases: list[Case]
     mode: str = "append"                  # append(按 id upsert) / replace(清空重建)
+
+
+class TagCreate(BaseModel):
+    name: str
+    parent_id: str | None = None
+
+
+class TagRename(BaseModel):
+    name: str
 
 
 @app.get("/", include_in_schema=False)
@@ -124,6 +135,40 @@ def import_cases(system_id: str, body: ImportRequest):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"added": res.added, "updated": res.updated, "total": res.total}
+
+
+# --- 标签管理（分层）------------------------------------------------------
+@app.get("/api/systems/{system_id}/tags")
+def list_tags(system_id: str) -> list[TagNode]:
+    return tag_store.list_tags(system_id)
+
+
+@app.post("/api/systems/{system_id}/tags", status_code=201)
+def create_tag(system_id: str, body: TagCreate) -> TagNode:
+    try:
+        return tag_store.add_tag(system_id, body.name, body.parent_id)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.put("/api/systems/{system_id}/tags/{tag_id}")
+def rename_tag(system_id: str, tag_id: str, body: TagRename) -> TagNode:
+    try:
+        node, old_path, new_path = tag_store.rename_tag(system_id, tag_id, body.name)
+    except KeyError:
+        raise HTTPException(404, "tag not found")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    store.rewrite_tag_prefix(system_id, old_path, new_path)  # 同步 case 上的标签路径
+    return node
+
+
+@app.delete("/api/systems/{system_id}/tags/{tag_id}", status_code=204)
+def delete_tag(system_id: str, tag_id: str) -> None:
+    try:
+        tag_store.delete_tag(system_id, tag_id)
+    except KeyError:
+        raise HTTPException(404, "tag not found")
 
 
 @app.get("/api/systems/{system_id}/evaluators")

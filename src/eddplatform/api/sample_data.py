@@ -80,21 +80,33 @@ ENVIRONMENTS = [
                 version_label="v2", status=RunStatus.RUNNING, ttl_hours_left=0.70, purpose="单独运行 #R-1050"),
 ]
 
-# --- 用例集（用例有版本 + 适用系统版本）-----------------------------------
+# --- 标签树（每系统一棵，两层示例）----------------------------------------
+# 结构：[(父标签, [子标签...]), ...]；case 用完整路径 "父/子" 引用。
+SEED_TAGS = [
+    ("业务", ["报价", "对话"]),
+    ("质量", ["回归"]),
+    ("安全", ["注入"]),
+]
+
+# --- 用例集（用例有版本 + 适用系统版本 + 分层标签）-------------------------
 DATASET = Dataset(
     name="保险报价", system_id="insurance",
     evaluator_names=["金额校验", "条款解释", "工具调用正确", "延迟阈值", "提示词注入检测"],
     cases=[
         Case(id="17", name="新能源车型报价", inputs="新能源车报价请求",
-             expected_output={"premium": 4260}, case_version="v3",
+             expected_output={"premium": 4260}, case_version="v3", tags=["业务/报价"],
              applicable_versions=["v1", "v2", "v3"], evaluator_names=["金额校验", "工具调用正确"]),
         Case(id="63", name="多车型比价", inputs="三款车型比价", case_version="v2",
+             tags=["业务/报价", "业务/对话"],
              applicable_versions=["v1", "v2"], evaluator_names=["条款解释"]),
         Case(id="88", name="含优惠叠加报价", inputs="优惠叠加", expected_output={"premium": 3100},
-             case_version="v1", applicable_versions=[], evaluator_names=["金额校验"]),
+             case_version="v1", applicable_versions=[], tags=["业务/报价"],
+             evaluator_names=["金额校验"]),
         Case(id="91", name="历史出险影响保费", inputs="有出险记录", case_version="v4",
+             tags=["业务/报价", "质量/回归"],
              applicable_versions=["v1", "v2"], evaluator_names=["金额校验", "延迟阈值"]),
         Case(id="102", name="新能源专属补贴校验", inputs="补贴校验", case_version="v1",
+             tags=["业务/报价"],
              applicable_versions=["v2"], evaluator_names=["金额校验"]),  # 仅 v2 专属
     ],
 )

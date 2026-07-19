@@ -28,16 +28,24 @@ function splitList(text: string): string[] {
 type Props = {
   initial?: Case | null; // 有 = 编辑，无 = 新增
   availableEvaluators: string[];
+  availableTags: string[]; // 标签树的完整路径
   onCancel: () => void;
   onSubmit: (payload: CaseInput) => Promise<void>;
 };
 
-export default function CaseForm({ initial, availableEvaluators, onCancel, onSubmit }: Props) {
+export default function CaseForm({
+  initial,
+  availableEvaluators,
+  availableTags,
+  onCancel,
+  onSubmit,
+}: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [inputs, setInputs] = useState(toText(initial?.inputs ?? ""));
   const [expected, setExpected] = useState(toText(initial?.expected_output));
-  const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
+  const [extraTags, setExtraTags] = useState("");
   const [caseVersion, setCaseVersion] = useState(initial?.case_version ?? "v1");
   const [applicable, setApplicable] = useState((initial?.applicable_versions ?? []).join(", "));
   const [evaluators, setEvaluators] = useState<string[]>(initial?.evaluator_names ?? []);
@@ -54,6 +62,13 @@ export default function CaseForm({ initial, availableEvaluators, onCancel, onSub
     setEvaluators((cur) => (cur.includes(n) ? cur.filter((x) => x !== n) : [...cur, n]));
   }
 
+  function toggleTag(t: string) {
+    setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
+  }
+
+  // 标签树 ∪ 当前用例已用的标签（保留不在树里的历史标签）
+  const knownTags = [...new Set([...availableTags, ...tags])].sort();
+
   async function submit() {
     setError(null);
     if (!name.trim()) return setError("用例名不能为空");
@@ -69,7 +84,7 @@ export default function CaseForm({ initial, availableEvaluators, onCancel, onSub
       description: description.trim() || null,
       inputs: (parseLoose(inputs) as Case["inputs"]) ?? "",
       expected_output: (parseLoose(expected) as Case["expected_output"]) ?? null,
-      tags: splitList(tags),
+      tags: [...new Set([...tags, ...splitList(extraTags)])],
       metadata: (meta as Record<string, unknown>) ?? {},
       case_version: caseVersion.trim() || "v1",
       applicable_versions: splitList(applicable),
@@ -129,16 +144,30 @@ export default function CaseForm({ initial, availableEvaluators, onCancel, onSub
             </label>
           </div>
 
-          <div className="fld-row">
-            <label className="fld">
-              <span>标签（逗号分隔）</span>
-              <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="报价, 回归" />
-            </label>
-            <label className="fld">
-              <span>用例版本</span>
-              <input value={caseVersion} onChange={(e) => setCaseVersion(e.target.value)} placeholder="v1" />
-            </label>
+          <div className="fld">
+            <span>标签（分层，来自「标签」管理页）</span>
+            <div className="chips">
+              {knownTags.length === 0 && (
+                <i className="muted">该系统暂无标签，去「标签」页新建，或在下方补充</i>
+              )}
+              {knownTags.map((t) => (
+                <label key={t} className={`chip ${tags.includes(t) ? "on" : ""}`}>
+                  <input type="checkbox" checked={tags.includes(t)} onChange={() => toggleTag(t)} />
+                  {t}
+                </label>
+              ))}
+            </div>
+            <input
+              value={extraTags}
+              onChange={(e) => setExtraTags(e.target.value)}
+              placeholder="补充其它标签（逗号分隔，用完整路径如 业务/报价）"
+            />
           </div>
+
+          <label className="fld">
+            <span>用例版本</span>
+            <input value={caseVersion} onChange={(e) => setCaseVersion(e.target.value)} placeholder="v1" />
+          </label>
 
           <label className="fld">
             <span>适用系统版本（逗号分隔，空 = 全部通用）</span>

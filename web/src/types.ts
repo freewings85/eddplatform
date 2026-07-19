@@ -32,6 +32,13 @@ export interface CaseTrace {
   note?: string | null;
 }
 
+export interface TagNode {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+  path: string; // 完整路径，如 业务/报价
+}
+
 export interface Case {
   id: string;
   name: string;

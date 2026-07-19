@@ -223,6 +223,44 @@ class CaseStore:
                 conn.close()
         return ImportResult(added=added, updated=updated, total=total)
 
+    # --- 标签维护 --------------------------------------------------------
+    def rewrite_tag_prefix(self, system_id: str, old_path: str, new_path: str) -> int:
+        """把 case 标签里等于 old_path、或以 ``old_path + "/"`` 开头的前缀改成 new_path。
+
+        用于标签重命名后保持 case 上的路径一致。返回受影响的用例数（不动 updated_at）。
+        """
+        if old_path == new_path:
+            return 0
+        changed = 0
+        with self._lock:
+            conn = self._connect()
+            try:
+                rows = conn.execute(
+                    "SELECT case_id, data FROM cases WHERE system_id=?", (system_id,)
+                ).fetchall()
+                for row in rows:
+                    case = Case.model_validate_json(row["data"])
+                    new_tags = [self._rewrite_one(t, old_path, new_path) for t in case.tags]
+                    if new_tags != case.tags:
+                        case.tags = new_tags
+                        conn.execute(
+                            "UPDATE cases SET data=? WHERE system_id=? AND case_id=?",
+                            (case.model_dump_json(), system_id, row["case_id"]),
+                        )
+                        changed += 1
+                conn.commit()
+            finally:
+                conn.close()
+        return changed
+
+    @staticmethod
+    def _rewrite_one(tag: str, old_path: str, new_path: str) -> str:
+        if tag == old_path:
+            return new_path
+        if tag.startswith(old_path + "/"):
+            return new_path + tag[len(old_path):]
+        return tag
+
     # --- 播种 ------------------------------------------------------------
     def seed_if_empty(self, system_id: str, cases: Iterable[Case]) -> None:
         """该系统还没有任何用例时，用给定用例播种（幂等）。"""
