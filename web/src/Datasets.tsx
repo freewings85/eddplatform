@@ -17,6 +17,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Case | null | undefined>(undefined); // undefined=关闭, null=新增
   const [importing, setImporting] = useState(false);
+  const [activeTags, setActiveTags] = useState<string[]>([]);
 
   const reload = useCallback(() => {
     setError(null);
@@ -28,11 +29,22 @@ export default function Datasets({ sysId }: { sysId: string }) {
 
   useEffect(() => {
     setDataset(null);
+    setActiveTags([]);
     reload();
   }, [reload]);
 
   const cases = dataset?.cases ?? [];
   const evaluators = dataset?.evaluator_names ?? [];
+
+  // 全部标签（去重、排序）与按标签过滤（且：需含全部选中标签）
+  const allTags = [...new Set(cases.flatMap((c) => c.tags))].sort();
+  const visible = activeTags.length
+    ? cases.filter((c) => activeTags.every((t) => c.tags.includes(t)))
+    : cases;
+
+  function toggleTag(t: string) {
+    setActiveTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
+  }
 
   async function saveCase(payload: CaseInput) {
     if (editing) await api.updateCase(sysId, editing.id, payload);
@@ -81,8 +93,32 @@ export default function Datasets({ sysId }: { sysId: string }) {
         <button className="btn" onClick={() => exportJson().catch((e) => setError(String(e)))}>
           导出
         </button>
-        <span className="muted count">{cases.length} 条用例</span>
+        <span className="muted count">
+          {activeTags.length ? `${visible.length} / ${cases.length}` : cases.length} 条用例
+        </span>
       </div>
+
+      {allTags.length > 0 && (
+        <div className="filter-bar">
+          <span className="filter-label">标签筛选</span>
+          <div className="chips">
+            {allTags.map((t) => (
+              <button
+                key={t}
+                className={`chip ${activeTags.includes(t) ? "on" : ""}`}
+                onClick={() => toggleTag(t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+          {activeTags.length > 0 && (
+            <a className="filter-clear" onClick={() => setActiveTags([])}>
+              清除筛选
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <table>
@@ -100,7 +136,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
             </tr>
           </thead>
           <tbody>
-            {cases.map((c) => (
+            {visible.map((c) => (
               <tr key={c.id} className={c.enabled ? "" : "off"}>
                 <td>{c.id}</td>
                 <td>
@@ -162,10 +198,20 @@ export default function Datasets({ sysId }: { sysId: string }) {
                 </td>
               </tr>
             ))}
-            {cases.length === 0 && dataset && (
+            {dataset && cases.length === 0 && (
               <tr>
                 <td colSpan={9} className="empty">
                   还没有用例，点「新增用例」或「导入」开始。
+                </td>
+              </tr>
+            )}
+            {dataset && cases.length > 0 && visible.length === 0 && (
+              <tr>
+                <td colSpan={9} className="empty">
+                  没有同时含全部所选标签的用例。
+                  <a className="filter-clear" onClick={() => setActiveTags([])}>
+                    清除筛选
+                  </a>
                 </td>
               </tr>
             )}

@@ -122,3 +122,9 @@ td.empty { text-align: center; color: var(--muted); padding: 28px; }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: 12px; cursor: pointer; background: #fff; }
 .chip.on { background: var(--new-weak); border-color: #c7d2fe; color: var(--primary); }
 .chip input { margin: 0; }
+
+/* 标签筛选条 */
+.filter-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.filter-label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.filter-clear { color: var(--primary); font-size: 12px; cursor: pointer; margin-left: 4px; }
+.filter-clear:hover { text-decoration: underline; }

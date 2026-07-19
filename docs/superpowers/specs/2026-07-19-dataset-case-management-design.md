@@ -121,6 +121,7 @@ vite dev 已把 `/api` 代理到 :8000，无需 CORS。
 - `api.ts`：加 `createCase / updateCase / deleteCase / exportCases / importCases`。
 - **UI**：
   - 表格上方工具条：**新增用例 · 导入 · 导出**。
+  - **标签筛选条**：列出数据集内全部标签为可点 chip，点选按标签过滤用例；多选=且（case 需含全部所选标签），可一键清除；计数显示"过滤数 / 总数"。
   - 表格列在现有基础上加 `tags`、`trace`（有则显示「轨迹」链接图标）、动作列（**编辑 / 删除**）、**启用开关**。
   - 表单弹窗字段：名称、描述、inputs（JSON 文本域）、expected_output（JSON 文本域，可空）、tags（多标签输入）、用例版本、适用系统版本（多选/逗号）、评估器（从该系统可用评估器多选）、trace（trace id/URL + note）、metadata（JSON 可空）、启用。
   - 提交前对 inputs / expected_output / metadata 做 JSON 校验（也允许纯字符串输入）。
