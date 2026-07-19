@@ -288,3 +288,25 @@ class Comparison(BaseModel):
     regressed: int = 0
     unchanged: int = 0
     metrics: list[MetricDelta] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- 任务前置条件
+class PreconditionKind(str, Enum):
+    """task 启动前的前置动作类型；每类背后接系统设置里的真实管理。"""
+
+    START_SYSTEM = "start_system"            # 拉起被测系统（选一个系统版本/ref）
+    START_EVAL_PROGRAM = "start_eval_program"  # 拉起评估程序（选一个评估代码版本/ref）
+    CUSTOM_SCRIPT = "custom_script"          # 自定义脚本（seed/迁移/临时依赖），无版本
+
+
+class Precondition(BaseModel):
+    """task 的一条前置条件（有序执行）。
+
+    版本(``ref``)在**运行时选定**——task 定义里可留空当"槽位"，跑的时候才填。
+    """
+
+    kind: PreconditionKind
+    name: str | None = None                  # 人读标签 / helm release 名
+    git_url: str | None = None               # start_system / start_eval_program 的仓库
+    ref: str | None = None                   # 选定的 git ref（版本）
+    script: str | None = None                # custom_script 的脚本内容

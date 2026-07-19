@@ -95,9 +95,21 @@ class ConventionDeployer:
                 image_tag=image_tag, images=images, pods=pods,
             )
 
+    def uninstall(self, *, release: str, namespace: str) -> None:
+        """卸一个 helm release（不删 namespace，供同 ns 多 release 场景）。"""
+        self._run(
+            [self.helm_bin, "uninstall", release, "-n", namespace], check=False, env=self._kube_env()
+        )
+
+    def delete_namespace(self, namespace: str) -> None:
+        self._run(
+            [self.kubectl_bin, "delete", "ns", namespace, "--wait=false"],
+            check=False, env=self._kube_env(),
+        )
+
     def destroy(self, *, release: str, namespace: str) -> None:
-        self._run([self.helm_bin, "uninstall", release, "-n", namespace], check=False)
-        self._run([self.kubectl_bin, "delete", "ns", namespace, "--wait=false"], check=False)
+        self.uninstall(release=release, namespace=namespace)
+        self.delete_namespace(namespace)
         self._log(f"✓ 已销毁 {release} / ns {namespace}")
 
     # --- 内部 ------------------------------------------------------------

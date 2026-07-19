@@ -1,0 +1,7 @@
+# 评估程序仓库（评估代码/逻辑），与被测系统同一套约定，只是 kind=eval。
+apiVersion: eddplatform/v1
+kind: eval
+build: ./build.sh
+chart: ./deploy/chart
+services:
+  - judge

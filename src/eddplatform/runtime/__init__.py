@@ -7,5 +7,18 @@
 
 from eddplatform.runtime.convention import RepoSpec, read_repo_spec
 from eddplatform.runtime.deployer import ConventionDeployer, DeployResult
+from eddplatform.runtime.orchestrator import (
+    EnvironmentResult,
+    Orchestrator,
+    PreconditionOutcome,
+)
 
-__all__ = ["RepoSpec", "read_repo_spec", "ConventionDeployer", "DeployResult"]
+__all__ = [
+    "RepoSpec",
+    "read_repo_spec",
+    "ConventionDeployer",
+    "DeployResult",
+    "Orchestrator",
+    "EnvironmentResult",
+    "PreconditionOutcome",
+]
