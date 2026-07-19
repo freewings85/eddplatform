@@ -11,8 +11,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from eddplatform.api import sample_data as sd
+from eddplatform.domain.models import Case, Dataset
+from eddplatform.store import CaseStore
 
 app = FastAPI(
     title="EddPlatform",
@@ -22,6 +25,23 @@ app = FastAPI(
 
 # 仓库根：src/eddplatform/api/app.py -> parents[3]
 PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
+
+# 用例持久化（sqlite）。首次用示例数据播种，保证 UI 不空。
+store = CaseStore()
+store.seed_if_empty(sd.DATASET.system_id, sd.DATASET.cases)
+
+
+def _dataset_meta(system_id: str) -> tuple[str, list[str]]:
+    """dataset 级元信息（静态）：name 与可用评估器；cases 由 store 提供。"""
+    if sd.DATASET.system_id == system_id:
+        return sd.DATASET.name, sd.DATASET.evaluator_names
+    system = sd.system_by_id(system_id)
+    return (system.name if system else system_id), []
+
+
+class ImportRequest(BaseModel):
+    cases: list[Case]
+    mode: str = "append"                  # append(按 id upsert) / replace(清空重建)
 
 
 @app.get("/", include_in_schema=False)
@@ -55,12 +75,55 @@ def list_versions(system_id: str):
     return [v for v in sd.VERSIONS if v.system_id == system_id]
 
 
-# --- 用例 / 评估器 ---------------------------------------------------------
+# --- 用例集（dataset 元信息静态 + cases 落 sqlite）------------------------
 @app.get("/api/systems/{system_id}/dataset")
-def get_dataset(system_id: str):
-    if sd.DATASET.system_id != system_id:
-        raise HTTPException(404, "dataset not found")
-    return sd.DATASET
+def get_dataset(system_id: str) -> Dataset:
+    name, evaluator_names = _dataset_meta(system_id)
+    return Dataset(
+        name=name,
+        system_id=system_id,
+        evaluator_names=evaluator_names,
+        cases=store.list_cases(system_id),
+    )
+
+
+# --- 用例管理（CRUD + 导入导出）-------------------------------------------
+@app.post("/api/systems/{system_id}/cases", status_code=201)
+def create_case(system_id: str, case: Case) -> Case:
+    try:
+        return store.add_case(system_id, case)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.put("/api/systems/{system_id}/cases/{case_id}")
+def update_case(system_id: str, case_id: str, case: Case) -> Case:
+    try:
+        return store.update_case(system_id, case_id, case)
+    except KeyError:
+        raise HTTPException(404, "case not found")
+
+
+@app.delete("/api/systems/{system_id}/cases/{case_id}", status_code=204)
+def delete_case(system_id: str, case_id: str) -> None:
+    try:
+        store.delete_case(system_id, case_id)
+    except KeyError:
+        raise HTTPException(404, "case not found")
+
+
+@app.get("/api/systems/{system_id}/cases/export")
+def export_cases(system_id: str) -> list[Case]:
+    return store.export_cases(system_id)
+
+
+@app.post("/api/systems/{system_id}/cases/import")
+def import_cases(system_id: str, body: ImportRequest):
+    try:
+        res = store.import_cases(system_id, body.cases, mode=body.mode)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"added": res.added, "updated": res.updated, "total": res.total}
 
 
 @app.get("/api/systems/{system_id}/evaluators")

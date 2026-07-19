@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
+import Datasets from "./Datasets";
 import type {
   Comparison,
-  Dataset,
   EvaluatorDef,
   Evaluation,
   RunRecord,
@@ -266,55 +266,6 @@ function SysOverview({ sysId }: { sysId: string }) {
                     {v.status}
                   </Pill>
                 </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function Datasets({ sysId }: { sysId: string }) {
-  const { data, error } = useData<Dataset>(() => api.dataset(sysId), [sysId]);
-  return (
-    <>
-      <h2 className="page">用例库</h2>
-      <p className="sub">用例有自身版本 + 适用系统版本（多版本通用 / 某版本专属）</p>
-      {error && <p className="err">{error}</p>}
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>用例名</th>
-              <th>用例版本</th>
-              <th>适用系统版本</th>
-              <th>评估器</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data?.cases ?? []).map((c) => (
-              <tr key={c.id}>
-                <td>{c.id}</td>
-                <td>{c.name}</td>
-                <td>
-                  <span className="tag v">{c.case_version}</span>
-                </td>
-                <td>
-                  {c.applicable_versions.length === 0 ? (
-                    <span className="tag">全部版本</span>
-                  ) : c.applicable_versions.length === 1 ? (
-                    <span className="tag only">仅 {c.applicable_versions[0]} 专属</span>
-                  ) : (
-                    c.applicable_versions.map((v) => (
-                      <span key={v} className="tag">
-                        {v}
-                      </span>
-                    ))
-                  )}
-                </td>
-                <td className="mono">{c.evaluator_names.join(" · ")}</td>
               </tr>
             ))}
           </tbody>

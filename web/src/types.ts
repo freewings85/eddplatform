@@ -26,13 +26,39 @@ export interface SystemVersion {
   note?: string | null;
 }
 
+export interface CaseTrace {
+  ref: string;
+  url?: string | null;
+  note?: string | null;
+}
+
 export interface Case {
   id: string;
   name: string;
+  description?: string | null;
+  inputs: Record<string, unknown> | string;
+  expected_output?: Record<string, unknown> | string | null;
+  tags: string[];
+  metadata: Record<string, unknown>;
   case_version: string;
   applicable_versions: string[];
   evaluator_names: string[];
+  trace?: CaseTrace | null;
+  author?: string | null;
   enabled: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+/** 新增/编辑用例的表单负载（id 由服务端生成，时间戳自动维护）。 */
+export type CaseInput = Omit<Case, "id" | "created_at" | "updated_at"> & {
+  id?: string;
+};
+
+export interface ImportResult {
+  added: number;
+  updated: number;
+  total: number;
 }
 
 export interface Dataset {

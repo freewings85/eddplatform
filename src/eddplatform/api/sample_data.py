@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from eddplatform.domain.models import (
     Case,
-    CaseResult,
     Comparison,
     ContextField,
     Dataset,

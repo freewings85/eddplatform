@@ -143,18 +143,35 @@ class Environment(BaseModel):
 
 
 # --------------------------------------------------------------------------- 用例 / 用例集
+class CaseTrace(BaseModel):
+    """用例对应的线上轨迹——**轻引用**。
+
+    轨迹本体的存储与查看交给 Langfuse（内嵌引擎），平台侧只存指针。
+    """
+
+    ref: str                              # Langfuse trace id
+    url: str | None = None                # 直达轨迹视图的链接（host + id 拼）
+    note: str | None = None               # 这条轨迹的问题简述
+
+
 class Case(BaseModel):
     """用例：有自身版本(编辑历史) + 适用系统版本(多版本通用/某版本专属)。"""
 
-    id: str
+    id: str = ""                          # 空 = 由 store 落库时生成
     name: str
-    inputs: dict | str
+    description: str | None = None        # 用例意图/在测什么
+    inputs: dict | str = ""
     expected_output: dict | str | None = None
+    tags: list[str] = []                  # 数据集内分组/筛选
     metadata: dict = {}
-    case_version: str = "v1"
-    applicable_versions: list[str] = []   # 空 = 全部版本通用
+    case_version: str = "v1"              # 用例自身编辑版本
+    applicable_versions: list[str] = []   # 适用的系统版本；空 = 全部通用
     evaluator_names: list[str] = []
+    trace: CaseTrace | None = None        # 一条 case 对应一条轨迹（轻引用）
+    author: str | None = None
     enabled: bool = True
+    created_at: datetime | None = None    # store 自动维护
+    updated_at: datetime | None = None    # store 自动维护
 
     def applies_to(self, version_label: str) -> bool:
         return not self.applicable_versions or version_label in self.applicable_versions

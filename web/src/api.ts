@@ -1,9 +1,12 @@
 import type {
+  Case,
+  CaseInput,
   Comparison,
   Dataset,
   Environment,
   Evaluation,
   EvaluatorDef,
+  ImportResult,
   RunRecord,
   System,
   SystemVersion,
@@ -13,6 +16,19 @@ async function get<T>(path: string): Promise<T> {
   const resp = await fetch("/api" + path);
   if (!resp.ok) throw new Error(`${resp.status} ${path}`);
   return (await resp.json()) as T;
+}
+
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const resp = await fetch("/api" + path, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => "");
+    throw new Error(`${resp.status} ${path} ${detail}`);
+  }
+  return resp.status === 204 ? (undefined as T) : ((await resp.json()) as T);
 }
 
 export const api = {
@@ -25,4 +41,15 @@ export const api = {
   runs: () => get<RunRecord[]>("/runs"),
   evaluations: () => get<Evaluation[]>("/evaluations"),
   comparison: () => get<Comparison>("/comparison"),
+
+  // 用例管理
+  createCase: (sysId: string, c: CaseInput) =>
+    send<Case>("POST", `/systems/${sysId}/cases`, c),
+  updateCase: (sysId: string, caseId: string, c: CaseInput) =>
+    send<Case>("PUT", `/systems/${sysId}/cases/${caseId}`, c),
+  deleteCase: (sysId: string, caseId: string) =>
+    send<void>("DELETE", `/systems/${sysId}/cases/${caseId}`),
+  exportCases: (sysId: string) => get<Case[]>(`/systems/${sysId}/cases/export`),
+  importCases: (sysId: string, cases: Case[], mode: "append" | "replace") =>
+    send<ImportResult>("POST", `/systems/${sysId}/cases/import`, { cases, mode }),
 };

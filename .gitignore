@@ -12,3 +12,6 @@ build/
 .DS_Store
 .idea/
 .vscode/
+
+# 本地持久化（sqlite）
+data/
