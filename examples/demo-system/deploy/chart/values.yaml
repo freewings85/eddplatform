@@ -1,0 +1,10 @@
+# 各服务的镜像由平台在部署时注入（--set services.<svc>.image=...）。
+# Never：镜像已由平台导入集群 containerd，不去外网拉。
+imagePullPolicy: Never
+services:
+  quote:
+    image: ""
+    port: 80
+  gateway:
+    image: ""
+    port: 80

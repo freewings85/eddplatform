@@ -1,0 +1,5 @@
+apiVersion: v2
+name: demo-system
+description: EddPlatform 端到端验证用的多服务示例系统
+version: 0.1.0
+appVersion: "1.0"

@@ -1,0 +1,9 @@
+# EddPlatform 仓库约定：平台据此「拉代码 → 跑 build → helm 部署」。
+# 被测系统 / 评估程序 的仓库都放一个这个文件。
+apiVersion: eddplatform/v1
+kind: system                 # system（被测系统）| eval（评估程序）
+build: ./build.sh            # 构建脚本：产出镜像 tar + images.json 到 $EDD_OUT_DIR
+chart: ./deploy/chart        # helm chart 路径（平台注入各服务 image 后 helm install）
+services:                    # 本系统包含的多个服务（体现「系统=多程序」）
+  - quote
+  - gateway
