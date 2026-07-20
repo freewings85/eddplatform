@@ -3,9 +3,9 @@
 一个**多服务**系统（`quote` + `gateway` 两个 nginx 服务），用来端到端验证平台
 "一份具体版本的 git 代码 → 拉起到 k8s"这条链路。
 
-## 仓库约定（`.eddplatform.yaml`）
+## 仓库约定（build.sh + 标准 helm chart）
 
-被测系统 / 评估程序的仓库，根目录放一个 `.eddplatform.yaml`，平台据此拉起：
+被测系统 / 评估程序的仓库提供一个单元目录（此示例为仓库根）：`build.sh`（构建镜像）+ `chart/`（标准 helm chart，Chart.yaml 的 name 即 release 名），平台据此拉起：
 
 ```yaml
 apiVersion: eddplatform/v1

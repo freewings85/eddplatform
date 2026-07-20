@@ -26,7 +26,7 @@ type Row = {
   path?: string; // 规范文件夹路径（默认取注册项的目录，可改，随任务固化）
   validationMsg?: string; // 规范校验结果（展示）
   validationOk?: boolean;
-  name?: string; // 内部标签（真正的 helm release 名来自单元 .eddplatform.yaml 的 name）
+  name?: string; // 内部标签（真正的 helm release 名来自单元 chart/Chart.yaml 的 name）
   script?: string; // 旧任务里的自定义脚本（仅保留展示）
 };
 
@@ -297,7 +297,7 @@ function TaskForm({
       patch(i, {
         validationOk: r.ok,
         validationMsg: r.ok
-          ? `✓ 规范校验通过：name=${r.name} · kind=${r.kind} · services=[${r.services.join(", ")}]`
+          ? `✓ 规范校验通过：release 名=${r.name} · 服务=[${r.services.join(", ")}]`
           : `✗ ${r.errors.join("；")}`,
       });
     } catch (e) {
@@ -318,7 +318,7 @@ function TaskForm({
     const reg = regOf(row);
     if (row.kind === "custom_script")
       return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
-    // name 只是内部回退标签；真正的 helm release 名来自单元 .eddplatform.yaml 的 name
+    // name 只是内部回退标签；真正的 helm release 名来自单元 chart/Chart.yaml 的 name
     const fallback = row.kind === "start_system" ? "system" : `eval-${reg?.code ?? "program"}`;
     return {
       kind: row.kind,
@@ -470,7 +470,7 @@ function TaskForm({
                           </a>
                         </div>
                         <label className="fld">
-                          <span>规范文件夹路径（仓库内含 .eddplatform.yaml/build.sh/chart 的目录）</span>
+                          <span>规范文件夹路径（仓库内含 build.sh + chart/ 的目录）</span>
                           <div className="inline-btn">
                             <input className="mono" value={row.path ?? reg?.path ?? "."}
                               onChange={(e) => patch(i, { path: e.target.value,

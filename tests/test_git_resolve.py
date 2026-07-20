@@ -56,10 +56,10 @@ def test_resolve_commit_unknown_raises(repo, tmp_path, monkeypatch):
 def _add_unit(repo, path="edd_helm"):
     unit = repo / path
     (unit / "chart" / "templates").mkdir(parents=True)
-    (unit / ".eddplatform.yaml").write_text(
-        "apiVersion: eddplatform/v1\nname: demo\nkind: system\nbuild: ./build.sh\nchart: ./chart\nservices: [demo]\n")
     (unit / "build.sh").write_text("#!/bin/bash\ntrue\n")
     (unit / "chart" / "Chart.yaml").write_text("apiVersion: v2\nname: demo\nversion: 0.1.0\n")
+    (unit / "chart" / "values.yaml").write_text(
+        "services:\n  demo:\n    image: \"\"\n    port: 80\n")
     _sh("git", "add", "-A", cwd=repo)
     _sh("git", "commit", "-qm", "unit", cwd=repo)
     return _sh("git", "rev-parse", "HEAD", cwd=repo)
@@ -71,8 +71,7 @@ def test_validate_unit_ok(repo, tmp_path, monkeypatch):
     sha = _add_unit(repo)
     out = validate_unit(str(repo), sha, "edd_helm")
     assert out["ok"] is True and out["errors"] == []
-    assert out["kind"] == "system" and out["services"] == ["demo"]
-    assert out["name"] == "demo"
+    assert out["name"] == "demo" and out["services"] == ["demo"]
 
 
 def test_validate_unit_reports_missing_pieces(repo, tmp_path, monkeypatch):
@@ -81,4 +80,5 @@ def test_validate_unit_reports_missing_pieces(repo, tmp_path, monkeypatch):
     sha = _sh("git", "rev-parse", "HEAD", cwd=repo)   # 没加过单元文件
     out = validate_unit(str(repo), sha, "edd_helm")
     assert out["ok"] is False
-    assert any(".eddplatform.yaml" in e for e in out["errors"])
+    assert any("build.sh" in e for e in out["errors"])
+    assert any("Chart.yaml" in e for e in out["errors"])

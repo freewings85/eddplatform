@@ -1,4 +1,6 @@
 apiVersion: v2
-name: edd-unit
+# name = 本单元的部署名（helm release 名）：小写字母/数字/中划线，
+# 按进程名填（mainagent / sessionstore / eval-chatagent…），单元间互不相同。
+name: demo
 description: EDD 单元示例 chart（一个 demo 服务）
 version: 0.1.0

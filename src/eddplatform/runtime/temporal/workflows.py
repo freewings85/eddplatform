@@ -53,10 +53,10 @@ class RunTaskWorkflow:
                         DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role, pc.path or "."),
                         **opts,
                     )
-                    # release 名以单元 .eddplatform.yaml 的 name 为准（部署器解析后回传）
+                    # release 名以单元 chart/Chart.yaml 的 name 为准（部署器解析后回传）
                     if d.release in out.releases:
                         raise ValueError(
-                            f"release 名重复: {d.release} —— 两个单元的 .eddplatform.yaml "
+                            f"release 名重复: {d.release} —— 两个单元的 chart/Chart.yaml "
                             "声明了相同的 name，请改成互不相同（如 mainagent / sessionstore）")
                     # 服务名 = 集群内 DNS 名，须在本任务所有单元间唯一
                     overlap = seen_services & set(d.images.keys())

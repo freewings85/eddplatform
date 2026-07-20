@@ -68,7 +68,7 @@ export default function SystemPrograms({ sysId }: { sysId: string }) {
               <tr>
                 <td colSpan={5} className="empty">
                   暂无系统程序 — 点击「新建系统程序」登记被评系统的 git 单元
-                  （仓库需按 EDD 接入约定提供 .eddplatform.yaml / 构建脚本 / helm chart）。
+                  （仓库需按 EDD 接入约定提供 build.sh + 标准 helm chart）。
                 </td>
               </tr>
             )}
@@ -157,7 +157,7 @@ function ProgramForm({
           </label>
           <div className="fld-row">
             <label className="fld">
-              <span>单元目录（含 .eddplatform.yaml，默认 . = 根）</span>
+              <span>单元目录（含 build.sh + chart/，默认 . = 根）</span>
               <input value={path} onChange={(e) => setPath(e.target.value)} className="mono"
                 placeholder="edd/system" />
             </label>

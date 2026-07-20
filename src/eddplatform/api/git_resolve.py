@@ -50,12 +50,13 @@ def resolve_branch(git_url: str, branch: str) -> dict:
 
 
 def validate_unit(git_url: str, ref: str, path: str = ".") -> dict:
-    """在 仓库@ref 里校验单元文件夹是否满足 EDD 接入规范（不落工作区，直接读对象库）。
+    """在 仓库@ref 里校验单元文件夹是否满足 EDD 约定（不落工作区，直接读对象库）。
 
-    检查：``.eddplatform.yaml`` 存在且 kind/build/chart 齐全；build 脚本存在；
-    chart 目录存在且有 Chart.yaml。返回 {ok, errors, kind, build, chart, services}。
+    约定 = 标准 helm chart + 构建脚本：``build.sh`` 存在；``chart/Chart.yaml``
+    存在且 ``name`` 合法（helm release 名）；``chart/values.yaml`` 有
+    ``services.<服务名>.image`` 挂点。返回 {ok, errors, name, services}。
     """
-    import posixpath
+    import re as _re
 
     import yaml
 
@@ -72,38 +73,49 @@ def validate_unit(git_url: str, ref: str, path: str = ".") -> dict:
                               capture_output=True, text=True, timeout=60)
         return proc.returncode == 0
 
-    def _norm(rel: str) -> str:
-        return posixpath.normpath(posixpath.join(prefix, rel))
+    def _read_yaml(p: str) -> dict:
+        return yaml.safe_load(_run(["git", "-C", str(d), "show", f"{full}:{p}"])) or {}
 
     errors: list[str] = []
-    out: dict = {"ok": False, "errors": errors, "name": None, "kind": None, "build": None,
-                 "chart": None, "services": []}
-    conv = prefix + ".eddplatform.yaml"
-    if not _exists(conv):
-        errors.append(f"缺少约定文件 {conv}（下载规范示例查看要求）")
+    out: dict = {"ok": False, "errors": errors, "name": None, "services": []}
+
+    build = prefix + "build.sh"
+    if not _exists(build):
+        errors.append(f"缺少构建脚本 {build}（下载规范示例查看要求）")
+
+    chart_yaml = prefix + "chart/Chart.yaml"
+    if not _exists(chart_yaml):
+        errors.append(f"缺少 helm chart：{chart_yaml} 不存在")
         return out
     try:
-        data = yaml.safe_load(_run(["git", "-C", str(d), "show", f"{full}:{conv}"])) or {}
-    except GitResolveError as e:
-        errors.append(f"读取 {conv} 失败: {e}")
+        chart = _read_yaml(chart_yaml)
+    except (GitResolveError, yaml.YAMLError) as e:
+        errors.append(f"读取 {chart_yaml} 失败: {e}")
         return out
-    missing = [k for k in ("name", "kind", "build", "chart") if not data.get(k)]
-    if missing:
-        errors.append(f"{conv} 缺少必填字段: {', '.join(missing)}")
-        return out
-    import re as _re
-    if not _re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(data["name"])):
-        errors.append(f"name 必须是小写字母/数字/中划线，得到 {data['name']!r}")
-    out.update(name=data["name"], kind=data["kind"], build=data["build"], chart=data["chart"],
-               services=list(data.get("services", [])))
-    if data["kind"] not in ("system", "eval"):
-        errors.append(f"kind 必须是 system 或 eval，得到 {data['kind']!r}")
-    build_path = _norm(data["build"])
-    if not _exists(build_path):
-        errors.append(f"构建脚本不存在: {build_path}")
-    chart_path = _norm(data["chart"])
-    if not _exists(chart_path + "/Chart.yaml"):
-        errors.append(f"helm chart 无效: {chart_path}/Chart.yaml 不存在")
+    name = chart.get("name")
+    if not name or not _re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(name)):
+        errors.append(f"Chart.yaml 的 name 无效（作 helm release 名，需小写字母/数字/中划线）: {name!r}")
+    else:
+        out["name"] = str(name)
+
+    values_yaml = prefix + "chart/values.yaml"
+    if not _exists(values_yaml):
+        errors.append(f"缺少 {values_yaml}（需要 services.<服务名>.image 挂点）")
+    else:
+        try:
+            values = _read_yaml(values_yaml)
+        except (GitResolveError, yaml.YAMLError) as e:
+            values = {}
+            errors.append(f"读取 {values_yaml} 失败: {e}")
+        services = values.get("services") or {}
+        if not isinstance(services, dict) or not services:
+            errors.append("values.yaml 缺少 services.<服务名> 声明（服务名=集群内 DNS 名）")
+        else:
+            out["services"] = list(services.keys())
+            for svc, cfg in services.items():
+                if not isinstance(cfg, dict) or "image" not in cfg:
+                    errors.append(f"values.yaml 的 services.{svc} 缺少 image 挂点")
+
     out["ok"] = not errors
     return out
 

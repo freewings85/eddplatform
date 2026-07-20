@@ -103,7 +103,7 @@ class SystemProgram(BaseModel):
 class EvalProgram(BaseModel):
     """评估程序（评估代码库）——**独立于系统程序**的另一套 git 单元注册项。
 
-    实现评估逻辑（怎么算分），按 ``.eddplatform.yaml`` 约定被拉起来当 worker。
+    实现评估逻辑（怎么算分），按「build.sh + 标准 helm chart」约定被拉起来当 worker。
     ``code`` 是它认领的 Temporal RunCase workflow 名 = task queue：平台逐用例
     分派 child workflow 时按 ``code`` 找到它。分支/commit 同样在任务里固化。
     """

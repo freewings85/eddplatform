@@ -104,10 +104,10 @@ def main() -> None:
         modal.get_by_role("button", name="获取最新 commit").nth(1).click()
         expect(modal.get_by_placeholder("点左侧按钮获取，或直接输入后校验").nth(1)
                ).to_have_value(re.compile(r"^[0-9a-f]{40}$"), timeout=15000)
-        # 部署设置：下载示例入口可见；校验规范（2.3-eval 分支还没放 .eddplatform.yaml → 应报缺文件）
+        # 部署设置：下载示例入口可见；校验规范（2.3-eval 分支还没放 build.sh/chart → 应报缺）
         expect(modal.get_by_text("下载规范示例").first).to_be_visible()
         modal.get_by_role("button", name="校验规范").nth(0).click()
-        expect(modal.get_by_text("缺少约定文件").first).to_be_visible(timeout=30000)
+        expect(modal.get_by_text("缺少构建脚本").first).to_be_visible(timeout=30000)
         # 用例清单：切手动勾选 → 全选 → 已选 2/2
         modal.get_by_text("手动勾选（固定清单）").click()
         modal.get_by_role("button", name="全选").click()

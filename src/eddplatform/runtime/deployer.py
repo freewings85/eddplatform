@@ -2,7 +2,7 @@
 
 流程（``start_system`` / ``start_eval_program`` 前置条件的执行）::
 
-    clone+checkout(ref) → 读 .eddplatform.yaml → 跑仓库 build 脚本(产镜像 tar+images.json)
+    clone+checkout(ref) → 读单元(build.sh + chart/) → 跑 build 脚本(产镜像 tar+images.json)
     → 把镜像送进集群(image sink) → helm upgrade --install 到 namespace(--wait)
 
 产出 ``DeployResult``，带**结构化的 {服务: 镜像ref}**——版本可感知，供运行记录打标签、
@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Sequence
 
-from eddplatform.runtime.convention import read_repo_spec
+from eddplatform.runtime.convention import BUILD_SCRIPT, CHART_DIR, read_unit
 
 # 默认「镜像送进集群」的命令前缀（本地 k3s：导进 containerd 的 k8s.io 命名空间）。
 DEFAULT_IMAGE_IMPORT: list[str] = ["sudo", "k3s", "ctr", "-n", "k8s.io", "images", "import"]
@@ -76,14 +76,13 @@ class ConventionDeployer:
             image_tag = sha[:12]
 
             unit = repo / path
-            spec = read_repo_spec(repo, path)
-            # release 名：单元自己声明的 name 优先（规范里填），缺省用调用方传入的
-            release = spec.name or release
-            self._log(f"[2/5] 约定: name={spec.name} kind={spec.kind} "
-                      f"build={spec.build} chart={spec.chart} → release={release}")
+            spec = read_unit(repo, path)
+            # release 名 = chart/Chart.yaml 的 name（helm 原生语义，配置跟代码走）
+            release = spec.name
+            self._log(f"[2/5] 单元: name={spec.name} services={spec.services} → release={release}")
 
-            self._log(f"[3/5] 跑构建脚本 {spec.build} (EDD_IMAGE_TAG={image_tag})")
-            self._run_build(unit, spec.build, image_tag, out_dir)
+            self._log(f"[3/5] 跑构建脚本 {BUILD_SCRIPT} (EDD_IMAGE_TAG={image_tag})")
+            self._run_build(unit, BUILD_SCRIPT, image_tag, out_dir)
             images = json.loads((out_dir / "images.json").read_text())
 
             self._log(f"[4/5] 送镜像进集群: {list(images.values())}")
@@ -91,7 +90,7 @@ class ConventionDeployer:
                 self._run([*self.image_import_cmd, str(tar)])
 
             self._log(f"[5/5] helm 部署 {release} -> ns/{namespace}")
-            self._helm_install(unit / spec.chart, release, namespace, images, timeout)
+            self._helm_install(unit / CHART_DIR, release, namespace, images, timeout)
 
             pods = self._pods(namespace)
             self._log(f"✓ 部署完成，{len(pods)} 个 pod: {', '.join(pods)}")

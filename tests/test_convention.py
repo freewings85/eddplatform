@@ -1,74 +1,57 @@
-"""仓库约定 .eddplatform.yaml 解析测试（纯逻辑，不依赖 k8s/helm）。"""
+"""可部署单元约定解析测试：标准 helm chart + build.sh（纯逻辑，不依赖 k8s/helm）。"""
 
 from pathlib import Path
 
 import pytest
 
-from eddplatform.runtime import read_repo_spec
+from eddplatform.runtime import read_unit
 
 DEMO = Path(__file__).resolve().parents[1] / "examples" / "demo-system"
 
 
-def _write(tmp_path, text: str) -> Path:
-    (tmp_path / ".eddplatform.yaml").write_text(text)
-    return tmp_path
+def _write_unit(root: Path, name="demo", services=("web",)) -> Path:
+    (root / "chart").mkdir(parents=True, exist_ok=True)
+    (root / "build.sh").write_text("#!/bin/bash\ntrue\n")
+    (root / "chart" / "Chart.yaml").write_text(f"apiVersion: v2\nname: {name}\nversion: 0.1.0\n")
+    svc = "\n".join(f"  {s}:\n    image: \"\"\n    port: 80" for s in services)
+    (root / "chart" / "values.yaml").write_text(f"services:\n{svc}\n")
+    return root
 
 
-def test_parse_valid(tmp_path):
-    repo = _write(tmp_path, """
-apiVersion: eddplatform/v1
-kind: system
-build: ./build.sh
-chart: ./deploy/chart
-services: [quote, gateway]
-""")
-    spec = read_repo_spec(repo)
-    assert spec.kind == "system"
-    assert spec.build == "./build.sh"
-    assert spec.chart == "./deploy/chart"
-    assert spec.services == ["quote", "gateway"]
-
-
-def test_missing_file_raises(tmp_path):
-    with pytest.raises(FileNotFoundError):
-        read_repo_spec(tmp_path)
-
-
-def test_missing_required_field_raises(tmp_path):
-    repo = _write(tmp_path, "kind: system\nbuild: ./b.sh\n")  # 缺 chart
-    with pytest.raises(ValueError):
-        read_repo_spec(repo)
-
-
-def test_bad_kind_raises(tmp_path):
-    repo = _write(tmp_path, "kind: nonsense\nbuild: ./b.sh\nchart: ./c\n")
-    with pytest.raises(ValueError):
-        read_repo_spec(repo)
-
-
-def test_real_demo_system_repo_parses():
-    """随仓库附带的 examples/demo-system 必须符合约定。"""
-    spec = read_repo_spec(DEMO)
-    assert spec.kind == "system"
-    assert spec.services == ["quote", "gateway"]
-    assert (DEMO / spec.build).exists()
-    assert (DEMO / spec.chart / "Chart.yaml").exists()
+def test_read_unit_from_standard_chart(tmp_path):
+    _write_unit(tmp_path, name="mainagent", services=("mainagent", "sessionstore"))
+    spec = read_unit(tmp_path)
+    assert spec.name == "mainagent"
+    assert spec.services == ["mainagent", "sessionstore"]
 
 
 def test_unit_folder_convention(tmp_path):
-    """一个仓库可含多个可部署单元：约定文件在单元目录里，路径相对单元目录。"""
-    unit = tmp_path / "edd" / "eval"
-    unit.mkdir(parents=True)
-    (unit / ".eddplatform.yaml").write_text("""
-apiVersion: eddplatform/v1
-kind: eval
-build: ./build.sh
-chart: ./chart
-""")
-    spec = read_repo_spec(tmp_path, path="edd/eval")
-    assert spec.kind == "eval" and spec.build == "./build.sh"
+    """一个仓库可含多个单元：按目录定位。"""
+    _write_unit(tmp_path / "edd" / "eval", name="eval-demo")
+    spec = read_unit(tmp_path, path="edd/eval")
+    assert spec.name == "eval-demo"
 
 
-def test_unit_folder_missing_raises(tmp_path):
+def test_missing_build_script_raises(tmp_path):
+    _write_unit(tmp_path)
+    (tmp_path / "build.sh").unlink()
     with pytest.raises(FileNotFoundError):
-        read_repo_spec(tmp_path, path="edd/nope")
+        read_unit(tmp_path)
+
+
+def test_missing_chart_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        read_unit(tmp_path)
+
+
+def test_invalid_chart_name_raises(tmp_path):
+    _write_unit(tmp_path, name="Bad Name")
+    with pytest.raises(ValueError):
+        read_unit(tmp_path)
+
+
+def test_demo_system_repo_satisfies_convention():
+    """仓内 demo-system 示例必须满足约定（防示例烂掉）。"""
+    spec = read_unit(DEMO)
+    assert spec.name == "demo-system"
+    assert set(spec.services) == {"quote", "gateway"}
