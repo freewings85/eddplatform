@@ -24,14 +24,14 @@ def client(test_db, monkeypatch):
 def test_eval_program_crud(client):
     r = client.post("/api/systems/sys1/eval-programs", json={
         "name": "chatagent 评估", "git_url": "/mnt/repos/chatagent-eval",
-        "path": "edd/eval", "code": "chatagent-eval"})
+        "path": "edd/eval"})
     assert r.status_code == 201
     pid = r.json()["id"]
     assert pid.startswith("EP-")
-    assert client.get("/api/systems/sys1/eval-programs").json()[0]["code"] == "chatagent-eval"
+    assert client.get("/api/systems/sys1/eval-programs").json()[0]["path"] == "edd/eval"
     r = client.put(f"/api/systems/sys1/eval-programs/{pid}", json={
         "name": "chatagent 评估", "git_url": "/mnt/repos/chatagent-eval",
-        "path": "edd/eval2", "code": "chatagent-eval"})
+        "path": "edd/eval2"})
     assert r.json()["path"] == "edd/eval2"
     assert client.delete(f"/api/systems/sys1/eval-programs/{pid}").status_code == 204
     assert client.get("/api/systems/sys1/eval-programs").json() == []
@@ -40,6 +40,5 @@ def test_eval_program_crud(client):
 def test_git_url_with_whitespace_rejected(client):
     """粘贴了「名称 + 编号 + 地址」整格文本时直接拒绝，不能落库。"""
     r = client.post("/api/systems/sys1/eval-programs", json={
-        "name": "坏地址", "git_url": "mainagent SP-0001\tssh://git@x/y.git",
-        "code": "x"})
+        "name": "坏地址", "git_url": "mainagent SP-0001\tssh://git@x/y.git"})
     assert r.status_code == 422

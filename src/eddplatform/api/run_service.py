@@ -10,8 +10,7 @@ from datetime import timedelta
 
 from temporalio.client import Client
 
-from eddplatform.domain.models import (Case, CaseRunResult, EvalProgram, RunRecord,
-                                       RunStatus, Task)
+from eddplatform.domain.models import Case, CaseRunResult, RunRecord, RunStatus, Task
 from eddplatform.runtime.temporal.shared import TASK_QUEUE, CaseSpec, RunTaskInput, to_spec
 from eddplatform.store.run_store import RunStore
 
@@ -28,7 +27,7 @@ def _namespace(system_id: str, run_id: str) -> str:
 
 def case_to_spec(case: Case) -> CaseSpec:
     return CaseSpec(
-        case_id=case.id, name=case.name,
+        case_id=case.id, name=case.name, code=case.code,
         inputs=case.inputs if isinstance(case.inputs, str)
         else json.dumps(case.inputs, ensure_ascii=False),
         expected=(case.expected_output
@@ -38,7 +37,7 @@ def case_to_spec(case: Case) -> CaseSpec:
     )
 
 
-async def start_run(system_id: str, task: Task, *, eval_program: EvalProgram | None,
+async def start_run(system_id: str, task: Task, *, eval_code: str | None,
                     cases: list[CaseSpec], run_store: RunStore) -> RunRecord:
     """提交执行。Temporal 连不上抛 ConnectionError（API 层转 503），不留运行记录。"""
     try:
@@ -53,7 +52,7 @@ async def start_run(system_id: str, task: Task, *, eval_program: EvalProgram | N
         eval_deploy=None,
         eval_target=None,
         run_id=run.id,
-        eval_code=eval_program.code if eval_program else None,
+        eval_code=eval_code,
         cases=cases,
     )
     handle = await client.start_workflow(

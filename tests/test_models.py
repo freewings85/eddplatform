@@ -38,9 +38,11 @@ def test_metric_delta():
     assert round(d.delta, 2) == 0.04
 
 
-def test_eval_program_has_code_and_path():
-    ep = EvalProgram(id="ep1", system_id="s", name="评估程序", git_url="/repo", code="chatagent-eval")
-    assert ep.path == "." and ep.code == "chatagent-eval"
+def test_eval_program_defaults():
+    """评估程序注册项不含 workflow 名——那写在程序自己的代码/配置里。"""
+    ep = EvalProgram(id="ep1", system_id="s", name="评估程序", git_url="/repo")
+    assert ep.path == "."
+    assert not hasattr(ep, "code")
 
 
 def test_run_record_shape():

@@ -64,6 +64,7 @@ class PreconditionSpec:
 class CaseSpec:
     case_id: str
     name: str = ""
+    code: str | None = None            # 用例级评估入口：worker 按它分派内部判定逻辑
     inputs: str = ""                   # JSON 串或原文（turns 等）
     expected: str | None = None
     metadata: dict = field(default_factory=dict)

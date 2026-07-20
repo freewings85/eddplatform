@@ -59,9 +59,10 @@ tar 导入集群，不走外网。
 
 ## 评估程序单元的额外要求
 
-被拉起后必须作为 Temporal worker 运行：认领 task queue = 平台登记的 `code`，
-注册同名 workflow（入参 RunCaseInput → 出参 CaseResultOut），判定失败抛
-`temporalio.exceptions.ApplicationError`。完整契约见平台仓库
+被拉起后必须作为 Temporal worker 运行：注册一个 workflow（**名字=队列名，
+由你在代码/配置里定义**；平台的「用例库」配置同名 workflow 即可对上），
+入参 RunCaseInput → 出参 CaseResultOut；用例的 `code` 字段随入参传入，按它分派
+内部判定逻辑。判定失败抛 `temporalio.exceptions.ApplicationError`。完整契约见平台仓库
 `docs/EDD接入约定_被评系统与评估程序.md`。
 
 ## 自检

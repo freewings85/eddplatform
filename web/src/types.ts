@@ -40,7 +40,6 @@ export interface EvalProgram {
   name: string;
   git_url: string;
   path: string; // 仓库内单元目录（可与被评系统同仓不同目录）
-  code: string; // RunCase workflow 名 = task queue
   owner?: string | null;
 }
 
@@ -100,6 +99,7 @@ export interface Case {
   id: string;
   name: string;
   description?: string | null;
+  code?: string | null; // 评估入口：评估程序按它分派内部判定逻辑
   inputs: Record<string, unknown> | string;
   expected_output?: Record<string, unknown> | string | null;
   tags: string[];
@@ -129,6 +129,7 @@ export interface DatasetInfo {
   system_id: string;
   name: string;
   description?: string | null;
+  workflow?: string | null; // 评这批用例的 RunCase workflow 名（与评估程序代码里注册的一致）
   path?: string | null; // 用例仓里对应的文件夹
 }
 

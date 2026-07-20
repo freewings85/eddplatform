@@ -306,25 +306,24 @@ async def run_task_endpoint(system_id: str, task_id: str) -> RunRecord:
     task = task_store.get(system_id, task_id)
     if task is None:
         raise HTTPException(404, "task not found")
-    # 逐用例分派的 code 来自「启动评估程序」前置条件引用的注册项
-    eval_program = None
-    for pc in task.preconditions:
-        if pc.kind == PreconditionKind.START_EVAL_PROGRAM and pc.program_id:
-            eval_program = eval_program_store.get(system_id, pc.program_id)
-            if eval_program is None:
-                raise HTTPException(409, f"评估程序 {pc.program_id} 不存在（已被删除？）")
-            break
+    # 逐用例分派的 workflow 名来自任务选定的「用例库」（前置条件只负责部署 worker）
+    eval_code = None
     all_cases = []
     if task.dataset_id:
-        if dataset_store.get(system_id, task.dataset_id) is None:
+        dataset = dataset_store.get(system_id, task.dataset_id)
+        if dataset is None:
             raise HTTPException(409, f"用例库 {task.dataset_id} 不存在（已被删除？）")
+        eval_code = dataset.workflow or None
         all_cases = [c for c in store.list_cases(system_id, task.dataset_id) if c.enabled]
         if task.case_ids is not None:
             picked = set(task.case_ids)
             all_cases = [c for c in all_cases if c.id in picked]
+        if all_cases and not eval_code:
+            raise HTTPException(409, f"用例库「{dataset.name}」未配置评估 workflow——"
+                                     "在「用例库 → 编辑库」里填（应与评估程序注册的 code 一致）")
     cases = [run_service.case_to_spec(c) for c in all_cases]
     try:
-        return await run_service.start_run(system_id, task, eval_program=eval_program,
+        return await run_service.start_run(system_id, task, eval_code=eval_code,
                                            cases=cases, run_store=run_store)
     except ConnectionError as e:
         raise HTTPException(503, str(e))

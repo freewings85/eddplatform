@@ -28,9 +28,9 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
     <>
       <h2 className="page">评估程序（评估代码）</h2>
       <p className="sub">
-        实现评估逻辑的 git 单元，作为 Temporal worker 被拉起。登记一次（名称 + git 地址 +
-        目录 + code），建任务时下拉复用；分支/commit 在任务里选定并固化。
-        <b>code</b> = 它认领的 RunCase workflow 名与 task queue——平台按 code 逐用例分派。
+        实现评估逻辑的 git 单元，作为 Temporal worker 被拉起。登记一次（名称 + git 地址 + 目录），
+        建任务时下拉复用；分支/commit 在任务里选定并固化。它认领的 workflow 名写在
+        <b>它自己的代码/配置里</b>——用例库配置同名 workflow 即可对上。
       </p>
       {error && <p className="err">{error}</p>}
 
@@ -48,7 +48,6 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
               <th>评估程序</th>
               <th>Git 仓库</th>
               <th>目录</th>
-              <th>code（workflow 名/队列）</th>
               <th>负责人</th>
               <th></th>
             </tr>
@@ -59,7 +58,6 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
                 <td><b>{p.name}</b></td>
                 <td className="mono">{p.git_url}</td>
                 <td className="mono">{p.path}</td>
-                <td className="mono">{p.code}</td>
                 <td>{p.owner ?? "—"}</td>
                 <td>
                   <button className="btn sm" onClick={() => setEditing(p)}>编辑</button>{" "}
@@ -69,7 +67,7 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
             ))}
             {programs && programs.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={5} className="empty">
                   暂无评估程序 — 点击「新建评估程序」登记评估代码仓（git 仓库 + code）。
                 </td>
               </tr>
@@ -111,7 +109,6 @@ function ProgramForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [gitUrl, setGitUrl] = useState(initial?.git_url ?? "");
   const [path, setPath] = useState(initial?.path ?? ".");
-  const [code, setCode] = useState(initial?.code ?? "");
   const [owner, setOwner] = useState(initial?.owner ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -123,12 +120,10 @@ function ProgramForm({
     if (!gitUrl.trim()) return setError("Git 仓库不能为空");
     if (/\s/.test(gitUrl.trim()))
       return setError("Git 地址不能包含空格/制表符——检查是否粘贴了列表里的多余内容");
-    if (!code.trim()) return setError("code 不能为空（RunCase workflow 名/队列）");
     const payload = {
       name: name.trim(),
       git_url: gitUrl.trim(),
       path: path.trim() || ".",
-      code: code.trim(),
       owner: owner.trim() || null,
     };
     setBusy(true);
@@ -166,11 +161,6 @@ function ProgramForm({
               <span>目录（仓库内单元目录，默认 . = 根）</span>
               <input value={path} onChange={(e) => setPath(e.target.value)} className="mono"
                 placeholder="edd/eval" />
-            </label>
-            <label className="fld">
-              <span>code *（workflow 名/队列）</span>
-              <input value={code} onChange={(e) => setCode(e.target.value)} className="mono"
-                placeholder="chatagent-eval" />
             </label>
           </div>
           <label className="fld">

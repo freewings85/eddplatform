@@ -22,6 +22,7 @@ export default function CaseForm({
 }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [code, setCode] = useState(initial?.code ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagOpen, setTagOpen] = useState(false);
   const [traceRef, setTraceRef] = useState(initial?.trace?.ref ?? "");
@@ -63,6 +64,7 @@ export default function CaseForm({
     const payload: CaseInput = {
       name: name.trim(),
       description: description.trim() || null,
+      code: code.trim() || null,
       // 表单不编辑的字段原样保留（YAML 导入/轨迹导入填充的内容不被清掉）
       inputs: initial?.inputs ?? "",
       expected_output: initial?.expected_output ?? null,
@@ -112,6 +114,12 @@ export default function CaseForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="这条用例在测什么、判定关注点是什么"
             />
+          </label>
+
+          <label className="fld">
+            <span>评估入口 code（可空；评估程序按它分派判定逻辑，如 judge_guide）</span>
+            <input className="mono" value={code} onChange={(e) => setCode(e.target.value)}
+              placeholder="judge_guide" />
           </label>
 
           <div className="fld">

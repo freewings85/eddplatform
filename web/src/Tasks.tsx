@@ -95,7 +95,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
               <th>#</th>
               <th>任务名</th>
               <th>前置条件（分支@commit）</th>
-              <th>评估程序</th>
+              <th>评估 workflow</th>
               <th>用例</th>
               <th></th>
             </tr>
@@ -117,10 +117,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
                   ))}
                 </td>
                 <td className="mono">
-                  {(() => {
-                    const pc = t.preconditions.find((p) => p.kind === "start_eval_program");
-                    return evalPrograms.find((p) => p.id === pc?.program_id)?.code ?? "—";
-                  })()}
+                  {libs.find((l) => l.id === t.dataset_id)?.workflow ?? "—"}
                 </td>
                 <td>
                   {t.dataset_id
@@ -255,14 +252,14 @@ function TaskForm({
   }, [sysPrograms, evalPrograms]);
 
   /** 行对应的注册项（系统程序 或 评估程序）。 */
-  function regOf(row: Row): { git_url: string; path: string; label: string; code?: string } | null {
+  function regOf(row: Row): { git_url: string; path: string; label: string } | null {
     if (row.kind === "start_system") {
       const p = sysPrograms.find((x) => x.id === row.programId);
       return p ? { git_url: p.git_url, path: p.path, label: p.name } : null;
     }
     if (row.kind === "start_eval_program") {
       const p = evalPrograms.find((x) => x.id === row.programId);
-      return p ? { git_url: p.git_url, path: p.path, label: p.name, code: p.code } : null;
+      return p ? { git_url: p.git_url, path: p.path, label: p.name } : null;
     }
     return null;
   }
@@ -357,7 +354,7 @@ function TaskForm({
     if (row.kind === "custom_script")
       return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
     // name 只是内部回退标签；真正的 helm release 名来自单元 chart/Chart.yaml 的 name
-    const fallback = row.kind === "start_system" ? "system" : `eval-${reg?.code ?? "program"}`;
+    const fallback = row.kind === "start_system" ? "system" : "eval";
     return {
       kind: row.kind,
       name: (row.name ?? "").trim() || fallback,

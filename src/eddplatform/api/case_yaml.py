@@ -24,6 +24,8 @@ def case_to_yaml_doc(case: Case) -> dict:
     else:
         turns = case.inputs
     item: dict = {"id": case.id, "name": case.name}
+    if case.code:
+        item["code"] = case.code
     if case.description:
         item["description"] = case.description
     if case.tags:
@@ -54,6 +56,7 @@ def parse_eval_yaml(text: str) -> list[Case]:
             id=str(item["id"]),
             name=str(item.get("name") or item["id"]),
             description=item.get("description"),
+            code=item.get("code"),
             inputs=json.dumps(item.get("turns", []), ensure_ascii=False),
             expected_output=item.get("expect"),
             tags=item_tags,

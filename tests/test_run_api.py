@@ -41,7 +41,7 @@ def client(test_db, monkeypatch):
         monkeypatch.setattr(app_module, attr, obj)
     c = TestClient(app_module.app)
     c.post("/api/systems", json={"id": "sys1", "name": "系统1"})
-    c.post("/api/systems/sys1/datasets", json={"name": "默认用例库"})   # DS-0001
+    c.post("/api/systems/sys1/datasets", json={"name": "默认用例库", "workflow": "demo-eval"})   # DS-0001
     c.post("/api/systems/sys1/tasks", json={
         "name": "冒烟", "system_id": "sys1", "dataset_id": "DS-0001",
         "preconditions": [{"kind": "start_system", "git_url": "/repo", "branch": "2.3-eval", "commit": "abc123def"}]})
@@ -122,17 +122,15 @@ def test_run_failure_writes_failed(client, monkeypatch):
     assert got["status"] == "failed" and "workflow 爆了" in got["detail"]
 
 
-def test_run_derives_eval_code_from_precondition(client, monkeypatch):
-    """逐用例分派的 code 来自「启动评估程序」前置条件引用的注册项（任务级下拉已删）。"""
+def test_run_derives_eval_code_from_dataset_workflow(client, monkeypatch):
+    """逐用例分派的 workflow 名来自任务选定的用例库（dataset.workflow）。"""
     import eddplatform.api.run_service as rs
-    client.post("/api/systems/sys1/eval-programs", json={
-        "name": "评估", "git_url": "/e", "code": "demo-eval"})
+    client.post("/api/systems/sys1/datasets/DS-0001/cases",
+                json={"id": "c1", "name": "用例", "inputs": "x"})
     client.post("/api/systems/sys1/tasks", json={
-        "name": "评估任务", "system_id": "sys1",
+        "name": "评估任务", "system_id": "sys1", "dataset_id": "DS-0001",
         "preconditions": [
-            {"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"},
-            {"kind": "start_eval_program", "program_id": "EP-0001", "git_url": "/e",
-             "branch": "b", "commit": "c0ffee2"}]})
+            {"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"}]})
     fake = FakeClient(RunTaskOutput(namespace="ns", status="up"))
 
     async def fake_connect(_addr):
@@ -142,3 +140,23 @@ def test_run_derives_eval_code_from_precondition(client, monkeypatch):
     assert r.status_code == 202
     inp = fake.started[0][2]
     assert inp.eval_code == "demo-eval"
+    assert inp.cases[0].case_id == "c1"
+
+
+def test_run_rejects_dataset_without_workflow(client, monkeypatch):
+    """有用例但库没配 workflow → 409 明确提示，而不是悄悄不评。"""
+    import eddplatform.api.run_service as rs
+    client.post("/api/systems/sys1/datasets", json={"name": "无workflow库"})   # DS-0002
+    client.post("/api/systems/sys1/datasets/DS-0002/cases",
+                json={"id": "c1", "name": "用例", "inputs": "x"})
+    client.post("/api/systems/sys1/tasks", json={
+        "name": "t2", "system_id": "sys1", "dataset_id": "DS-0002",
+        "preconditions": [
+            {"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"}]})
+    fake = FakeClient(RunTaskOutput(namespace="ns", status="up"))
+
+    async def fake_connect(_addr):
+        return fake
+    monkeypatch.setattr(rs, "_connect", fake_connect)
+    r = client.post("/api/systems/sys1/tasks/T-0002/run")
+    assert r.status_code == 409 and "workflow" in r.json()["detail"]

@@ -52,3 +52,24 @@ def test_events_from_archive_maps_trace_and_observations():
     assert events[1]["body"]["traceId"] == "t1"      # 补挂 traceId
     assert events[3]["body"]["traceId"] == "t1"
     assert "endTime" not in events[2]["body"]        # None 字段剔除
+
+
+def test_case_code_roundtrips_through_yaml():
+    from eddplatform.api.case_yaml import case_to_yaml_doc
+    from eddplatform.domain.models import Case
+    import yaml as _yaml
+    c = Case(id="g1", name="n", code="judge_guide", inputs='[{"user": "hi"}]')
+    doc = case_to_yaml_doc(c)
+    back = parse_eval_yaml(_yaml.safe_dump(doc, allow_unicode=True))
+    assert back[0].code == "judge_guide"
+
+
+def test_case_code_roundtrips_through_yaml():
+    import yaml as _yaml
+
+    from eddplatform.api.case_yaml import case_to_yaml_doc
+    from eddplatform.domain.models import Case
+    c = Case(id="g1", name="n", code="judge_guide", inputs='[{"user": "hi"}]')
+    doc = case_to_yaml_doc(c)
+    back = parse_eval_yaml(_yaml.safe_dump(doc, allow_unicode=True))
+    assert back[0].code == "judge_guide"

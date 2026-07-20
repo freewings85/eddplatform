@@ -394,6 +394,7 @@ function LibraryForm({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [workflow, setWorkflow] = useState(initial?.workflow ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEscape(onCancel);
@@ -403,7 +404,8 @@ function LibraryForm({
     if (!name.trim()) return setError("用例库名称不能为空");
     setBusy(true);
     try {
-      const payload = { name: name.trim(), description: description.trim() || null };
+      const payload = { name: name.trim(), description: description.trim() || null,
+        workflow: workflow.trim() || null };
       const lib = initial
         ? await api.updateDataset(sysId, initial.id, payload)
         : await api.createDataset(sysId, payload);
@@ -433,6 +435,12 @@ function LibraryForm({
             <textarea rows={2} value={description ?? ""}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="这批用例覆盖什么场景" />
+          </label>
+          <label className="fld">
+            <span>评估 workflow 名（评这批用例的 RunCase workflow；与评估程序代码里注册的一致）</span>
+            <input className="mono" value={workflow ?? ""}
+              onChange={(e) => setWorkflow(e.target.value)}
+              placeholder="chatagent-eval" />
           </label>
           {error && <p className="err">{error}</p>}
         </div>

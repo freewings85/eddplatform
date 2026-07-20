@@ -72,9 +72,8 @@ def main() -> None:
         modal.get_by_placeholder("chatagent 评估").fill("chatagent 评估")
         modal.get_by_placeholder("/mnt/e/Documents/github/chatagent-eval 或 ssh://git@…").fill(
             "/mnt/e/Documents/github/com.celiang.hlsc.service.ai.chatagent3")
-        modal.get_by_placeholder("chatagent-eval", exact=True).fill("chatagent-eval")
         modal.get_by_role("button", name="保存").click()
-        expect(page.get_by_role("cell", name="chatagent-eval", exact=True)).to_be_visible()
+        expect(page.get_by_role("cell", name="chatagent 评估", exact=True)).to_be_visible()
         page.screenshot(path=str(SHOTS / "03-eval-program.png"))
 
         # 4 用例库：先建库，再 YAML 导入
@@ -83,6 +82,7 @@ def main() -> None:
         page.get_by_role("button", name="＋ 新建用例库").click()
         modal = page.locator(".modal")
         modal.get_by_placeholder("guide 用例库").fill("guide 用例库")
+        modal.get_by_placeholder("chatagent-eval", exact=True).fill("chatagent-eval")
         modal.get_by_role("button", name="保存").click()
         expect(page.locator("select")).to_have_value("DS-0001")
         page.get_by_role("button", name="导入", exact=True).click()

@@ -3,7 +3,7 @@
 对象关系（与 prototype/ 和 docs/ 一致）::
 
     System        被评系统（注册表；约定式部署直接用 git 仓库）
-    EvalProgram   评估程序（独立 git 仓；code = RunCase workflow 名/队列）
+    EvalProgram   评估程序（独立 git 仓；workflow 名在其自身代码里）
     Dataset ─< Case（有自身版本 + 适用系统版本）
     Task          评估任务 = 数据集 + 有序前置条件 + 评估程序
     RunRecord     一次 task 执行（Temporal workflow 的平台侧记录）─< CaseRunResult
@@ -106,8 +106,8 @@ class EvalProgram(BaseModel):
     """评估程序（评估代码库）——**独立于系统程序**的另一套 git 单元注册项。
 
     实现评估逻辑（怎么算分），按「build.sh + 标准 helm chart」约定被拉起来当 worker。
-    ``code`` 是它认领的 Temporal RunCase workflow 名 = task queue：平台逐用例
-    分派 child workflow 时按 ``code`` 找到它。分支/commit 同样在任务里固化。
+    它认领的 workflow 名/队列名写在**它自己的代码/配置里**（平台不登记）；
+    用例库配置的 ``workflow`` 名与之一致即可对上。分支/commit 在任务里固化。
     """
 
     id: str = ""                      # 空 = store 落库时生成（EP-0001）
@@ -115,7 +115,6 @@ class EvalProgram(BaseModel):
     name: str
     git_url: str
     path: str = "."                   # 仓库内单元目录（评估程序可与被评系统同仓不同目录）
-    code: str                         # RunCase workflow 名 + task queue
     owner: str | None = None
 
     @field_validator("git_url")
@@ -157,6 +156,7 @@ class Case(BaseModel):
     id: str = ""                          # 空 = 由 store 落库时生成
     name: str
     description: str | None = None        # 用例意图/在测什么
+    code: str | None = None               # 评估入口名：评估程序按它分派内部判定逻辑（随入参传递）
     inputs: dict | str = ""
     expected_output: dict | str | None = None
     tags: list[str] = []                  # 数据集内分组/筛选
@@ -181,6 +181,7 @@ class DatasetInfo(BaseModel):
     system_id: str = ""
     name: str
     description: str | None = None
+    workflow: str | None = None           # 评这批用例的 RunCase workflow 名（=评估程序的 code）
     path: str | None = None               # 用例仓里对应的文件夹（git 导入/导出的锚点）
 
 
