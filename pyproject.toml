@@ -39,5 +39,6 @@ target-version = "py311"
 
 [dependency-groups]
 dev = [
+    "playwright>=1.61.0",
     "pytest-asyncio>=1.4.0",
 ]
