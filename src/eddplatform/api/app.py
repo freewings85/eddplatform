@@ -191,7 +191,11 @@ async def run_task_endpoint(system_id: str, task_id: str) -> RunRecord:
         eval_program = eval_program_store.get(system_id, task.eval_program_id)
         if eval_program is None:
             raise HTTPException(409, f"评估程序 {task.eval_program_id} 不存在")
-    cases = [run_service.case_to_spec(c) for c in store.list_cases(system_id) if c.enabled]
+    all_cases = [c for c in store.list_cases(system_id) if c.enabled]
+    if task.case_ids is not None:
+        picked = set(task.case_ids)
+        all_cases = [c for c in all_cases if c.id in picked]
+    cases = [run_service.case_to_spec(c) for c in all_cases]
     try:
         return await run_service.start_run(system_id, task, eval_program=eval_program,
                                            cases=cases, run_store=run_store)

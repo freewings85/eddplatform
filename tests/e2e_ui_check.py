@@ -76,20 +76,24 @@ def main() -> None:
         expect(page.get_by_text("group/guide").first).to_be_visible()
         page.screenshot(path=str(SHOTS / "04-cases-imported.png"))
 
-        # 5 新建任务（挂评估程序 + 启动系统前置条件）
+        # 5 新建任务：默认已带 启动系统+启动评估程序 两条前置条件，填仓库/ref + 勾选用例
         page.locator("nav.nav").get_by_text("评估任务").click()
         expect(page.get_by_text("还没有评估任务")).to_be_visible()
         page.get_by_role("button", name="＋ 新建评估任务").click()
         modal = page.locator(".modal")
         modal.get_by_placeholder("chatagent 2.3-eval guide 冒烟").fill("guide 冒烟")
-        modal.locator("select").first.select_option(index=1)  # 评估程序：chatagent 评估
-        modal.get_by_role("button", name="＋ 启动系统").click()
+        expect(modal.locator(".pill", has_text="启动系统").first).to_be_visible()  # 默认第 1 条
+        expect(modal.locator(".pill", has_text="启动评估程序").first).to_be_visible()  # 默认第 2 条
         modal.get_by_placeholder("ssh://git@…/chatagent.git 或本地路径").fill(
             "/mnt/e/Documents/github/com.celiang.hlsc.service.ai.chatagent3")
         modal.get_by_placeholder("2.3-eval", exact=True).fill("2.3-eval")
-        modal.get_by_role("button", name="＋ 启动评估程序").click()
+        # 用例清单：切手动勾选 → 全选 → 已选 2/2
+        modal.get_by_text("手动勾选（固定清单）").click()
+        modal.get_by_role("button", name="全选").click()
+        expect(modal.get_by_text("已选 2 / 2")).to_be_visible()
         modal.get_by_role("button", name="创建任务").click()
         expect(page.get_by_role("cell", name="guide 冒烟")).to_be_visible()
+        expect(page.get_by_role("cell", name="勾选 2 条")).to_be_visible()
         page.screenshot(path=str(SHOTS / "05-task-created.png"))
 
         # 6 执行 → 提示已提交 → 运行记录出现 running

@@ -82,6 +82,26 @@ def test_run_starts_workflow_and_watch_writes_back(client, monkeypatch):
     assert got["outcomes"][0]["status"] == "ok"
 
 
+def test_run_uses_selected_cases_only(client, monkeypatch):
+    """task.case_ids 勾选清单 → 只把选中的（且 enabled）用例交给 workflow。"""
+    import eddplatform.api.run_service as rs
+    for cid, name in [("c1", "用例1"), ("c2", "用例2"), ("c3", "用例3")]:
+        client.post("/api/systems/sys1/cases", json={"id": cid, "name": name, "inputs": "x"})
+    client.post("/api/systems/sys1/tasks", json={
+        "name": "选例", "system_id": "sys1", "case_ids": ["c1", "c3"],
+        "preconditions": [{"kind": "start_system", "git_url": "/repo", "ref": "r"}]})
+    out = RunTaskOutput(namespace="ns", status="up")
+    fake = FakeClient(out)
+
+    async def fake_connect(_addr):
+        return fake
+    monkeypatch.setattr(rs, "_connect", fake_connect)
+    r = client.post("/api/systems/sys1/tasks/T-0002/run")
+    assert r.status_code == 202
+    inp = fake.started[0][2]
+    assert [c.case_id for c in inp.cases] == ["c1", "c3"]
+
+
 def test_run_failure_writes_failed(client, monkeypatch):
     import eddplatform.api.run_service as rs
     fake = FakeClient(RuntimeError("workflow 爆了"))

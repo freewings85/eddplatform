@@ -147,3 +147,9 @@ td.empty { text-align: center; color: var(--muted); padding: 28px; }
 .pc-head { display: flex; align-items: center; gap: 10px; }
 .pc-idx { width: 22px; height: 22px; border-radius: 50%; background: var(--side); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
 .pc-ctl { margin-left: auto; display: flex; gap: 6px; }
+
+/* 评估任务：用例清单选择 */
+.case-picklist { border: 1px solid var(--line); border-radius: 10px; margin-top: 8px; max-height: 220px; overflow-y: auto; background: #fff; }
+.case-pick { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+.case-pick:last-child { border-bottom: none; }
+.case-pick.on { background: #eef2ff; }

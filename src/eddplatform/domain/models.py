@@ -278,4 +278,5 @@ class Task(BaseModel):
     dataset_name: str | None = None
     preconditions: list[Precondition] = []
     eval_program_id: str | None = None       # 选定的评估程序（其 code 决定 RunCase 分派队列）
+    case_ids: list[str] | None = None        # 用例清单：None = 全部用例（动态跟随用例库）
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）

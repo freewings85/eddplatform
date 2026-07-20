@@ -24,6 +24,20 @@ def test_task_requires_existing_system(client):
     assert r.status_code == 404
 
 
+def test_task_case_ids_roundtrip(client):
+    """用例清单：空/None = 全部用例（动态），列表 = 固定勾选。"""
+    r = client.post("/api/systems/sys1/tasks", json={
+        "name": "选例任务", "system_id": "sys1", "case_ids": ["c1", "c3"],
+        "preconditions": [{"kind": "start_system", "git_url": "/repo", "ref": "2.3-eval"}]})
+    assert r.status_code == 201
+    tid = r.json()["id"]
+    got = client.get("/api/systems/sys1/tasks").json()
+    assert got[0]["case_ids"] == ["c1", "c3"]
+    r = client.put(f"/api/systems/sys1/tasks/{tid}",
+                   json={"name": "选例任务", "system_id": "sys1", "case_ids": None})
+    assert r.json()["case_ids"] is None
+
+
 def test_task_crud_persists(client, test_db):
     r = client.post("/api/systems/sys1/tasks", json={
         "name": "guide 冒烟", "system_id": "sys1",

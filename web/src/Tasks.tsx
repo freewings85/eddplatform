@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import type {
+  Case,
   EvalProgram,
   Precondition,
   PreconditionKind,
@@ -21,7 +22,7 @@ type Row = {
   gitUrl?: string; // start_system：被评系统仓库
   ref?: string; // start_system / start_eval_program：git ref
   programId?: string; // start_eval_program：选中的评估程序
-  script?: string; // custom_script
+  script?: string; // 旧任务里的自定义脚本（仅展示/保留，不再新建）
 };
 
 export default function Tasks({ sysId }: { sysId: string }) {
@@ -63,7 +64,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
     <>
       <h2 className="page">评估任务</h2>
       <p className="sub">
-        评估任务 = <b>有序前置条件</b>（启动系统 / 启动评估程序 / 自定义脚本）+ <b>评估程序</b>。
+        评估任务 = <b>启动系统</b> + <b>启动评估程序</b>（有序前置条件）+ <b>用例清单</b>。
         点「执行」= 平台经 Temporal 拉起环境并逐用例分派评估，产出一条运行记录。
       </p>
       {error && <p className="err">{error}</p>}
@@ -84,6 +85,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
               <th>任务名</th>
               <th>前置条件</th>
               <th>评估程序</th>
+              <th>用例</th>
               <th></th>
             </tr>
           </thead>
@@ -106,6 +108,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
                   {programs.find((p) => p.id === t.eval_program_id)?.code ??
                     (t.eval_program_id || "—")}
                 </td>
+                <td>{t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}</td>
                 <td>
                   <button className="btn sm primary" onClick={() => run(t)}>执行</button>{" "}
                   <button className="btn sm" onClick={() => setEditing(t)}>编辑</button>{" "}
@@ -115,7 +118,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
             ))}
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   还没有评估任务，点「新建评估任务」开始。
                 </td>
               </tr>
@@ -167,20 +170,49 @@ function TaskForm({
   onCancel: () => void;
   onDone: () => void;
 }) {
+  const prog0 = programs[0];
   const [name, setName] = useState(initial?.name ?? "");
-  const [rows, setRows] = useState<Row[]>(initial ? toRows(initial) : []);
-  const [evalProgramId, setEvalProgramId] = useState<string>(initial?.eval_program_id ?? "");
+  const [rows, setRows] = useState<Row[]>(
+    initial
+      ? toRows(initial)
+      : [
+          { kind: "start_system", gitUrl: "", ref: "" },
+          { kind: "start_eval_program", programId: prog0?.id, gitUrl: prog0?.git_url, ref: prog0?.ref },
+        ],
+  );
+  const [evalProgramId, setEvalProgramId] = useState<string>(
+    initial?.eval_program_id ?? prog0?.id ?? "",
+  );
+  const [cases, setCases] = useState<Case[]>([]);
+  const [allCases, setAllCases] = useState<boolean>(initial ? initial.case_ids == null : true);
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(initial?.case_ids ?? []),
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api.dataset(sysId).then((d) => setCases(d.cases)).catch(() => {});
+  }, [sysId]);
+
+  // programs 是异步加载的：到位后给「启动评估程序」行和任务级评估程序补默认值
+  useEffect(() => {
+    if (!programs.length) return;
+    const prog = programs[0];
+    setRows((rs) => rs.map((r) =>
+      r.kind === "start_eval_program" && !r.programId
+        ? { ...r, programId: prog.id, gitUrl: prog.git_url, ref: r.ref || prog.ref }
+        : r));
+    if (!initial) setEvalProgramId((v) => v || prog.id);
+    // eslint-disable-next-line
+  }, [programs]);
 
   function addRow(kind: PreconditionKind) {
     const prog = programs[0];
     const seed: Row =
       kind === "start_system"
         ? { kind, gitUrl: "", ref: "" }
-        : kind === "start_eval_program"
-          ? { kind, programId: prog?.id, gitUrl: prog?.git_url, ref: prog?.ref }
-          : { kind, name: "seed", script: "" };
+        : { kind, programId: prog?.id, gitUrl: prog?.git_url, ref: prog?.ref };
     setRows((r) => [...r, seed]);
   }
 
@@ -198,6 +230,15 @@ function TaskForm({
   }
   function remove(i: number) {
     setRows((r) => r.filter((_, idx) => idx !== i));
+  }
+
+  function toggleCase(id: string) {
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   function toPrecondition(row: Row): Precondition {
@@ -224,18 +265,21 @@ function TaskForm({
   async function submit() {
     setError(null);
     if (!name.trim()) return setError("任务名不能为空");
-    if (rows.length === 0) return setError("至少添加一条前置条件");
+    if (rows.length === 0) return setError("至少保留一条前置条件");
     for (const row of rows) {
       if (row.kind === "start_system" && (!row.gitUrl?.trim() || !row.ref?.trim()))
         return setError("「启动系统」需要 Git 仓库和 ref");
       if (row.kind === "start_eval_program" && !row.programId)
-        return setError("「启动评估程序」需要选择评估程序");
+        return setError("「启动评估程序」需要选择评估程序（先去「评估程序」页登记）");
     }
+    if (!allCases && selected.size === 0)
+      return setError("勾选模式下至少选择一条用例（或切回「全部用例」）");
     const payload: TaskInput = {
       name: name.trim(),
       system_id: sysId,
       preconditions: rows.map(toPrecondition),
       eval_program_id: evalProgramId || null,
+      case_ids: allCases ? null : [...selected],
     };
     setBusy(true);
     try {
@@ -278,11 +322,10 @@ function TaskForm({
           </div>
 
           <div className="fld">
-            <span>前置条件（按顺序执行；启动前把系统 / 评估程序拉起）</span>
+            <span>前置条件（按顺序执行；默认 = 启动系统 → 启动评估程序）</span>
             <div className="pc-add">
               <button className="btn sm" onClick={() => addRow("start_system")}>＋ 启动系统</button>
               <button className="btn sm" onClick={() => addRow("start_eval_program")}>＋ 启动评估程序</button>
-              <button className="btn sm" onClick={() => addRow("custom_script")}>＋ 自定义脚本</button>
             </div>
 
             {rows.length === 0 && <i className="muted">还没有前置条件，用上面的按钮添加。</i>}
@@ -339,22 +382,56 @@ function TaskForm({
                 )}
 
                 {row.kind === "custom_script" && (
-                  <>
-                    <label className="fld">
-                      <span>名称</span>
-                      <input value={row.name ?? ""} onChange={(e) => patch(i, { name: e.target.value })}
-                        placeholder="seed 数据 / 迁移" />
-                    </label>
-                    <label className="fld">
-                      <span>脚本</span>
-                      <textarea className="mono" rows={3} value={row.script ?? ""}
-                        onChange={(e) => patch(i, { script: e.target.value })}
-                        placeholder='kubectl -n "$EDD_NAMESPACE" create configmap seed --from-literal=ok=1' />
-                    </label>
-                  </>
+                  <label className="fld">
+                    <span>脚本（旧任务保留字段）</span>
+                    <textarea className="mono" rows={3} value={row.script ?? ""}
+                      onChange={(e) => patch(i, { script: e.target.value })} />
+                  </label>
                 )}
               </div>
             ))}
+          </div>
+
+          <div className="fld">
+            <span>用例清单（{cases.length} 条可选）</span>
+            <div className="chips">
+              <label className={`chip ${allCases ? "on" : ""}`}>
+                <input type="radio" checked={allCases} onChange={() => setAllCases(true)} />
+                全部用例（动态跟随用例库）
+              </label>
+              <label className={`chip ${!allCases ? "on" : ""}`}>
+                <input type="radio" checked={!allCases} onChange={() => setAllCases(false)} />
+                手动勾选（固定清单）
+              </label>
+            </div>
+            {!allCases && (
+              <>
+                <div className="pc-add">
+                  <button className="btn sm"
+                    onClick={() => setSelected(new Set(cases.map((c) => c.id)))}>
+                    全选
+                  </button>
+                  <button className="btn sm" onClick={() => setSelected(new Set())}>清空</button>
+                  <span className="muted count">已选 {selected.size} / {cases.length}</span>
+                </div>
+                <div className="case-picklist">
+                  {cases.map((c) => (
+                    <label key={c.id} className={`case-pick ${selected.has(c.id) ? "on" : ""}`}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={() => toggleCase(c.id)}
+                      />
+                      <span className="mono">{c.id}</span> {c.name}
+                      {!c.enabled && <span className="tag">已禁用</span>}
+                    </label>
+                  ))}
+                  {cases.length === 0 && (
+                    <i className="muted">用例库是空的 — 先去「用例库」新增或导入用例。</i>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           {error && <p className="err">{error}</p>}
