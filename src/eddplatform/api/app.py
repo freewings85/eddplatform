@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
-from eddplatform.api import case_yaml, git_resolve, run_service
+from eddplatform.api import case_git, case_yaml, git_resolve, run_service
 from eddplatform.domain.models import (Case, DatasetInfo, EvalProgram, PreconditionKind,
                                        RunRecord, System, SystemProgram, TagNode, Task)
 from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunStore,
@@ -321,6 +321,36 @@ def get_run(run_id: str):
         raise HTTPException(404, "run not found")
     return {**run.model_dump(),
             "case_results": [c.model_dump() for c in run_store.case_results(run_id)]}
+
+
+# --- 用例仓 git 双向（数据库=工作区，git=版本仓）---------------------------
+@app.post("/api/systems/{system_id}/cases-import-git")
+def cases_import_git(system_id: str):
+    """全量导入：用例仓分支最新 → 发现库文件夹 → 整体替换缓存。"""
+    system = system_store.get(system_id)
+    if system is None:
+        raise HTTPException(404, "system not found")
+    try:
+        return case_git.import_from_git(system, dataset_store, store)
+    except git_resolve.GitResolveError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/systems/{system_id}/datasets/{dataset_id}/export-git")
+def dataset_export_git(system_id: str, dataset_id: str):
+    """把一个用例库导出到用例仓（一条用例一个文件，commit+push）。"""
+    system = system_store.get(system_id)
+    if system is None:
+        raise HTTPException(404, "system not found")
+    dataset = dataset_store.get(system_id, dataset_id)
+    if dataset is None:
+        raise HTTPException(404, "dataset not found")
+    try:
+        out = case_git.export_to_git(system, dataset, store.list_cases(system_id, dataset_id))
+    except git_resolve.GitResolveError as e:
+        raise HTTPException(400, str(e))
+    dataset_store.update(system_id, dataset_id, dataset)   # path 固化
+    return out
 
 
 # --- 用例库（一系统多库）与用例 --------------------------------------------

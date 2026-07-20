@@ -14,6 +14,8 @@ export interface System {
   name: string;
   owner?: string | null;
   description?: string | null;
+  cases_git_url?: string | null; // 用例仓库（git 管版本）
+  cases_branch?: string; // 用例仓分支
   modules?: Module[];
   prod_version?: string | null;
 }
@@ -119,6 +121,7 @@ export interface DatasetInfo {
   system_id: string;
   name: string;
   description?: string | null;
+  path?: string | null; // 用例仓里对应的文件夹
 }
 
 export interface Outcome {

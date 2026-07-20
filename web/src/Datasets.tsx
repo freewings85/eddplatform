@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useEscape } from "./useEscape";
 import { api } from "./api";
 import CaseForm from "./CaseForm";
-import type { Case, CaseInput, DatasetInfo } from "./types";
+import type { Case, CaseInput, DatasetInfo, System } from "./types";
 
 /** Case → 表单负载（去掉服务端维护的字段）。 */
 function toInput(c: Case): CaseInput {
@@ -19,7 +19,9 @@ function matchTag(tags: string[], p: string): boolean {
 }
 
 export default function Datasets({ sysId }: { sysId: string }) {
+  const [system, setSystem] = useState<System | null>(null);
   const [libraries, setLibraries] = useState<DatasetInfo[]>([]);
+  const [gitBusy, setGitBusy] = useState(false);
   const [dsId, setDsId] = useState<string>("");
   const [cases, setCases] = useState<Case[]>([]);
   const [taxonomy, setTaxonomy] = useState<string[]>([]); // 标签树的完整路径
@@ -31,6 +33,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
 
   const reload = useCallback(() => {
     setError(null);
+    api.system(sysId).then(setSystem).catch(() => {});
     api.datasets(sysId).then((ls) => {
       setLibraries(ls);
       setDsId((cur) => (ls.some((l) => l.id === cur) ? cur : (ls[0]?.id ?? "")));
@@ -50,6 +53,39 @@ export default function Datasets({ sysId }: { sysId: string }) {
     if (!dsId) return setCases([]);
     api.datasetCases(sysId, dsId).then(setCases).catch((e) => setError(String(e)));
   }, [sysId, dsId, libraries]);
+
+  async function importGit() {
+    setError(null);
+    setGitBusy(true);
+    try {
+      const r = await api.importCasesGit(sysId);
+      const lines = r.libraries.map((l) => `${l.path}: ${l.count} 条`).join("，");
+      alert(`已从 git 导入（commit ${r.commit.slice(0, 8)}）：${lines || "没有发现用例文件夹"}`
+        + (r.errors?.length ? `\n警告：${r.errors.join("；")}` : ""));
+      reload();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setGitBusy(false);
+    }
+  }
+
+  async function exportGit() {
+    if (!dsId) return;
+    setError(null);
+    setGitBusy(true);
+    try {
+      const r = await api.exportDatasetGit(sysId, dsId);
+      alert(r.changed
+        ? `已导出到 git（commit ${r.commit.slice(0, 8)}，${r.files} 个用例文件）`
+        : "内容与 git 一致，无需导出");
+      reload();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setGitBusy(false);
+    }
+  }
 
   async function removeLibrary() {
     const lib = libraries.find((l) => l.id === dsId);
@@ -139,8 +175,24 @@ export default function Datasets({ sysId }: { sysId: string }) {
         </span>
       </div>
 
+      {system?.cases_git_url && (
+        <p className="note">
+          用例仓库：<span className="mono">{system.cases_git_url}</span> @ {system.cases_branch || "main"}
+          {" · "}
+          <button className="btn sm" onClick={importGit} disabled={gitBusy}>
+            {gitBusy ? "处理中…" : "⬇ 从 git 导入（全量）"}
+          </button>{" "}
+          {dsId && (
+            <button className="btn sm" onClick={exportGit} disabled={gitBusy}>
+              ⬆ 导出当前库到 git
+            </button>
+          )}
+        </p>
+      )}
       {libraries.length === 0 && (
-        <p className="note">还没有用例库 — 点「新建用例库」创建（例如按业务线：guide / searchshops / searchcoupons）。</p>
+        <p className="note">还没有用例库 — {system?.cases_git_url
+          ? "点「从 git 导入」拉取用例仓内容，"
+          : ""}或点「新建用例库」手动创建（例如按业务线：guide / searchshops / searchcoupons）。</p>
       )}
 
       {allTags.length > 0 && (

@@ -13,6 +13,29 @@ import yaml
 from eddplatform.domain.models import Case
 
 
+def case_to_yaml_doc(case: Case) -> dict:
+    """Case → 单用例 YAML 文档（导出到 git 用；与 parse_eval_yaml 互逆）。"""
+    turns: object = []
+    if isinstance(case.inputs, str):
+        try:
+            turns = json.loads(case.inputs) if case.inputs.strip() else []
+        except ValueError:
+            turns = [{"user": case.inputs}]
+    else:
+        turns = case.inputs
+    item: dict = {"id": case.id, "name": case.name}
+    if case.description:
+        item["description"] = case.description
+    if case.tags:
+        item["tags"] = list(case.tags)
+    item["turns"] = turns
+    if case.expected_output is not None:
+        item["expect"] = case.expected_output
+    if not case.enabled:
+        item["enabled"] = False
+    return {"cases": [item]}
+
+
 def parse_eval_yaml(text: str) -> list[Case]:
     doc = yaml.safe_load(text)
     if not isinstance(doc, dict) or not isinstance(doc.get("cases"), list):
@@ -24,12 +47,14 @@ def parse_eval_yaml(text: str) -> list[Case]:
     for item in doc["cases"]:
         if not isinstance(item, dict) or not item.get("id"):
             raise ValueError(f"用例缺 id: {item!r}")
+        item_tags = list(dict.fromkeys([*tags, *item.get("tags", [])]))
         out.append(Case(
             id=str(item["id"]),
             name=str(item.get("name") or item["id"]),
             description=item.get("description"),
             inputs=json.dumps(item.get("turns", []), ensure_ascii=False),
             expected_output=item.get("expect"),
-            tags=list(tags),
+            tags=item_tags,
+            enabled=bool(item.get("enabled", True)),
         ))
     return out

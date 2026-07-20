@@ -106,6 +106,8 @@ function SystemForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [owner, setOwner] = useState(initial?.owner ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [casesGitUrl, setCasesGitUrl] = useState(initial?.cases_git_url ?? "");
+  const [casesBranch, setCasesBranch] = useState(initial?.cases_branch ?? "main");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEscape(onCancel);
@@ -114,11 +116,15 @@ function SystemForm({
     setError(null);
     if (!id.trim()) return setError("系统 ID 不能为空（如 chatagent）");
     if (!name.trim()) return setError("名称不能为空");
+    if (/\s/.test(casesGitUrl.trim()))
+      return setError("用例仓库地址不能包含空格/制表符");
     const payload: System = {
       id: id.trim(),
       name: name.trim(),
       owner: owner.trim() || null,
       description: description.trim() || null,
+      cases_git_url: casesGitUrl.trim() || null,
+      cases_branch: casesBranch.trim() || "main",
     };
     setBusy(true);
     try {
@@ -160,6 +166,18 @@ function SystemForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="被评系统的一句话说明" />
           </label>
+          <div className="fld-row">
+            <label className="fld">
+              <span>用例仓库 git 地址（git 管用例版本；一个文件夹=一个用例库）</span>
+              <input value={casesGitUrl} onChange={(e) => setCasesGitUrl(e.target.value)}
+                className="mono" placeholder="ssh://git@…/chatagent-cases.git 或本地路径" />
+            </label>
+            <label className="fld">
+              <span>用例仓分支</span>
+              <input value={casesBranch} onChange={(e) => setCasesBranch(e.target.value)}
+                className="mono" placeholder="main" />
+            </label>
+          </div>
           {error && <p className="err">{error}</p>}
         </div>
         <div className="modal-foot">

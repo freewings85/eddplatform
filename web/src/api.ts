@@ -79,6 +79,12 @@ export const api = {
     send<DatasetInfo>("PUT", `/systems/${sysId}/datasets/${dsId}`, d),
   deleteDataset: (sysId: string, dsId: string) =>
     send<void>("DELETE", `/systems/${sysId}/datasets/${dsId}`),
+  importCasesGit: (sysId: string) =>
+    send<{ commit: string; libraries: { id: string; path: string; count: number }[];
+           errors?: string[] }>("POST", `/systems/${sysId}/cases-import-git`),
+  exportDatasetGit: (sysId: string, dsId: string) =>
+    send<{ commit: string; files: number; changed: boolean }>(
+      "POST", `/systems/${sysId}/datasets/${dsId}/export-git`),
   datasetCases: (sysId: string, dsId: string) =>
     get<Case[]>(`/systems/${sysId}/datasets/${dsId}/cases`),
   createCase: (sysId: string, dsId: string, c: CaseInput) =>

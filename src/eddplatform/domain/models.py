@@ -74,6 +74,8 @@ class System(BaseModel):
     name: str
     owner: str | None = None
     description: str | None = None
+    cases_git_url: str | None = None  # 用例仓库（git 管版本；导入/导出的对端）
+    cases_branch: str = "main"        # 用例仓分支
     modules: list[Module] = []
     prod_version: str | None = None
 
@@ -176,6 +178,7 @@ class DatasetInfo(BaseModel):
     system_id: str = ""
     name: str
     description: str | None = None
+    path: str | None = None               # 用例仓里对应的文件夹（git 导入/导出的锚点）
 
 
 class Dataset(BaseModel):
