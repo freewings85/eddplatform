@@ -4,8 +4,19 @@ import type { CaseRunResult, RunDetail, RunRecord } from "./types";
 
 function StatusPill({ status }: { status: string }) {
   const kind = status === "succeeded" || status === "passed" ? "ok"
-    : status === "running" ? "run" : "down";
+    : status === "running" ? "run"
+    : status === "skipped" ? "neutral" : "down";
   return <span className={`pill ${kind}`}>{status}</span>;
+}
+
+function CaseStats({ stats }: { stats?: Record<string, number> }) {
+  if (!stats || Object.keys(stats).length === 0) return <span className="muted">—</span>;
+  const parts: string[] = [];
+  if (stats.passed) parts.push(`✓${stats.passed}`);
+  if (stats.failed) parts.push(`✗${stats.failed}`);
+  if (stats.error) parts.push(`!${stats.error}`);
+  if (stats.skipped) parts.push(`→${stats.skipped}`);
+  return <span className="mono" title="✓通过 ✗未通过 !评估错误 →不适用">{parts.join(" ")}</span>;
 }
 
 export default function Runs({ sysId }: { sysId: string }) {
@@ -44,6 +55,7 @@ export default function Runs({ sysId }: { sysId: string }) {
               <th>运行</th>
               <th>任务</th>
               <th>状态</th>
+              <th>用例结果</th>
               <th>版本标签</th>
               <th>创建时间</th>
               <th></th>
@@ -55,6 +67,7 @@ export default function Runs({ sysId }: { sysId: string }) {
                 <td className="mono">{r.id}</td>
                 <td><b>{r.task_name || r.task_id}</b></td>
                 <td><StatusPill status={r.status} /></td>
+                <td><CaseStats stats={r.case_stats} /></td>
                 <td className="mono">
                   {Object.entries(r.versions).map(([k, v]) => `${k}@${v.slice(0, 8)}`).join(" ") || "—"}
                 </td>
@@ -68,7 +81,7 @@ export default function Runs({ sysId }: { sysId: string }) {
             ))}
             {runs && runs.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   暂无运行记录 — 在「评估任务」页对任务点「执行」。
                 </td>
               </tr>
@@ -153,7 +166,7 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
             ))}
             {detail.case_results.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   {detail.status === "running" ? "评估进行中…" : "该运行没有逐用例结果（任务未挂评估程序，或环境未就绪）。"}
                 </td>
               </tr>

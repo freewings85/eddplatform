@@ -36,20 +36,32 @@ class FakeEvalWorkflow:
             # 评估程序契约：判定/执行失败抛 ApplicationError（普通异常只会让
             # workflow task 无限重试，不会把失败传回平台）
             raise ApplicationError("判定失败", non_retryable=True)
+        if inp.case.case_id == "na":
+            return CaseResultOut(case_id=inp.case.case_id, status="skipped",
+                                 detail="该版本不适用")
         return CaseResultOut(case_id=inp.case.case_id, status="passed",
                              scores={"judge": 1.0}, metrics={"latency_s": 0.1})
+
 
 
 @pytest.mark.asyncio
 async def test_dispatch_cases_to_eval_code_queue():
     if not _temporal_up():
         pytest.skip("Temporal dev server 不可达（localhost:7233）")
+    import concurrent.futures
+
+    from eddplatform.runtime.temporal.activities import TaskActivities
     client = await Client.connect(TEMPORAL)
+    acts = TaskActivities(deployer=FakeDeployer())
     inp = RunTaskInput(preconditions=[], namespace="ns", run_id="R-1",
-                       eval_code="demo-eval",
+                       eval_code="demo-eval", eval_worker_wait_s=15,
                        cases=[CaseSpec(case_id="c1", name="用例1", inputs="你好"),
-                              CaseSpec(case_id="bad", name="坏用例")])
-    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow]):
+                              CaseSpec(case_id="bad", name="坏用例"),
+                              CaseSpec(case_id="na", name="不适用")])
+    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow],
+                      activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
+                                  acts.wait_eval_worker],
+                      activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         async with Worker(client, task_queue="demo-eval", workflows=[FakeEvalWorkflow]):
             out = await client.execute_workflow(
                 RunTaskWorkflow.run, inp,
@@ -58,6 +70,34 @@ async def test_dispatch_cases_to_eval_code_queue():
     by_id = {c.case_id: c for c in out.case_results}
     assert by_id["c1"].status == "passed" and by_id["c1"].scores == {"judge": 1.0}
     assert by_id["bad"].status == "error" and "判定失败" in by_id["bad"].detail
+    assert by_id["na"].status == "skipped"       # 四态契约：不适用 → skipped 透传
+
+
+@pytest.mark.asyncio
+async def test_no_worker_on_queue_fails_fast():
+    """workflow 名配错/评估程序没起来：预检 fail fast，不让用例干等超时。"""
+    if not _temporal_up():
+        pytest.skip("Temporal dev server 不可达（localhost:7233）")
+    import concurrent.futures
+
+    from eddplatform.runtime.temporal.activities import TaskActivities
+    client = await Client.connect(TEMPORAL)
+    acts = TaskActivities(deployer=FakeDeployer())
+    inp = RunTaskInput(preconditions=[], namespace="ns", run_id="R-nf",
+                       eval_code=f"nobody-home-{uuid.uuid4().hex[:6]}",
+                       eval_worker_wait_s=5,
+                       cases=[CaseSpec(case_id="c1")])
+    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow],
+                      activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
+                                  acts.wait_eval_worker],
+                      activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
+        out = await client.execute_workflow(
+            RunTaskWorkflow.run, inp,
+            id=f"test-noworker-{uuid.uuid4().hex[:8]}", task_queue=TASK_QUEUE)
+    assert out.status == "failed"
+    assert out.case_results == []                 # 一条用例都没白等
+    assert any(o.kind == "eval_dispatch" and "没有 worker 认领" in o.detail
+               for o in out.outcomes)
 
 
 class FakeDeployer:

@@ -69,15 +69,19 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
 async def _watch(handle, run_id: str, run_store: RunStore) -> None:
     try:
         out = await handle.result()
+        stats: dict[str, int] = {}
         for cr in getattr(out, "case_results", None) or []:
             d = cr if isinstance(cr, dict) else cr.__dict__
+            status_s = d.get("status", "error")
+            stats[status_s] = stats.get(status_s, 0) + 1
             run_store.add_case_result(run_id, CaseRunResult(
-                case_id=d.get("case_id", ""), status=d.get("status", "error"),
+                case_id=d.get("case_id", ""), status=status_s,
                 scores=d.get("scores") or {}, metrics=d.get("metrics") or {},
                 detail=d.get("detail", ""), trace_url=d.get("trace_url")))
         status = RunStatus.SUCCEEDED if out.status == "up" else RunStatus.FAILED
         run_store.finish(run_id, status, versions=out.versions,
                          outcomes=[o if isinstance(o, dict) else o.__dict__ for o in out.outcomes],
-                         detail="" if out.status == "up" else "前置条件失败，见 outcomes")
+                         case_stats=stats,
+                         detail="" if out.status == "up" else "执行失败，见 outcomes")
     except Exception as e:  # noqa: BLE001 —— workflow 失败/超时都归 FAILED
         run_store.finish(run_id, RunStatus.FAILED, detail=str(e))

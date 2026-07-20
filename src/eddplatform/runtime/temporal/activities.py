@@ -11,7 +11,8 @@ import subprocess
 from temporalio import activity
 
 from eddplatform.runtime.deployer import ConventionDeployer
-from eddplatform.runtime.temporal.shared import DeployArgs, DeployOut, EvalArgs, ScriptArgs
+from eddplatform.runtime.temporal.shared import (DeployArgs, DeployOut, EvalArgs,
+                                                 ScriptArgs, WaitWorkerArgs)
 
 
 class TaskActivities:
@@ -39,6 +40,42 @@ class TaskActivities:
         )
         if proc.returncode != 0:
             raise RuntimeError(f"脚本失败({proc.returncode}): {proc.stderr or proc.stdout}")
+
+    @activity.defn
+    def wait_eval_worker(self, args: WaitWorkerArgs) -> None:
+        """队列预检：等评估程序 worker 认领队列；宽限期内没等到 → 明确报错 fail fast。
+
+        没有这步时，workflow 名配错/worker 没起来会让每条用例干等到超时。
+        """
+        import asyncio
+        import time
+
+        from temporalio.api.enums.v1 import TaskQueueType
+        from temporalio.api.taskqueue.v1 import TaskQueue
+        from temporalio.api.workflowservice.v1 import DescribeTaskQueueRequest
+        from temporalio.client import Client
+
+        address = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
+
+        async def has_poller() -> bool:
+            client = await Client.connect(address)
+            resp = await client.workflow_service.describe_task_queue(
+                DescribeTaskQueueRequest(
+                    namespace=client.namespace,
+                    task_queue=TaskQueue(name=args.queue),
+                    task_queue_type=TaskQueueType.TASK_QUEUE_TYPE_WORKFLOW,
+                ))
+            return len(resp.pollers) > 0
+
+        deadline = time.time() + args.timeout_s
+        while time.time() < deadline:
+            if asyncio.run(has_poller()):
+                return
+            activity_logger(f"等待评估 worker 认领队列 {args.queue!r}…")
+            time.sleep(3)
+        raise RuntimeError(
+            f"评估 workflow {args.queue!r} 没有 worker 认领队列——评估程序没起来，"
+            "或用例库配置的 workflow 名与评估程序代码里注册的不一致")
 
     @activity.defn
     def run_eval(self, args: EvalArgs) -> dict:

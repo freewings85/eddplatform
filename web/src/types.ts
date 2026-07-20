@@ -152,6 +152,7 @@ export interface RunRecord {
   namespace: string;
   versions: Record<string, string>;
   outcomes: Outcome[];
+  case_stats?: Record<string, number>;
   detail: string;
   created_at?: string | null;
   finished_at?: string | null;

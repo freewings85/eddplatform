@@ -24,6 +24,7 @@ with workflow.unsafe.imports_passed_through():
         RunTaskInput,
         RunTaskOutput,
         ScriptArgs,
+        WaitWorkerArgs,
     )
 
 _ROLE = {"start_system": "system", "start_eval_program": "eval"}
@@ -93,6 +94,23 @@ class RunTaskWorkflow:
 
         # 逐用例分派：评估程序 worker 认领 eval_code 队列（方案 A：平台=client / 评估程序=worker）
         if out.status == "up" and inp.eval_code and inp.cases:
+            # 队列预检：worker 没上线/名字配错 → 整场 fail fast，别让每条用例干等超时
+            try:
+                await workflow.execute_activity_method(
+                    TaskActivities.wait_eval_worker,
+                    WaitWorkerArgs(inp.eval_code, inp.eval_worker_wait_s),
+                    start_to_close_timeout=timedelta(seconds=inp.eval_worker_wait_s + 60),
+                    retry_policy=RetryPolicy(maximum_attempts=1),
+                )
+            except ActivityError as e:
+                cause = e
+                while getattr(cause, "cause", None) is not None:
+                    cause = cause.cause
+                out.status = "failed"
+                out.outcomes.append(OutcomeOut(
+                    "eval_dispatch", inp.eval_code, "failed",
+                    detail=str(getattr(cause, "message", None) or cause)))
+                return out
             for case in inp.cases:
                 try:
                     r = await workflow.execute_child_workflow(

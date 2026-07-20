@@ -73,7 +73,8 @@ class RunStore:
         return run
 
     def finish(self, run_id: str, status: RunStatus, *, versions: dict[str, str] | None = None,
-               outcomes: list[dict] | None = None, detail: str = "") -> RunRecord:
+               outcomes: list[dict] | None = None, case_stats: dict[str, int] | None = None,
+               detail: str = "") -> RunRecord:
         with self._lock:
             run = self.get(run_id)
             if run is None:
@@ -81,6 +82,7 @@ class RunStore:
             run.status = status
             run.versions = versions or {}
             run.outcomes = outcomes or []
+            run.case_stats = case_stats or {}
             run.detail = detail
             run.finished_at = _now()
             self.update(run)

@@ -242,6 +242,7 @@ class RunRecord(BaseModel):
     namespace: str = ""
     versions: dict[str, str] = {}          # {system: sha, eval: sha}
     outcomes: list[dict] = []              # 每条前置条件的 OutcomeOut dict
+    case_stats: dict[str, int] = {}        # 用例结果汇总 {passed/failed/error/skipped: n}
     detail: str = ""                       # 失败原因等
     created_at: datetime | None = None
     finished_at: datetime | None = None

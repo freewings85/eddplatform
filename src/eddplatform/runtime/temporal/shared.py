@@ -30,6 +30,12 @@ class ScriptArgs:
 
 
 @dataclass
+class WaitWorkerArgs:
+    queue: str                         # 评估 workflow 名 = 队列名
+    timeout_s: int = 90                # 等 worker 上线的宽限期（评估程序 pod 启动需要时间）
+
+
+@dataclass
 class EvalArgs:
     namespace: str
     eval_deploy: str                   # 评估程序里发起观测的服务（如 judge）
@@ -80,7 +86,9 @@ class RunCaseInput:
 @dataclass
 class CaseResultOut:
     case_id: str
-    status: str = "passed"             # passed | failed | error
+    # passed=通过 | failed=没通过(被评系统的问题,计回归) |
+    # error=评估过程失败(评估链路的问题,对比时剔除) | skipped=该版本不适用(剔除)
+    status: str = "passed"
     scores: dict[str, float] = field(default_factory=dict)
     metrics: dict[str, float] = field(default_factory=dict)
     detail: str = ""
@@ -94,7 +102,8 @@ class RunTaskInput:
     eval_deploy: str | None = None     # 评估观测：发起方服务
     eval_target: str | None = None     # 评估观测：被测服务
     run_id: str = ""                   # 平台侧 RunRecord id
-    eval_code: str | None = None       # 评估程序 code（RunCase workflow 名/队列）
+    eval_code: str | None = None       # 评估 workflow 名（来自用例库配置）
+    eval_worker_wait_s: int = 90       # 队列预检：等评估 worker 上线的宽限期
     cases: list[CaseSpec] = field(default_factory=list)
 
 
