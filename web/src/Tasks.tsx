@@ -199,6 +199,7 @@ function TaskForm({
   const [selected, setSelected] = useState<Set<string>>(new Set(initial?.case_ids ?? []));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
 
   useEffect(() => {
     api.dataset(sysId).then((d) => setCases(d.cases)).catch(() => {});
@@ -331,17 +332,33 @@ function TaskForm({
     };
   }
 
-  async function submit() {
-    setError(null);
-    if (!name.trim()) return setError("任务名不能为空");
-    if (rows.length === 0) return setError("至少保留一条前置条件");
+  function step1Error(): string | null {
+    if (!name.trim()) return "任务名不能为空";
+    if (rows.length === 0) return "至少保留一条前置条件";
     for (const row of rows) {
       if (row.kind === "custom_script") continue;
       if (!row.programId || !regOf(row))
-        return setError(`「${KIND_LABEL[row.kind]}」需要先在对应页面登记程序，再下拉选择`);
+        return `「${KIND_LABEL[row.kind]}」需要先在对应页面登记程序，再下拉选择`;
       if (!row.branch?.trim() || !row.commit?.trim())
-        return setError(`「${KIND_LABEL[row.kind]} · ${regOf(row)?.label}」需要固化 分支+commit：`
-          + "填分支点「获取最新 commit」，或填 commit 点「校验」");
+        return `「${KIND_LABEL[row.kind]} · ${regOf(row)?.label}」需要固化 分支+commit：`
+          + "填分支点「获取最新 commit」，或填 commit 点「校验」";
+    }
+    return null;
+  }
+
+  function goNext() {
+    setError(null);
+    const err = step1Error();
+    if (err) return setError(err);
+    setStep(2);
+  }
+
+  async function submit() {
+    setError(null);
+    const err = step1Error();
+    if (err) {
+      setStep(1);
+      return setError(err);
     }
     if (!allCases && selected.size === 0)
       return setError("勾选模式下至少选择一条用例（或切回「全部用例」）");
@@ -367,13 +384,17 @@ function TaskForm({
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{initial ? "编辑评估任务" : "新建评估任务"}</b>
+          <b>
+            {initial ? "编辑评估任务" : "新建评估任务"}
+            <span className="muted"> · 步骤 {step}/2 · {step === 1 ? "基本信息与前置条件" : "用例清单"}</span>
+          </b>
           <a className="modal-x" onClick={onCancel}>
             ✕
           </a>
         </div>
 
         <div className="modal-body">
+          {step === 1 && (<>
           <label className="fld">
             <span>任务名 *</span>
             <input value={name} onChange={(e) => setName(e.target.value)}
@@ -499,6 +520,9 @@ function TaskForm({
             })}
           </div>
 
+          </>)}
+
+          {step === 2 && (
           <div className="fld">
             <span>用例清单（{cases.length} 条可选）</span>
             <div className="chips">
@@ -540,15 +564,25 @@ function TaskForm({
               </>
             )}
           </div>
+          )}
 
           {error && <p className="err">{error}</p>}
         </div>
 
         <div className="modal-foot">
           <button className="btn" onClick={onCancel} disabled={busy}>取消</button>
-          <button className="btn primary" onClick={submit} disabled={busy}>
-            {busy ? "保存中…" : initial ? "保存修改" : "创建任务"}
-          </button>
+          {step === 2 && (
+            <button className="btn" onClick={() => { setError(null); setStep(1); }} disabled={busy}>
+              上一步
+            </button>
+          )}
+          {step === 1 ? (
+            <button className="btn primary" onClick={goNext}>下一步</button>
+          ) : (
+            <button className="btn primary" onClick={submit} disabled={busy}>
+              {busy ? "保存中…" : initial ? "保存修改" : "创建任务"}
+            </button>
+          )}
         </div>
       </div>
     </div>

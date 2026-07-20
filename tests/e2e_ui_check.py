@@ -108,7 +108,9 @@ def main() -> None:
         expect(modal.get_by_text("下载规范示例").first).to_be_visible()
         modal.get_by_role("button", name="校验规范").nth(0).click()
         expect(modal.get_by_text("缺少构建脚本").first).to_be_visible(timeout=30000)
-        # 用例清单：切手动勾选 → 全选 → 已选 2/2
+        # 第 2 步：用例清单（向导：下一步 → 勾选 → 创建）
+        modal.get_by_role("button", name="下一步").click()
+        expect(modal.get_by_text("步骤 2/2")).to_be_visible()
         modal.get_by_text("手动勾选（固定清单）").click()
         modal.get_by_role("button", name="全选").click()
         expect(modal.get_by_text("已选 2 / 2")).to_be_visible()
