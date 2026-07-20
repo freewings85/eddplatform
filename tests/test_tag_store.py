@@ -75,12 +75,12 @@ def test_delete_cascades_children(tags):
 
 def test_rewrite_tag_prefix_updates_matching_cases(test_db):
     cases = CaseStore(db=test_db)
-    cases.add_case("insurance", Case(id="1", name="a", inputs="x", tags=["业务/报价"]))
-    cases.add_case("insurance", Case(id="2", name="b", inputs="x", tags=["业务", "质量/回归"]))
-    cases.add_case("insurance", Case(id="3", name="c", inputs="x", tags=["安全/注入"]))
+    cases.add_case("insurance", "DS-1", Case(id="1", name="a", inputs="x", tags=["业务/报价"]))
+    cases.add_case("insurance", "DS-1", Case(id="2", name="b", inputs="x", tags=["业务", "质量/回归"]))
+    cases.add_case("insurance", "DS-1", Case(id="3", name="c", inputs="x", tags=["安全/注入"]))
 
     n = cases.rewrite_tag_prefix("insurance", "业务", "商务")
     assert n == 2   # #1(业务/报价) 和 #2(业务) 受影响，#3 不受影响
-    assert cases.get_case("insurance", "1").tags == ["商务/报价"]
-    assert cases.get_case("insurance", "2").tags == ["商务", "质量/回归"]
-    assert cases.get_case("insurance", "3").tags == ["安全/注入"]
+    assert cases.get_case("insurance", "DS-1", "1").tags == ["商务/报价"]
+    assert cases.get_case("insurance", "DS-1", "2").tags == ["商务", "质量/回归"]
+    assert cases.get_case("insurance", "DS-1", "3").tags == ["安全/注入"]

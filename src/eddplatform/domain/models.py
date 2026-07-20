@@ -169,6 +169,15 @@ class Case(BaseModel):
         return not self.applicable_versions or version_label in self.applicable_versions
 
 
+class DatasetInfo(BaseModel):
+    """用例库注册项：一个系统可有多个用例库，用例按库分区。"""
+
+    id: str = ""                          # 空 = store 落库时生成（DS-0001）
+    system_id: str = ""
+    name: str
+    description: str | None = None
+
+
 class Dataset(BaseModel):
     name: str
     system_id: str
@@ -310,5 +319,6 @@ class Task(BaseModel):
     system_id: str
     dataset_name: str | None = None
     preconditions: list[Precondition] = []
+    dataset_id: str | None = None            # 选定的用例库；None = 不跑用例
     case_ids: list[str] | None = None        # 用例清单：None = 全部用例（动态跟随用例库）
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）

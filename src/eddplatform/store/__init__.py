@@ -4,6 +4,7 @@
 """
 
 from eddplatform.store.case_store import CaseStore, ImportResult
+from eddplatform.store.dataset_store import DatasetStore
 from eddplatform.store.db import Db
 from eddplatform.store.eval_program_store import EvalProgramStore
 from eddplatform.store.run_store import RunStore
@@ -14,6 +15,7 @@ from eddplatform.store.task_store import TaskStore
 
 __all__ = [
     "CaseStore",
+    "DatasetStore",
     "Db",
     "EvalProgramStore",
     "ImportResult",

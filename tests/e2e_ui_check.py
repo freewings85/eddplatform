@@ -77,8 +77,14 @@ def main() -> None:
         expect(page.get_by_role("cell", name="chatagent-eval", exact=True)).to_be_visible()
         page.screenshot(path=str(SHOTS / "03-eval-program.png"))
 
-        # 4 用例库：YAML 导入
+        # 4 用例库：先建库，再 YAML 导入
         page.locator("nav.nav").get_by_text("用例库").click()
+        expect(page.get_by_text("还没有用例库")).to_be_visible()
+        page.get_by_role("button", name="＋ 新建用例库").click()
+        modal = page.locator(".modal")
+        modal.get_by_placeholder("guide 用例库").fill("guide 用例库")
+        modal.get_by_role("button", name="保存").click()
+        expect(page.locator("select")).to_have_value("DS-0001")
         page.get_by_role("button", name="导入", exact=True).click()
         modal = page.locator(".modal")
         modal.get_by_text("评估 YAML").click()
@@ -108,10 +114,15 @@ def main() -> None:
         expect(modal.get_by_text("下载规范示例").first).to_be_visible()
         modal.get_by_role("button", name="校验规范").nth(0).click()
         expect(modal.get_by_text("缺少构建脚本").first).to_be_visible(timeout=30000)
-        # 第 2 步：用例清单（向导：下一步 → 勾选 → 创建）
+        # 第 2 步：用例清单（选库 → 过滤 → 勾选 → 创建）
         modal.get_by_role("button", name="下一步").click()
         expect(modal.get_by_text("步骤 2/2")).to_be_visible()
+        expect(modal.locator("select")).to_have_value("DS-0001")   # 默认选中 guide 用例库
         modal.get_by_text("手动勾选（固定清单）").click()
+        # 过滤：输入 saving 只剩 1 条
+        modal.get_by_placeholder("输入关键字过滤用例").fill("saving")
+        expect(modal.get_by_text("过滤后 1 条")).to_be_visible()
+        modal.get_by_placeholder("输入关键字过滤用例").fill("")
         modal.get_by_role("button", name="全选").click()
         expect(modal.get_by_text("已选 2 / 2")).to_be_visible()
         modal.get_by_role("button", name="创建任务").click()

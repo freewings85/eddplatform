@@ -30,9 +30,10 @@ class FakeClient:
 @pytest.fixture()
 def client(test_db, monkeypatch):
     import eddplatform.api.app as app_module
-    from eddplatform.store import (CaseStore, EvalProgramStore, RunStore,
+    from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunStore,
                                    SystemStore, TagStore, TaskStore)
     for attr, obj in [("store", CaseStore(db=test_db)), ("tag_store", TagStore(db=test_db)),
+                      ("dataset_store", DatasetStore(db=test_db)),
                       ("system_store", SystemStore(db=test_db)),
                       ("task_store", TaskStore(db=test_db)),
                       ("eval_program_store", EvalProgramStore(db=test_db)),
@@ -40,8 +41,9 @@ def client(test_db, monkeypatch):
         monkeypatch.setattr(app_module, attr, obj)
     c = TestClient(app_module.app)
     c.post("/api/systems", json={"id": "sys1", "name": "系统1"})
+    c.post("/api/systems/sys1/datasets", json={"name": "默认用例库"})   # DS-0001
     c.post("/api/systems/sys1/tasks", json={
-        "name": "冒烟", "system_id": "sys1",
+        "name": "冒烟", "system_id": "sys1", "dataset_id": "DS-0001",
         "preconditions": [{"kind": "start_system", "git_url": "/repo", "branch": "2.3-eval", "commit": "abc123def"}]})
     return c
 
@@ -86,9 +88,9 @@ def test_run_uses_selected_cases_only(client, monkeypatch):
     """task.case_ids 勾选清单 → 只把选中的（且 enabled）用例交给 workflow。"""
     import eddplatform.api.run_service as rs
     for cid, name in [("c1", "用例1"), ("c2", "用例2"), ("c3", "用例3")]:
-        client.post("/api/systems/sys1/cases", json={"id": cid, "name": name, "inputs": "x"})
+        client.post("/api/systems/sys1/datasets/DS-0001/cases", json={"id": cid, "name": name, "inputs": "x"})
     client.post("/api/systems/sys1/tasks", json={
-        "name": "选例", "system_id": "sys1", "case_ids": ["c1", "c3"],
+        "name": "选例", "system_id": "sys1", "dataset_id": "DS-0001", "case_ids": ["c1", "c3"],
         "preconditions": [{"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"}]})
     out = RunTaskOutput(namespace="ns", status="up")
     fake = FakeClient(out)

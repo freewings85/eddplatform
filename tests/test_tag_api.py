@@ -11,12 +11,14 @@ SYS = "insurance"
 
 @pytest.fixture
 def client(test_db):
-    from eddplatform.store import SystemStore
+    from eddplatform.store import DatasetStore, SystemStore
     app_module.store = CaseStore(db=test_db)
     app_module.tag_store = TagStore(db=test_db)
     app_module.system_store = SystemStore(db=test_db)
+    app_module.dataset_store = DatasetStore(db=test_db)
     c = TestClient(app_module.app)
     c.post("/api/systems", json={"id": SYS, "name": "保险报价系统"})
+    c.post(f"/api/systems/{SYS}/datasets", json={"name": "默认用例库"})
     return c
 
 
@@ -44,14 +46,14 @@ def test_rename_also_rewrites_case_tags(client):
     _add_tag(client, "报价", biz["id"])
     # 一条用例用了 业务/报价
     client.post(
-        f"/api/systems/{SYS}/cases",
+        f"/api/systems/{SYS}/datasets/DS-0001/cases",
         json={"name": "报价用例", "inputs": "x", "tags": ["业务/报价"]},
     )
     # 重命名父标签 业务 -> 商务
     r = client.put(f"/api/systems/{SYS}/tags/{biz['id']}", json={"name": "商务"})
     assert r.status_code == 200
     # case 上的标签路径被联动改写
-    cases = client.get(f"/api/systems/{SYS}/dataset").json()["cases"]
+    cases = client.get(f"/api/systems/{SYS}/datasets/DS-0001/cases").json()
     assert cases[0]["tags"] == ["商务/报价"]
 
 

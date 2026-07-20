@@ -66,7 +66,8 @@ export interface Task {
   system_id: string;
   dataset_name?: string | null;
   preconditions: Precondition[];
-  case_ids?: string[] | null; // 用例清单：null/缺省 = 全部用例（动态跟随用例库）
+  dataset_id?: string | null; // 选定的用例库；null = 不跑用例
+  case_ids?: string[] | null; // 用例清单：null/缺省 = 全部用例（动态跟随所选库）
   eval_target?: string | null;
 }
 
@@ -113,11 +114,11 @@ export interface ImportResult {
   total: number;
 }
 
-export interface Dataset {
-  name: string;
+export interface DatasetInfo {
+  id: string;
   system_id: string;
-  cases: Case[];
-  evaluator_names: string[];
+  name: string;
+  description?: string | null;
 }
 
 export interface Outcome {

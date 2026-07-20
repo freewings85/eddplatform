@@ -13,10 +13,10 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
 from eddplatform.api import case_yaml, git_resolve, run_service
-from eddplatform.domain.models import (Case, Dataset, EvalProgram, PreconditionKind,
+from eddplatform.domain.models import (Case, DatasetInfo, EvalProgram, PreconditionKind,
                                        RunRecord, System, SystemProgram, TagNode, Task)
-from eddplatform.store import (CaseStore, EvalProgramStore, RunStore, SystemProgramStore,
-                               SystemStore, TagStore, TaskStore)
+from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunStore,
+                               SystemProgramStore, SystemStore, TagStore, TaskStore)
 
 app = FastAPI(
     title="EddPlatform",
@@ -28,6 +28,7 @@ app = FastAPI(
 PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
 
 store = CaseStore()
+dataset_store = DatasetStore()
 tag_store = TagStore()
 system_store = SystemStore()
 system_program_store = SystemProgramStore()
@@ -291,10 +292,14 @@ async def run_task_endpoint(system_id: str, task_id: str) -> RunRecord:
             if eval_program is None:
                 raise HTTPException(409, f"评估程序 {pc.program_id} 不存在（已被删除？）")
             break
-    all_cases = [c for c in store.list_cases(system_id) if c.enabled]
-    if task.case_ids is not None:
-        picked = set(task.case_ids)
-        all_cases = [c for c in all_cases if c.id in picked]
+    all_cases = []
+    if task.dataset_id:
+        if dataset_store.get(system_id, task.dataset_id) is None:
+            raise HTTPException(409, f"用例库 {task.dataset_id} 不存在（已被删除？）")
+        all_cases = [c for c in store.list_cases(system_id, task.dataset_id) if c.enabled]
+        if task.case_ids is not None:
+            picked = set(task.case_ids)
+            all_cases = [c for c in all_cases if c.id in picked]
     cases = [run_service.case_to_spec(c) for c in all_cases]
     try:
         return await run_service.start_run(system_id, task, eval_program=eval_program,
@@ -318,68 +323,118 @@ def get_run(run_id: str):
             "case_results": [c.model_dump() for c in run_store.case_results(run_id)]}
 
 
-# --- 用例集（dataset 元信息 + cases 落 MySQL）------------------------------
-@app.get("/api/systems/{system_id}/dataset")
-def get_dataset(system_id: str) -> Dataset:
+# --- 用例库（一系统多库）与用例 --------------------------------------------
+def _require_dataset(system_id: str, dataset_id: str) -> None:
+    if dataset_store.get(system_id, dataset_id) is None:
+        raise HTTPException(404, "dataset not found")
+
+
+@app.get("/api/systems/{system_id}/datasets")
+def list_datasets(system_id: str) -> list[DatasetInfo]:
     _require_system(system_id)
-    system = system_store.get(system_id)
-    return Dataset(
-        name=f"{system.name} 用例集",
-        system_id=system_id,
-        cases=store.list_cases(system_id),
-    )
+    return dataset_store.list(system_id)
 
 
-# --- 用例管理（CRUD + 导入导出）-------------------------------------------
-@app.post("/api/systems/{system_id}/cases", status_code=201)
-def create_case(system_id: str, case: Case) -> Case:
+@app.post("/api/systems/{system_id}/datasets", status_code=201)
+def create_dataset(system_id: str, dataset: DatasetInfo) -> DatasetInfo:
     _require_system(system_id)
     try:
-        return store.add_case(system_id, case)
+        return dataset_store.create(system_id, dataset)
     except ValueError as e:
         raise HTTPException(409, str(e))
 
 
-@app.put("/api/systems/{system_id}/cases/{case_id}")
-def update_case(system_id: str, case_id: str, case: Case) -> Case:
+@app.put("/api/systems/{system_id}/datasets/{dataset_id}")
+def update_dataset(system_id: str, dataset_id: str, dataset: DatasetInfo) -> DatasetInfo:
     _require_system(system_id)
     try:
-        return store.update_case(system_id, case_id, case)
+        return dataset_store.update(system_id, dataset_id, dataset)
+    except KeyError:
+        raise HTTPException(404, "dataset not found")
+
+
+@app.delete("/api/systems/{system_id}/datasets/{dataset_id}", status_code=204)
+def delete_dataset(system_id: str, dataset_id: str) -> None:
+    _require_system(system_id)
+    if any(t.dataset_id == dataset_id for t in task_store.list(system_id)):
+        raise HTTPException(409, "有评估任务引用该用例库，先修改任务")
+    try:
+        dataset_store.delete(system_id, dataset_id)
+    except KeyError:
+        raise HTTPException(404, "dataset not found")
+    # 级联删除库内用例
+    conn = store.db.connect()
+    try:
+        with conn.cursor() as c:
+            c.execute("DELETE FROM cases WHERE system_id=%s AND dataset_id=%s",
+                      (system_id, dataset_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+@app.get("/api/systems/{system_id}/datasets/{dataset_id}/cases")
+def list_dataset_cases(system_id: str, dataset_id: str) -> list[Case]:
+    _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
+    return store.list_cases(system_id, dataset_id)
+
+
+@app.post("/api/systems/{system_id}/datasets/{dataset_id}/cases", status_code=201)
+def create_case(system_id: str, dataset_id: str, case: Case) -> Case:
+    _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
+    try:
+        return store.add_case(system_id, dataset_id, case)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.put("/api/systems/{system_id}/datasets/{dataset_id}/cases/{case_id}")
+def update_case(system_id: str, dataset_id: str, case_id: str, case: Case) -> Case:
+    _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
+    try:
+        return store.update_case(system_id, dataset_id, case_id, case)
     except KeyError:
         raise HTTPException(404, "case not found")
 
 
-@app.delete("/api/systems/{system_id}/cases/{case_id}", status_code=204)
-def delete_case(system_id: str, case_id: str) -> None:
+@app.delete("/api/systems/{system_id}/datasets/{dataset_id}/cases/{case_id}", status_code=204)
+def delete_case(system_id: str, dataset_id: str, case_id: str) -> None:
     _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
     try:
-        store.delete_case(system_id, case_id)
+        store.delete_case(system_id, dataset_id, case_id)
     except KeyError:
         raise HTTPException(404, "case not found")
 
 
-@app.get("/api/systems/{system_id}/cases/export")
-def export_cases(system_id: str) -> list[Case]:
+@app.get("/api/systems/{system_id}/datasets/{dataset_id}/cases/export")
+def export_cases(system_id: str, dataset_id: str) -> list[Case]:
     _require_system(system_id)
-    return store.export_cases(system_id)
+    _require_dataset(system_id, dataset_id)
+    return store.export_cases(system_id, dataset_id)
 
 
-@app.post("/api/systems/{system_id}/cases/import")
-def import_cases(system_id: str, body: ImportRequest):
+@app.post("/api/systems/{system_id}/datasets/{dataset_id}/cases/import")
+def import_cases(system_id: str, dataset_id: str, body: ImportRequest):
     _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
     try:
-        res = store.import_cases(system_id, body.cases, mode=body.mode)
+        res = store.import_cases(system_id, dataset_id, body.cases, mode=body.mode)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"added": res.added, "updated": res.updated, "total": res.total}
 
 
-@app.post("/api/systems/{system_id}/cases/import-yaml")
-def import_cases_yaml(system_id: str, body: YamlImportRequest):
+@app.post("/api/systems/{system_id}/datasets/{dataset_id}/cases/import-yaml")
+def import_cases_yaml(system_id: str, dataset_id: str, body: YamlImportRequest):
     _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
     try:
         cases = case_yaml.parse_eval_yaml(body.text)
-        res = store.import_cases(system_id, cases, mode=body.mode)
+        res = store.import_cases(system_id, dataset_id, cases, mode=body.mode)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"added": res.added, "updated": res.updated, "total": res.total}

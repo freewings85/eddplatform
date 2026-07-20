@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import type {
   Case,
+  DatasetInfo,
   EvalProgram,
   Precondition,
   PreconditionKind,
@@ -34,6 +35,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sysPrograms, setSysPrograms] = useState<SystemProgram[]>([]);
   const [evalPrograms, setEvalPrograms] = useState<EvalProgram[]>([]);
+  const [libs, setLibs] = useState<DatasetInfo[]>([]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
     api.tasks(sysId).then(setTasks).catch((e) => setError(String(e)));
     api.systemPrograms(sysId).then(setSysPrograms).catch(() => {});
     api.evalPrograms(sysId).then(setEvalPrograms).catch(() => {});
+    api.datasets(sysId).then(setLibs).catch(() => {});
   }, [sysId]);
   useEffect(reload, [reload]);
 
@@ -118,7 +121,12 @@ export default function Tasks({ sysId }: { sysId: string }) {
                     return evalPrograms.find((p) => p.id === pc?.program_id)?.code ?? "—";
                   })()}
                 </td>
-                <td>{t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}</td>
+                <td>
+                  {t.dataset_id
+                    ? `${libs.find((l) => l.id === t.dataset_id)?.name ?? t.dataset_id} · ${
+                        t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}`
+                    : "—"}
+                </td>
                 <td>
                   <button className="btn sm primary" onClick={() => run(t)}>执行</button>{" "}
                   <button className="btn sm" onClick={() => setEditing(t)}>编辑</button>{" "}
@@ -194,16 +202,43 @@ function TaskForm({
           { kind: "start_eval_program", programId: evalPrograms[0]?.id },
         ],
   );
+  const [libraries, setLibraries] = useState<DatasetInfo[]>([]);
+  const [datasetId, setDatasetId] = useState<string>(initial?.dataset_id ?? "");
   const [cases, setCases] = useState<Case[]>([]);
   const [allCases, setAllCases] = useState<boolean>(initial ? initial.case_ids == null : true);
   const [selected, setSelected] = useState<Set<string>>(new Set(initial?.case_ids ?? []));
+  const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 8;
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
 
   useEffect(() => {
-    api.dataset(sysId).then((d) => setCases(d.cases)).catch(() => {});
+    api.datasets(sysId).then((ls) => {
+      setLibraries(ls);
+      if (!initial) setDatasetId((cur) => cur || (ls[0]?.id ?? ""));
+    }).catch(() => {});
+    // eslint-disable-next-line
   }, [sysId]);
+
+  useEffect(() => {
+    setFilter("");
+    setPage(1);
+    if (!datasetId) return setCases([]);
+    api.datasetCases(sysId, datasetId).then(setCases).catch(() => setCases([]));
+  }, [sysId, datasetId]);
+
+  // 过滤（id/名称/标签 包含匹配）+ 分页
+  const filtered = cases.filter((c) => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return true;
+    return c.id.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+      || c.tags.some((t) => t.toLowerCase().includes(q));
+  });
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount);
+  const pageCases = filtered.slice((pageSafe - 1) * PAGE_SIZE, pageSafe * PAGE_SIZE);
 
   // 注册表是异步加载的：到位后给行和任务级评估程序补默认值
   useEffect(() => {
@@ -360,12 +395,13 @@ function TaskForm({
       setStep(1);
       return setError(err);
     }
-    if (!allCases && selected.size === 0)
+    if (datasetId && !allCases && selected.size === 0)
       return setError("勾选模式下至少选择一条用例（或切回「全部用例」）");
     const payload: TaskInput = {
       name: name.trim(),
       system_id: sysId,
       preconditions: rows.map(toPrecondition),
+      dataset_id: datasetId || null,
       case_ids: allCases ? null : [...selected],
     };
     setBusy(true);
@@ -524,11 +560,34 @@ function TaskForm({
 
           {step === 2 && (
           <div className="fld">
-            <span>用例清单（{cases.length} 条可选）</span>
+            <div className="fld-row">
+              <label className="fld">
+                <span>用例库 *</span>
+                <select value={datasetId} onChange={(e) => {
+                  setDatasetId(e.target.value);
+                  setSelected(new Set());
+                }}>
+                  <option value="">（不跑用例，只拉环境）</option>
+                  {libraries.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </label>
+              {datasetId && (
+                <label className="fld">
+                  <span>过滤（按 id / 名称 / 标签）</span>
+                  <input value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }}
+                    placeholder="输入关键字过滤用例" />
+                </label>
+              )}
+            </div>
+            {libraries.length === 0 && (
+              <i className="muted">还没有用例库 — 先去「用例库」页新建并导入用例。</i>
+            )}
+
+            {datasetId && (<>
             <div className="chips">
               <label className={`chip ${allCases ? "on" : ""}`}>
                 <input type="radio" checked={allCases} onChange={() => setAllCases(true)} />
-                全部用例（动态跟随用例库）
+                全部用例（动态跟随所选库）
               </label>
               <label className={`chip ${!allCases ? "on" : ""}`}>
                 <input type="radio" checked={!allCases} onChange={() => setAllCases(false)} />
@@ -539,14 +598,17 @@ function TaskForm({
               <>
                 <div className="pc-add">
                   <button className="btn sm"
-                    onClick={() => setSelected(new Set(cases.map((c) => c.id)))}>
-                    全选
+                    onClick={() => setSelected(new Set(filtered.map((c) => c.id)))}>
+                    全选{filter.trim() ? "（过滤结果）" : ""}
                   </button>
                   <button className="btn sm" onClick={() => setSelected(new Set())}>清空</button>
-                  <span className="muted count">已选 {selected.size} / {cases.length}</span>
+                  <span className="muted count">
+                    已选 {selected.size} / {cases.length}
+                    {filter.trim() ? ` · 过滤后 ${filtered.length} 条` : ""}
+                  </span>
                 </div>
                 <div className="case-picklist">
-                  {cases.map((c) => (
+                  {pageCases.map((c) => (
                     <label key={c.id} className={`case-pick ${selected.has(c.id) ? "on" : ""}`}>
                       <input
                         type="checkbox"
@@ -554,15 +616,28 @@ function TaskForm({
                         onChange={() => toggleCase(c.id)}
                       />
                       <span className="mono">{c.id}</span> {c.name}
+                      {c.tags.map((t) => <span key={t} className="tag">{t}</span>)}
                       {!c.enabled && <span className="tag">已禁用</span>}
                     </label>
                   ))}
-                  {cases.length === 0 && (
-                    <i className="muted">用例库是空的 — 先去「用例库」新增或导入用例。</i>
+                  {filtered.length === 0 && (
+                    <i className="muted" style={{ padding: 10, display: "block" }}>
+                      {cases.length === 0 ? "该用例库是空的 — 去「用例库」页导入。" : "没有匹配过滤条件的用例。"}
+                    </i>
                   )}
                 </div>
+                {pageCount > 1 && (
+                  <div className="pc-add" style={{ marginTop: 6 }}>
+                    <button className="btn sm" disabled={pageSafe <= 1}
+                      onClick={() => setPage(pageSafe - 1)}>◀ 上一页</button>
+                    <span className="muted count">第 {pageSafe} / {pageCount} 页</span>
+                    <button className="btn sm" disabled={pageSafe >= pageCount}
+                      onClick={() => setPage(pageSafe + 1)}>下一页 ▶</button>
+                  </div>
+                )}
               </>
             )}
+            </>)}
           </div>
           )}
 

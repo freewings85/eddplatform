@@ -7,6 +7,7 @@ from eddplatform.domain.models import (  # noqa: F401
     Comparison,
     ContextField,
     Dataset,
+    DatasetInfo,
     EvalProgram,
     EvalResult,
     EvaluatorDef,

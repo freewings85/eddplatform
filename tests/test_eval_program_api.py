@@ -6,10 +6,12 @@ from fastapi.testclient import TestClient
 @pytest.fixture()
 def client(test_db, monkeypatch):
     import eddplatform.api.app as app_module
-    from eddplatform.store import (CaseStore, EvalProgramStore, RunStore,
+    from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunStore,
                                    SystemStore, TagStore, TaskStore)
     monkeypatch.setattr(app_module, "store", CaseStore(db=test_db))
     monkeypatch.setattr(app_module, "tag_store", TagStore(db=test_db))
+    from eddplatform.store import DatasetStore
+    monkeypatch.setattr(app_module, "dataset_store", DatasetStore(db=test_db))
     monkeypatch.setattr(app_module, "system_store", SystemStore(db=test_db))
     monkeypatch.setattr(app_module, "task_store", TaskStore(db=test_db))
     monkeypatch.setattr(app_module, "eval_program_store", EvalProgramStore(db=test_db))

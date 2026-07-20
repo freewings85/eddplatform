@@ -1,7 +1,7 @@
 import type {
   Case,
   CaseInput,
-  Dataset,
+  DatasetInfo,
   EvalProgram,
   EvalProgramInput,
   SystemProgram,
@@ -71,19 +71,29 @@ export const api = {
   deleteEvalProgram: (sysId: string, pid: string) =>
     send<void>("DELETE", `/systems/${sysId}/eval-programs/${pid}`),
 
-  // 用例集
-  dataset: (id: string) => get<Dataset>(`/systems/${id}/dataset`),
-  createCase: (sysId: string, c: CaseInput) =>
-    send<Case>("POST", `/systems/${sysId}/cases`, c),
-  updateCase: (sysId: string, caseId: string, c: CaseInput) =>
-    send<Case>("PUT", `/systems/${sysId}/cases/${caseId}`, c),
-  deleteCase: (sysId: string, caseId: string) =>
-    send<void>("DELETE", `/systems/${sysId}/cases/${caseId}`),
-  exportCases: (sysId: string) => get<Case[]>(`/systems/${sysId}/cases/export`),
-  importCases: (sysId: string, cases: Case[], mode: "append" | "replace") =>
-    send<ImportResult>("POST", `/systems/${sysId}/cases/import`, { cases, mode }),
-  importCasesYaml: (sysId: string, text: string, mode: "append" | "replace") =>
-    send<ImportResult>("POST", `/systems/${sysId}/cases/import-yaml`, { text, mode }),
+  // 用例库（一系统多库）与用例
+  datasets: (sysId: string) => get<DatasetInfo[]>(`/systems/${sysId}/datasets`),
+  createDataset: (sysId: string, d: { name: string; description?: string | null }) =>
+    send<DatasetInfo>("POST", `/systems/${sysId}/datasets`, d),
+  updateDataset: (sysId: string, dsId: string, d: { name: string; description?: string | null }) =>
+    send<DatasetInfo>("PUT", `/systems/${sysId}/datasets/${dsId}`, d),
+  deleteDataset: (sysId: string, dsId: string) =>
+    send<void>("DELETE", `/systems/${sysId}/datasets/${dsId}`),
+  datasetCases: (sysId: string, dsId: string) =>
+    get<Case[]>(`/systems/${sysId}/datasets/${dsId}/cases`),
+  createCase: (sysId: string, dsId: string, c: CaseInput) =>
+    send<Case>("POST", `/systems/${sysId}/datasets/${dsId}/cases`, c),
+  updateCase: (sysId: string, dsId: string, caseId: string, c: CaseInput) =>
+    send<Case>("PUT", `/systems/${sysId}/datasets/${dsId}/cases/${caseId}`, c),
+  deleteCase: (sysId: string, dsId: string, caseId: string) =>
+    send<void>("DELETE", `/systems/${sysId}/datasets/${dsId}/cases/${caseId}`),
+  exportCases: (sysId: string, dsId: string) =>
+    get<Case[]>(`/systems/${sysId}/datasets/${dsId}/cases/export`),
+  importCases: (sysId: string, dsId: string, cases: Case[], mode: "append" | "replace") =>
+    send<ImportResult>("POST", `/systems/${sysId}/datasets/${dsId}/cases/import`, { cases, mode }),
+  importCasesYaml: (sysId: string, dsId: string, text: string, mode: "append" | "replace") =>
+    send<ImportResult>("POST", `/systems/${sysId}/datasets/${dsId}/cases/import-yaml`,
+      { text, mode }),
 
   // 标签管理（分层）
   tags: (sysId: string) => get<TagNode[]>(`/systems/${sysId}/tags`),

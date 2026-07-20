@@ -13,12 +13,19 @@ import pymysql
 from pymysql.cursors import DictCursor
 
 SCHEMA = [
+    """CREATE TABLE IF NOT EXISTS datasets (
+        system_id  VARCHAR(64) NOT NULL,
+        dataset_id VARCHAR(64) NOT NULL,
+        data       JSON NOT NULL,
+        PRIMARY KEY (system_id, dataset_id)
+    ) CHARACTER SET utf8mb4""",
     """CREATE TABLE IF NOT EXISTS cases (
-        system_id VARCHAR(64) NOT NULL,
-        case_id   VARCHAR(64) NOT NULL,
-        position  INT NOT NULL,
-        data      JSON NOT NULL,
-        PRIMARY KEY (system_id, case_id)
+        system_id  VARCHAR(64) NOT NULL,
+        dataset_id VARCHAR(64) NOT NULL,
+        case_id    VARCHAR(64) NOT NULL,
+        position   INT NOT NULL,
+        data       JSON NOT NULL,
+        PRIMARY KEY (system_id, dataset_id, case_id)
     ) CHARACTER SET utf8mb4""",
     """CREATE TABLE IF NOT EXISTS tags (
         system_id VARCHAR(64) NOT NULL,
@@ -68,8 +75,8 @@ SCHEMA = [
     ) CHARACTER SET utf8mb4""",
 ]
 
-TABLES = ["cases", "tags", "systems", "system_programs", "eval_programs", "tasks", "runs",
-          "case_results"]
+TABLES = ["cases", "datasets", "tags", "systems", "system_programs", "eval_programs", "tasks",
+          "runs", "case_results"]
 
 
 class Db:
@@ -105,9 +112,31 @@ class Db:
             with conn.cursor() as c:
                 for ddl in SCHEMA:
                     c.execute(ddl)
+            self._migrate(conn)
             conn.commit()
         finally:
             conn.close()
+
+    def _migrate(self, conn) -> None:
+        """旧库就地迁移：cases 表补 dataset_id 分区，存量用例归入「默认用例库」。"""
+        with conn.cursor() as c:
+            c.execute("SHOW COLUMNS FROM cases LIKE 'dataset_id'")
+            if c.fetchone():
+                return
+            c.execute("ALTER TABLE cases ADD COLUMN dataset_id VARCHAR(64) NOT NULL "
+                      "DEFAULT 'DS-0001' AFTER system_id")
+            c.execute("ALTER TABLE cases DROP PRIMARY KEY, "
+                      "ADD PRIMARY KEY (system_id, dataset_id, case_id)")
+            c.execute("SELECT DISTINCT system_id AS s FROM cases")
+            sids = [r["s"] for r in c.fetchall()]
+        import json
+        with conn.cursor() as c:
+            for sid in sids:
+                data = json.dumps({"id": "DS-0001", "system_id": sid,
+                                   "name": "默认用例库", "description": None},
+                                  ensure_ascii=False)
+                c.execute("INSERT IGNORE INTO datasets(system_id, dataset_id, data) "
+                          "VALUES(%s, 'DS-0001', %s)", (sid, data))
 
     def truncate_all(self) -> None:
         conn = self.connect()

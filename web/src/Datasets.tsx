@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import CaseForm from "./CaseForm";
-import type { Case, CaseInput, Dataset } from "./types";
+import type { Case, CaseInput, DatasetInfo } from "./types";
 
 /** Case → 表单负载（去掉服务端维护的字段）。 */
 function toInput(c: Case): CaseInput {
@@ -18,16 +18,22 @@ function matchTag(tags: string[], p: string): boolean {
 }
 
 export default function Datasets({ sysId }: { sysId: string }) {
-  const [dataset, setDataset] = useState<Dataset | null>(null);
+  const [libraries, setLibraries] = useState<DatasetInfo[]>([]);
+  const [dsId, setDsId] = useState<string>("");
+  const [cases, setCases] = useState<Case[]>([]);
   const [taxonomy, setTaxonomy] = useState<string[]>([]); // 标签树的完整路径
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Case | null | undefined>(undefined); // undefined=关闭, null=新增
   const [importing, setImporting] = useState(false);
+  const [libEditing, setLibEditing] = useState<DatasetInfo | null | undefined>(undefined);
   const [activeTags, setActiveTags] = useState<string[]>([]);
 
   const reload = useCallback(() => {
     setError(null);
-    api.dataset(sysId).then(setDataset).catch((e) => setError(String(e)));
+    api.datasets(sysId).then((ls) => {
+      setLibraries(ls);
+      setDsId((cur) => (ls.some((l) => l.id === cur) ? cur : (ls[0]?.id ?? "")));
+    }).catch((e) => setError(String(e)));
     api
       .tags(sysId)
       .then((ts) => setTaxonomy(ts.map((t) => t.path)))
@@ -35,12 +41,26 @@ export default function Datasets({ sysId }: { sysId: string }) {
   }, [sysId]);
 
   useEffect(() => {
-    setDataset(null);
     setActiveTags([]);
     reload();
   }, [reload]);
 
-  const cases = dataset?.cases ?? [];
+  useEffect(() => {
+    if (!dsId) return setCases([]);
+    api.datasetCases(sysId, dsId).then(setCases).catch((e) => setError(String(e)));
+  }, [sysId, dsId, libraries]);
+
+  async function removeLibrary() {
+    const lib = libraries.find((l) => l.id === dsId);
+    if (!lib) return;
+    if (!confirm(`删除用例库「${lib.name}」及其全部用例？（被任务引用时会被拒绝）`)) return;
+    try {
+      await api.deleteDataset(sysId, lib.id);
+      reload();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
 
   // 过滤标签来源：标签树 ∪ 用例上已用的标签（去重、排序）；分层过滤（且）
   const allTags = [...new Set([...taxonomy, ...cases.flatMap((c) => c.tags)])].sort();
@@ -53,32 +73,32 @@ export default function Datasets({ sysId }: { sysId: string }) {
   }
 
   async function saveCase(payload: CaseInput) {
-    if (editing) await api.updateCase(sysId, editing.id, payload);
-    else await api.createCase(sysId, payload);
+    if (editing) await api.updateCase(sysId, dsId, editing.id, payload);
+    else await api.createCase(sysId, dsId, payload);
     setEditing(undefined);
     reload();
   }
 
   async function removeCase(c: Case) {
     if (!confirm(`删除用例 #${c.id}「${c.name}」？`)) return;
-    await api.deleteCase(sysId, c.id).catch((e) => setError(String(e)));
+    await api.deleteCase(sysId, dsId, c.id).catch((e) => setError(String(e)));
     reload();
   }
 
   async function toggleEnabled(c: Case) {
-    await api.updateCase(sysId, c.id, { ...toInput(c), enabled: !c.enabled }).catch((e) =>
+    await api.updateCase(sysId, dsId, c.id, { ...toInput(c), enabled: !c.enabled }).catch((e) =>
       setError(String(e)),
     );
     reload();
   }
 
   async function exportJson() {
-    const data = await api.exportCases(sysId);
+    const data = await api.exportCases(sysId, dsId);
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${sysId}-cases.json`;
+    a.download = `${sysId}-${dsId}-cases.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -90,19 +110,37 @@ export default function Datasets({ sysId }: { sysId: string }) {
       {error && <p className="err">{error}</p>}
 
       <div className="toolbar">
-        <button className="btn primary" onClick={() => setEditing(null)}>
-          ＋ 新增用例
-        </button>
-        <button className="btn" onClick={() => setImporting(true)}>
-          导入
-        </button>
-        <button className="btn" onClick={() => exportJson().catch((e) => setError(String(e)))}>
-          导出
-        </button>
+        <span className="filter-label">用例库</span>
+        <select value={dsId} onChange={(e) => setDsId(e.target.value)}>
+          {libraries.length === 0 && <option value="">（暂无用例库）</option>}
+          {libraries.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+        </select>
+        <button className="btn" onClick={() => setLibEditing(null)}>＋ 新建用例库</button>
+        {dsId && (
+          <>
+            <button className="btn" onClick={() => setLibEditing(libraries.find((l) => l.id === dsId) ?? null)}>
+              编辑库
+            </button>
+            <button className="btn danger" onClick={removeLibrary}>删除库</button>
+            <button className="btn primary" onClick={() => setEditing(null)}>
+              ＋ 新增用例
+            </button>
+            <button className="btn" onClick={() => setImporting(true)}>
+              导入
+            </button>
+            <button className="btn" onClick={() => exportJson().catch((e) => setError(String(e)))}>
+              导出
+            </button>
+          </>
+        )}
         <span className="muted count">
           {activeTags.length ? `${visible.length} / ${cases.length}` : cases.length} 条用例
         </span>
       </div>
+
+      {libraries.length === 0 && (
+        <p className="note">还没有用例库 — 点「新建用例库」创建（例如按业务线：guide / searchshops / searchcoupons）。</p>
+      )}
 
       {allTags.length > 0 && (
         <div className="filter-bar">
@@ -202,14 +240,14 @@ export default function Datasets({ sysId }: { sysId: string }) {
                 </td>
               </tr>
             ))}
-            {dataset && cases.length === 0 && (
+            {dsId && cases.length === 0 && (
               <tr>
                 <td colSpan={8} className="empty">
                   还没有用例，点「新增用例」或「导入」开始。
                 </td>
               </tr>
             )}
-            {dataset && cases.length > 0 && visible.length === 0 && (
+            {dsId && cases.length > 0 && visible.length === 0 && (
               <tr>
                 <td colSpan={8} className="empty">
                   没有同时含全部所选标签的用例。
@@ -232,9 +270,23 @@ export default function Datasets({ sysId }: { sysId: string }) {
         />
       )}
 
+      {libEditing !== undefined && (
+        <LibraryForm
+          sysId={sysId}
+          initial={libEditing}
+          onCancel={() => setLibEditing(undefined)}
+          onDone={(lib) => {
+            setLibEditing(undefined);
+            setDsId(lib.id);
+            reload();
+          }}
+        />
+      )}
+
       {importing && (
         <ImportDialog
           sysId={sysId}
+          dsId={dsId}
           onClose={() => setImporting(false)}
           onDone={() => {
             setImporting(false);
@@ -246,12 +298,79 @@ export default function Datasets({ sysId }: { sysId: string }) {
   );
 }
 
+function LibraryForm({
+  sysId,
+  initial,
+  onCancel,
+  onDone,
+}: {
+  sysId: string;
+  initial: DatasetInfo | null;
+  onCancel: () => void;
+  onDone: (lib: DatasetInfo) => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setError(null);
+    if (!name.trim()) return setError("用例库名称不能为空");
+    setBusy(true);
+    try {
+      const payload = { name: name.trim(), description: description.trim() || null };
+      const lib = initial
+        ? await api.updateDataset(sysId, initial.id, payload)
+        : await api.createDataset(sysId, payload);
+      onDone(lib);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <b>{initial ? "编辑用例库" : "新建用例库"}</b>
+          <a className="modal-x" onClick={onCancel}>✕</a>
+        </div>
+        <div className="modal-body">
+          <label className="fld">
+            <span>名称 *</span>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="guide 用例库" />
+          </label>
+          <label className="fld">
+            <span>说明</span>
+            <textarea rows={2} value={description ?? ""}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="这批用例覆盖什么场景" />
+          </label>
+          {error && <p className="err">{error}</p>}
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onCancel} disabled={busy}>取消</button>
+          <button className="btn primary" onClick={submit} disabled={busy}>
+            {busy ? "保存中…" : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImportDialog({
   sysId,
+  dsId,
   onClose,
   onDone,
 }: {
   sysId: string;
+  dsId: string;
   onClose: () => void;
   onDone: () => void;
 }) {
@@ -266,7 +385,7 @@ function ImportDialog({
     setBusy(true);
     try {
       if (format === "yaml") {
-        const res = await api.importCasesYaml(sysId, text, mode);
+        const res = await api.importCasesYaml(sysId, dsId, text, mode);
         alert(`导入完成：新增 ${res.added}、更新 ${res.updated}，共 ${res.total} 条`);
         onDone();
         return;
@@ -279,7 +398,7 @@ function ImportDialog({
         setError("JSON 解析失败：" + String(e));
         return;
       }
-      const res = await api.importCases(sysId, cases, mode);
+      const res = await api.importCases(sysId, dsId, cases, mode);
       alert(`导入完成：新增 ${res.added}、更新 ${res.updated}，共 ${res.total} 条`);
       onDone();
     } catch (e) {
