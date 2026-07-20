@@ -1,8 +1,7 @@
-"""FastAPI 应用：把原型当作当前 UI 端起来 + 暴露领域数据接口（读，占位）。
+"""FastAPI 应用：用例评估管理系统的领域 API（零假数据，全部走 MySQL store）。
 
     uvicorn eddplatform.api.app:app --reload
-    → http://127.0.0.1:8000        原型
-    → http://127.0.0.1:8000/docs   OpenAPI
+    → http://127.0.0.1:8000/docs   OpenAPI（web/ 前端经 vite 代理调 /api）
 """
 
 from __future__ import annotations
@@ -10,12 +9,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
-from eddplatform.api import sample_data as sd
-from eddplatform.domain.models import Case, Dataset, TagNode, Task
-from eddplatform.store import CaseStore, TagStore
+from eddplatform.api import case_yaml, run_service
+from eddplatform.domain.models import (Case, Dataset, EvalProgram, RunRecord, System,
+                                       TagNode, Task)
+from eddplatform.store import (CaseStore, EvalProgramStore, RunStore, SystemStore,
+                               TagStore, TaskStore)
 
 app = FastAPI(
     title="EddPlatform",
@@ -26,22 +27,27 @@ app = FastAPI(
 # 仓库根：src/eddplatform/api/app.py -> parents[3]
 PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
 
-# 用例 + 标签持久化（MySQL）。零假数据：不播种。
 store = CaseStore()
 tag_store = TagStore()
+system_store = SystemStore()
+task_store = TaskStore()
+eval_program_store = EvalProgramStore()
+run_store = RunStore()
 
 
-def _dataset_meta(system_id: str) -> tuple[str, list[str]]:
-    """dataset 级元信息（静态）：name 与可用评估器；cases 由 store 提供。"""
-    if sd.DATASET.system_id == system_id:
-        return sd.DATASET.name, sd.DATASET.evaluator_names
-    system = sd.system_by_id(system_id)
-    return (system.name if system else system_id), []
+def _require_system(system_id: str) -> None:
+    if system_store.get(system_id) is None:
+        raise HTTPException(404, "system not found")
 
 
 class ImportRequest(BaseModel):
     cases: list[Case]
     mode: str = "append"                  # append(按 id upsert) / replace(清空重建)
+
+
+class YamlImportRequest(BaseModel):
+    text: str
+    mode: str = "append"
 
 
 class TagCreate(BaseModel):
@@ -56,7 +62,7 @@ class TagRename(BaseModel):
 @app.get("/", include_in_schema=False)
 def index():
     if not PROTOTYPE.exists():
-        raise HTTPException(404, "prototype/index.html 未找到")
+        return RedirectResponse("/docs")
     return FileResponse(PROTOTYPE)
 
 
@@ -65,57 +71,157 @@ def health():
     return {"status": "ok", "version": app.version}
 
 
-# --- 系统 / 模块 / 版本 ----------------------------------------------------
+# --- 系统注册 --------------------------------------------------------------
 @app.get("/api/systems")
-def list_systems():
-    return sd.SYSTEMS
+def list_systems() -> list[System]:
+    return system_store.list()
 
 
 @app.get("/api/systems/{system_id}")
-def get_system(system_id: str):
-    system = sd.system_by_id(system_id)
+def get_system(system_id: str) -> System:
+    system = system_store.get(system_id)
     if not system:
         raise HTTPException(404, "system not found")
     return system
 
 
-@app.get("/api/systems/{system_id}/versions")
-def list_versions(system_id: str):
-    return [v for v in sd.VERSIONS if v.system_id == system_id]
+@app.post("/api/systems", status_code=201)
+def create_system(system: System) -> System:
+    try:
+        return system_store.create(system)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
 
 
+@app.put("/api/systems/{system_id}")
+def update_system(system_id: str, system: System) -> System:
+    try:
+        return system_store.update(system_id, system)
+    except KeyError:
+        raise HTTPException(404, "system not found")
+
+
+@app.delete("/api/systems/{system_id}", status_code=204)
+def delete_system(system_id: str) -> None:
+    _require_system(system_id)
+    if task_store.list(system_id) or run_store.list(system_id):
+        raise HTTPException(409, "系统下还有任务或运行记录，先清理")
+    try:
+        system_store.delete(system_id)
+    except KeyError:
+        raise HTTPException(404, "system not found")
+
+
+# --- 评估程序注册 ----------------------------------------------------------
 @app.get("/api/systems/{system_id}/eval-programs")
-def list_eval_programs(system_id: str):
-    """评估程序（评估代码库）——独立于系统代码的另一套 git 仓库。"""
-    return [e for e in sd.EVAL_PROGRAMS if e.system_id == system_id]
+def list_eval_programs(system_id: str) -> list[EvalProgram]:
+    _require_system(system_id)
+    return eval_program_store.list(system_id)
+
+
+@app.post("/api/systems/{system_id}/eval-programs", status_code=201)
+def create_eval_program(system_id: str, program: EvalProgram) -> EvalProgram:
+    _require_system(system_id)
+    try:
+        return eval_program_store.create(system_id, program)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.put("/api/systems/{system_id}/eval-programs/{program_id}")
+def update_eval_program(system_id: str, program_id: str, program: EvalProgram) -> EvalProgram:
+    _require_system(system_id)
+    try:
+        return eval_program_store.update(system_id, program_id, program)
+    except KeyError:
+        raise HTTPException(404, "eval program not found")
+
+
+@app.delete("/api/systems/{system_id}/eval-programs/{program_id}", status_code=204)
+def delete_eval_program(system_id: str, program_id: str) -> None:
+    _require_system(system_id)
+    try:
+        eval_program_store.delete(system_id, program_id)
+    except KeyError:
+        raise HTTPException(404, "eval program not found")
 
 
 # --- 评估任务（task + 前置条件）-------------------------------------------
-_TASKS: list[Task] = []
-
-
 @app.get("/api/systems/{system_id}/tasks")
 def list_tasks(system_id: str) -> list[Task]:
-    return [t for t in _TASKS if t.system_id == system_id]
+    _require_system(system_id)
+    return task_store.list(system_id)
 
 
 @app.post("/api/systems/{system_id}/tasks", status_code=201)
 def create_task(system_id: str, task: Task) -> Task:
-    task.system_id = system_id
-    if not task.id:
-        task.id = f"T-{len(_TASKS) + 1:04d}"
-    _TASKS.append(task)
-    return task
+    _require_system(system_id)
+    try:
+        return task_store.create(system_id, task)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
 
 
-# --- 用例集（dataset 元信息静态 + cases 落 sqlite）------------------------
+@app.put("/api/systems/{system_id}/tasks/{task_id}")
+def update_task(system_id: str, task_id: str, task: Task) -> Task:
+    _require_system(system_id)
+    try:
+        return task_store.update(system_id, task_id, task)
+    except KeyError:
+        raise HTTPException(404, "task not found")
+
+
+@app.delete("/api/systems/{system_id}/tasks/{task_id}", status_code=204)
+def delete_task(system_id: str, task_id: str) -> None:
+    _require_system(system_id)
+    try:
+        task_store.delete(system_id, task_id)
+    except KeyError:
+        raise HTTPException(404, "task not found")
+
+
+@app.post("/api/systems/{system_id}/tasks/{task_id}/run", status_code=202)
+async def run_task_endpoint(system_id: str, task_id: str) -> RunRecord:
+    _require_system(system_id)
+    task = task_store.get(system_id, task_id)
+    if task is None:
+        raise HTTPException(404, "task not found")
+    eval_program = None
+    if task.eval_program_id:
+        eval_program = eval_program_store.get(system_id, task.eval_program_id)
+        if eval_program is None:
+            raise HTTPException(409, f"评估程序 {task.eval_program_id} 不存在")
+    cases = [run_service.case_to_spec(c) for c in store.list_cases(system_id) if c.enabled]
+    try:
+        return await run_service.start_run(system_id, task, eval_program=eval_program,
+                                           cases=cases, run_store=run_store)
+    except ConnectionError as e:
+        raise HTTPException(503, str(e))
+
+
+# --- 运行记录 --------------------------------------------------------------
+@app.get("/api/runs")
+def list_runs(system_id: str | None = None) -> list[RunRecord]:
+    return run_store.list(system_id)
+
+
+@app.get("/api/runs/{run_id}")
+def get_run(run_id: str):
+    run = run_store.get(run_id)
+    if not run:
+        raise HTTPException(404, "run not found")
+    return {**run.model_dump(),
+            "case_results": [c.model_dump() for c in run_store.case_results(run_id)]}
+
+
+# --- 用例集（dataset 元信息 + cases 落 MySQL）------------------------------
 @app.get("/api/systems/{system_id}/dataset")
 def get_dataset(system_id: str) -> Dataset:
-    name, evaluator_names = _dataset_meta(system_id)
+    _require_system(system_id)
+    system = system_store.get(system_id)
     return Dataset(
-        name=name,
+        name=f"{system.name} 用例集",
         system_id=system_id,
-        evaluator_names=evaluator_names,
         cases=store.list_cases(system_id),
     )
 
@@ -123,6 +229,7 @@ def get_dataset(system_id: str) -> Dataset:
 # --- 用例管理（CRUD + 导入导出）-------------------------------------------
 @app.post("/api/systems/{system_id}/cases", status_code=201)
 def create_case(system_id: str, case: Case) -> Case:
+    _require_system(system_id)
     try:
         return store.add_case(system_id, case)
     except ValueError as e:
@@ -131,6 +238,7 @@ def create_case(system_id: str, case: Case) -> Case:
 
 @app.put("/api/systems/{system_id}/cases/{case_id}")
 def update_case(system_id: str, case_id: str, case: Case) -> Case:
+    _require_system(system_id)
     try:
         return store.update_case(system_id, case_id, case)
     except KeyError:
@@ -139,6 +247,7 @@ def update_case(system_id: str, case_id: str, case: Case) -> Case:
 
 @app.delete("/api/systems/{system_id}/cases/{case_id}", status_code=204)
 def delete_case(system_id: str, case_id: str) -> None:
+    _require_system(system_id)
     try:
         store.delete_case(system_id, case_id)
     except KeyError:
@@ -147,13 +256,26 @@ def delete_case(system_id: str, case_id: str) -> None:
 
 @app.get("/api/systems/{system_id}/cases/export")
 def export_cases(system_id: str) -> list[Case]:
+    _require_system(system_id)
     return store.export_cases(system_id)
 
 
 @app.post("/api/systems/{system_id}/cases/import")
 def import_cases(system_id: str, body: ImportRequest):
+    _require_system(system_id)
     try:
         res = store.import_cases(system_id, body.cases, mode=body.mode)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"added": res.added, "updated": res.updated, "total": res.total}
+
+
+@app.post("/api/systems/{system_id}/cases/import-yaml")
+def import_cases_yaml(system_id: str, body: YamlImportRequest):
+    _require_system(system_id)
+    try:
+        cases = case_yaml.parse_eval_yaml(body.text)
+        res = store.import_cases(system_id, cases, mode=body.mode)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"added": res.added, "updated": res.updated, "total": res.total}
@@ -162,11 +284,13 @@ def import_cases(system_id: str, body: ImportRequest):
 # --- 标签管理（分层）------------------------------------------------------
 @app.get("/api/systems/{system_id}/tags")
 def list_tags(system_id: str) -> list[TagNode]:
+    _require_system(system_id)
     return tag_store.list_tags(system_id)
 
 
 @app.post("/api/systems/{system_id}/tags", status_code=201)
 def create_tag(system_id: str, body: TagCreate) -> TagNode:
+    _require_system(system_id)
     try:
         return tag_store.add_tag(system_id, body.name, body.parent_id)
     except ValueError as e:
@@ -175,6 +299,7 @@ def create_tag(system_id: str, body: TagCreate) -> TagNode:
 
 @app.put("/api/systems/{system_id}/tags/{tag_id}")
 def rename_tag(system_id: str, tag_id: str, body: TagRename) -> TagNode:
+    _require_system(system_id)
     try:
         node, old_path, new_path = tag_store.rename_tag(system_id, tag_id, body.name)
     except KeyError:
@@ -187,50 +312,8 @@ def rename_tag(system_id: str, tag_id: str, body: TagRename) -> TagNode:
 
 @app.delete("/api/systems/{system_id}/tags/{tag_id}", status_code=204)
 def delete_tag(system_id: str, tag_id: str) -> None:
+    _require_system(system_id)
     try:
         tag_store.delete_tag(system_id, tag_id)
     except KeyError:
         raise HTTPException(404, "tag not found")
-
-
-@app.get("/api/systems/{system_id}/evaluators")
-def list_evaluators(system_id: str):
-    return sd.EVALUATORS
-
-
-# --- 沙箱 / 环境 -----------------------------------------------------------
-@app.get("/api/sandbox-configs")
-def list_sandbox_configs():
-    return sd.SANDBOX_CONFIGS
-
-
-@app.get("/api/environments")
-def list_environments():
-    return sd.ENVIRONMENTS
-
-
-# --- 运行 / 评估 / 对比 ----------------------------------------------------
-@app.get("/api/runs")
-def list_runs():
-    return sd.RUNS
-
-
-@app.get("/api/runs/{run_id}")
-def get_run(run_id: str):
-    run = next((r for r in sd.RUNS if r.id == run_id), None)
-    if not run:
-        raise HTTPException(404, "run not found")
-    return run
-
-
-@app.get("/api/evaluations")
-def list_evaluations():
-    return sd.EVALUATIONS
-
-
-@app.get("/api/comparison")
-def get_comparison(baseline: str = "E-2000", candidate: str = "E-2001"):
-    c = sd.COMPARISON
-    if {baseline, candidate} != {c.baseline_eval_id, c.candidate_eval_id}:
-        raise HTTPException(404, "comparison not available for these evaluations")
-    return c

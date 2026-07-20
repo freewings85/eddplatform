@@ -11,8 +11,12 @@ SYS = "insurance"
 
 @pytest.fixture
 def client(test_db):
+    from eddplatform.store import SystemStore
     app_module.store = CaseStore(db=test_db)
-    return TestClient(app_module.app)
+    app_module.system_store = SystemStore(db=test_db)
+    c = TestClient(app_module.app)
+    c.post("/api/systems", json={"id": SYS, "name": "保险报价系统"})
+    return c
 
 
 def _payload(name="报价用例", **kw):
@@ -71,7 +75,8 @@ def test_export_import_roundtrip(client):
     exported = client.get(f"/api/systems/{SYS}/cases/export").json()
     assert len(exported) == 2
 
-    # 导到另一个系统（replace）
+    # 导到另一个系统（replace）——目标系统也需先注册
+    client.post("/api/systems", json={"id": "cs", "name": "客服系统"})
     r = client.post(
         "/api/systems/cs/cases/import",
         json={"cases": exported, "mode": "replace"},
