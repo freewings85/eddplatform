@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { api } from "./api";
 import { useEscape } from "./useEscape";
 import type { Case, CaseInput } from "./types";
 
 type Props = {
+  sysId: string;
+  dsId: string;
   initial?: Case | null; // 有 = 编辑，无 = 新增
   availableTags: string[]; // 标签树的完整路径（父在子前）
   onCancel: () => void;
@@ -10,6 +13,8 @@ type Props = {
 };
 
 export default function CaseForm({
+  sysId,
+  dsId,
   initial,
   availableTags,
   onCancel,
@@ -19,12 +24,12 @@ export default function CaseForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagOpen, setTagOpen] = useState(false);
-  const [caseVersion, setCaseVersion] = useState(initial?.case_version ?? "v1");
   const [traceRef, setTraceRef] = useState(initial?.trace?.ref ?? "");
   const [traceUrl, setTraceUrl] = useState(initial?.trace?.url ?? "");
   const [traceNote, setTraceNote] = useState(initial?.trace?.note ?? "");
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   useEscape(onCancel);
 
@@ -34,6 +39,22 @@ export default function CaseForm({
 
   // 标签树 ∪ 当前用例已用的标签（保留不在树里的历史标签），父在子前
   const knownTags = [...new Set([...availableTags, ...tags])].sort();
+
+  async function restoreToLangfuse() {
+    if (!initial) return;
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const r = await api.restoreTrace(sysId, dsId, initial.id);
+      setTraceUrl(r.url);   // 导入成功 → URL 同步回链接框
+      setNotice(`已导入 Langfuse（${r.events} 个事件），URL 已回填——记得点「保存」`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submit() {
     setError(null);
@@ -49,7 +70,7 @@ export default function CaseForm({
       applicable_versions: initial?.applicable_versions ?? [],
       author: initial?.author ?? null,
       tags,
-      case_version: caseVersion.trim() || "v1",
+      case_version: initial?.case_version ?? "v1",
       trace: traceRef.trim()
         ? { ref: traceRef.trim(), url: traceUrl.trim() || null, note: traceNote.trim() || null }
         : null,
@@ -145,11 +166,6 @@ export default function CaseForm({
             </div>
           </div>
 
-          <label className="fld">
-            <span>用例版本</span>
-            <input value={caseVersion} onChange={(e) => setCaseVersion(e.target.value)} placeholder="v1" />
-          </label>
-
           <fieldset className="fld trace-box">
             <legend>对应轨迹（Langfuse，可空）</legend>
             <div className="fld-row">
@@ -159,8 +175,12 @@ export default function CaseForm({
               </label>
               <label className="fld">
                 <span>链接 URL</span>
-                <input value={traceUrl ?? ""} onChange={(e) => setTraceUrl(e.target.value)}
-                  placeholder="http://localhost:3100/trace/..." />
+                <div className="inline-btn">
+                  <input value={traceUrl ?? ""} onChange={(e) => setTraceUrl(e.target.value)}
+                    placeholder="http://localhost:3100/trace/..." />
+                  <button className="btn sm" disabled={!traceUrl?.trim()}
+                    onClick={() => window.open(traceUrl!, "_blank")}>打开</button>
+                </div>
               </label>
             </div>
             <label className="fld">
@@ -168,6 +188,16 @@ export default function CaseForm({
               <input value={traceNote ?? ""} onChange={(e) => setTraceNote(e.target.value)}
                 placeholder="该轨迹暴露了什么问题" />
             </label>
+            {initial?.trace?.data && (
+              <div className="pc-add">
+                <button className="btn sm" onClick={restoreToLangfuse} disabled={busy}>
+                  ↥ 导入 Langfuse（把归档轨迹恢复回去）
+                </button>
+                <span className="muted count">
+                  已归档 {initial.trace.archived_at ? `于 ${initial.trace.archived_at.slice(0, 19)}` : ""}
+                </span>
+              </div>
+            )}
           </fieldset>
 
           <label className="fld chk">
@@ -175,6 +205,7 @@ export default function CaseForm({
             <span>启用</span>
           </label>
 
+          {notice && <p className="note">{notice}</p>}
           {error && <p className="err">{error}</p>}
         </div>
 

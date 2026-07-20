@@ -246,7 +246,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
               <th>#</th>
               <th>用例名</th>
               <th>标签</th>
-              <th>用例版本</th>
               <th>适用系统版本</th>
               <th>轨迹</th>
               <th>启用</th>
@@ -267,9 +266,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
                       {t}
                     </span>
                   ))}
-                </td>
-                <td>
-                  <span className="tag v">{c.case_version}</span>
                 </td>
                 <td>
                   {c.applicable_versions.length === 0 ? (
@@ -348,6 +344,8 @@ export default function Datasets({ sysId }: { sysId: string }) {
 
       {editing !== undefined && (
         <CaseForm
+          sysId={sysId}
+          dsId={dsId}
           initial={editing}
           availableTags={taxonomy}
           onCancel={() => setEditing(undefined)}

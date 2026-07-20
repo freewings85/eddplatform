@@ -88,6 +88,9 @@ export const api = {
   archiveTrace: (sysId: string, dsId: string, caseId: string) =>
     send<{ ok: boolean; observations: number; archived_at: string }>(
       "POST", `/systems/${sysId}/datasets/${dsId}/cases/${caseId}/archive-trace`),
+  restoreTrace: (sysId: string, dsId: string, caseId: string) =>
+    send<{ trace_id: string; url: string; events: number }>(
+      "POST", `/systems/${sysId}/datasets/${dsId}/cases/${caseId}/restore-trace`),
   importCasesGit: (sysId: string) =>
     send<{ commit: string; libraries: { id: string; path: string; count: number }[];
            errors?: string[] }>("POST", `/systems/${sysId}/cases-import-git`),

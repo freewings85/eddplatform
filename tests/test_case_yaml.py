@@ -37,3 +37,18 @@ def test_parse_eval_yaml_rejects_missing_cases():
 def test_parse_eval_yaml_rejects_case_without_id():
     with pytest.raises(ValueError):
         parse_eval_yaml("cases:\n  - turns: []")
+
+
+def test_events_from_archive_maps_trace_and_observations():
+    from eddplatform.api.langfuse_client import events_from_archive
+    data = {"id": "t1", "name": "会话", "observations": [
+        {"id": "o1", "type": "GENERATION", "startTime": "2026-01-01T00:00:00Z",
+         "model": "m", "usage": {"input": 10}},
+        {"id": "o2", "type": "SPAN"}],
+        "scores": [{"id": "s1", "name": "judge", "value": 1.0}]}
+    events = events_from_archive(data)
+    assert [e["type"] for e in events] == ["trace-create", "observation-create",
+                                           "observation-create", "score-create"]
+    assert events[1]["body"]["traceId"] == "t1"      # 补挂 traceId
+    assert events[3]["body"]["traceId"] == "t1"
+    assert "endTime" not in events[2]["body"]        # None 字段剔除

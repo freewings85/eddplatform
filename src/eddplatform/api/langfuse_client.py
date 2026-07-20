@@ -1,6 +1,9 @@
-"""Langfuse 公共 API 薄客户端：连接测试 + 拉取完整 trace（归档用）。"""
+"""Langfuse 公共 API 薄客户端：连接测试 + 拉取 trace（归档）+ 回灌 trace（恢复）。"""
 
 from __future__ import annotations
+
+import uuid
+from datetime import datetime, timezone
 
 import httpx
 
@@ -46,3 +49,58 @@ def fetch_trace(settings: GlobalSettings, trace_id: str) -> dict:
     if r.status_code != 200:
         raise LangfuseError(f"Langfuse 返回 {r.status_code}: {r.text[:200]}")
     return r.json()
+
+
+_TRACE_KEYS = ("id", "timestamp", "name", "userId", "input", "output", "sessionId",
+               "metadata", "tags", "release", "version", "public")
+_OBS_KEYS = ("id", "traceId", "type", "name", "startTime", "endTime",
+             "completionStartTime", "model", "modelParameters", "input", "output",
+             "metadata", "parentObservationId", "level", "statusMessage", "version", "usage")
+_SCORE_KEYS = ("id", "traceId", "name", "value", "observationId", "comment")
+
+
+def events_from_archive(data: dict) -> list[dict]:
+    """归档的 trace JSON → ingestion 事件批（恢复回 Langfuse 用，保留原 id）。"""
+    now = datetime.now(timezone.utc).isoformat()
+
+    def ev(etype: str, body: dict) -> dict:
+        return {"id": str(uuid.uuid4()), "type": etype, "timestamp": now,
+                "body": {k: v for k, v in body.items() if v is not None}}
+
+    events = [ev("trace-create", {k: data.get(k) for k in _TRACE_KEYS})]
+    for o in data.get("observations") or []:
+        body = {k: o.get(k) for k in _OBS_KEYS}
+        if body.get("traceId") is None:
+            body["traceId"] = data.get("id")
+        events.append(ev("observation-create", body))
+    for sc in data.get("scores") or []:
+        body = {k: sc.get(k) for k in _SCORE_KEYS}
+        if body.get("traceId") is None:
+            body["traceId"] = data.get("id")
+        events.append(ev("score-create", body))
+    return events
+
+
+def restore_trace(settings: GlobalSettings, data: dict) -> dict:
+    """把归档的完整 trace 回灌进 Langfuse（同 id 幂等 upsert），返回可打开的 URL。"""
+    auth = _auth(settings)
+    host = settings.langfuse_host.rstrip("/")
+    trace_id = data.get("id")
+    if not trace_id:
+        raise LangfuseError("归档数据缺少 trace id，无法恢复")
+    events = events_from_archive(data)
+    try:
+        r = httpx.post(f"{host}/api/public/ingestion", json={"batch": events},
+                       auth=auth, timeout=60)
+    except httpx.HTTPError as e:
+        raise LangfuseError(f"连不上 Langfuse: {e}")
+    if r.status_code not in (200, 207):
+        raise LangfuseError(f"Langfuse 返回 {r.status_code}: {r.text[:200]}")
+    errors = (r.json() or {}).get("errors") or []
+    if errors:
+        raise LangfuseError(f"部分事件回灌失败: {errors[0]}")
+    # 拼可打开的 URL（需要 project id）
+    pr = httpx.get(f"{host}/api/public/projects", auth=auth, timeout=10)
+    pid = (pr.json().get("data") or [{}])[0].get("id", "")
+    url = f"{host}/project/{pid}/traces/{trace_id}" if pid else f"{host}/traces/{trace_id}"
+    return {"trace_id": trace_id, "url": url, "events": len(events)}

@@ -514,6 +514,25 @@ def archive_trace(system_id: str, dataset_id: str, case_id: str):
     return {"ok": True, "observations": n_obs, "archived_at": case.trace.archived_at}
 
 
+@app.post("/api/systems/{system_id}/datasets/{dataset_id}/cases/{case_id}/restore-trace")
+def restore_trace(system_id: str, dataset_id: str, case_id: str):
+    """把用例归档的轨迹数据回灌进 Langfuse（被删也能恢复），并回写可打开的 URL。"""
+    _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
+    case = store.get_case(system_id, dataset_id, case_id)
+    if case is None:
+        raise HTTPException(404, "case not found")
+    if not case.trace or not case.trace.data:
+        raise HTTPException(400, "该用例没有归档的轨迹数据（先点「归档」从 Langfuse 拉取）")
+    try:
+        out = langfuse_client.restore_trace(settings_store.get(), case.trace.data)
+    except langfuse_client.LangfuseError as e:
+        raise HTTPException(400, str(e))
+    case.trace.url = out["url"]
+    store.update_case(system_id, dataset_id, case_id, case)
+    return out
+
+
 # --- 标签管理（分层）------------------------------------------------------
 @app.get("/api/systems/{system_id}/tags")
 def list_tags(system_id: str) -> list[TagNode]:
