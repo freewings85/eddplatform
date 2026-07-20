@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
-import type { EvalProgram } from "./types";
+import type { SystemProgram } from "./types";
 
-export default function EvalPrograms({ sysId }: { sysId: string }) {
-  const [programs, setPrograms] = useState<EvalProgram[] | null>(null);
+export default function SystemPrograms({ sysId }: { sysId: string }) {
+  const [programs, setPrograms] = useState<SystemProgram[] | null>(null);
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<EvalProgram | null>(null);
+  const [editing, setEditing] = useState<SystemProgram | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reload = useCallback(() => {
-    api.evalPrograms(sysId).then(setPrograms).catch((e) => setError(String(e)));
+    api.systemPrograms(sysId).then(setPrograms).catch((e) => setError(String(e)));
   }, [sysId]);
   useEffect(reload, [reload]);
 
-  async function remove(p: EvalProgram) {
-    if (!confirm(`删除评估程序「${p.name}」？`)) return;
+  async function remove(p: SystemProgram) {
+    if (!confirm(`删除系统程序「${p.name}」？`)) return;
     try {
-      await api.deleteEvalProgram(sysId, p.id);
+      await api.deleteSystemProgram(sysId, p.id);
       reload();
     } catch (e) {
       setError(String(e));
@@ -25,17 +25,17 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
 
   return (
     <>
-      <h2 className="page">评估程序（评估代码）</h2>
+      <h2 className="page">系统程序（被评系统的 git 单元）</h2>
       <p className="sub">
-        实现评估逻辑的 git 单元，作为 Temporal worker 被拉起。登记一次（名称 + git 地址 +
-        目录 + code），建任务时下拉复用；分支/commit 在任务里选定并固化。
-        <b>code</b> = 它认领的 RunCase workflow 名与 task queue——平台按 code 逐用例分派。
+        登记被评系统的可部署单元：名称 + git 地址（+ 单元目录）。<b>登记一次，
+        建评估任务时下拉复用</b>——分支/commit 在任务里选定并固化。一个系统多个进程
+        可各登记一条（如 mainagent / sessionstore / toolexecutor）。
       </p>
       {error && <p className="err">{error}</p>}
 
       <div className="toolbar">
         <button className="btn primary" onClick={() => setCreating(true)}>
-          ＋ 新建评估程序
+          ＋ 新建系统程序
         </button>
         <span className="muted count">{programs?.length ?? 0} 个</span>
       </div>
@@ -44,10 +44,9 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
         <table>
           <thead>
             <tr>
-              <th>评估程序</th>
+              <th>系统程序</th>
               <th>Git 仓库</th>
-              <th>目录</th>
-              <th>code（workflow 名/队列）</th>
+              <th>单元目录</th>
               <th>负责人</th>
               <th></th>
             </tr>
@@ -58,7 +57,6 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
                 <td><b>{p.name}</b> <span className="mono muted">{p.id}</span></td>
                 <td className="mono">{p.git_url}</td>
                 <td className="mono">{p.path}</td>
-                <td className="mono">{p.code}</td>
                 <td>{p.owner ?? "—"}</td>
                 <td>
                   <button className="btn sm" onClick={() => setEditing(p)}>编辑</button>{" "}
@@ -68,8 +66,9 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
             ))}
             {programs && programs.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
-                  暂无评估程序 — 点击「新建评估程序」登记评估代码仓（git 仓库 + code）。
+                <td colSpan={5} className="empty">
+                  暂无系统程序 — 点击「新建系统程序」登记被评系统的 git 单元
+                  （仓库需按 EDD 接入约定提供 .eddplatform.yaml / 构建脚本 / helm chart）。
                 </td>
               </tr>
             )}
@@ -103,14 +102,13 @@ function ProgramForm({
   onDone,
 }: {
   sysId: string;
-  initial: EvalProgram | null;
+  initial: SystemProgram | null;
   onCancel: () => void;
   onDone: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [gitUrl, setGitUrl] = useState(initial?.git_url ?? "");
   const [path, setPath] = useState(initial?.path ?? ".");
-  const [code, setCode] = useState(initial?.code ?? "");
   const [owner, setOwner] = useState(initial?.owner ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -119,18 +117,16 @@ function ProgramForm({
     setError(null);
     if (!name.trim()) return setError("名称不能为空");
     if (!gitUrl.trim()) return setError("Git 仓库不能为空");
-    if (!code.trim()) return setError("code 不能为空（RunCase workflow 名/队列）");
     const payload = {
       name: name.trim(),
       git_url: gitUrl.trim(),
       path: path.trim() || ".",
-      code: code.trim(),
       owner: owner.trim() || null,
     };
     setBusy(true);
     try {
-      if (initial) await api.updateEvalProgram(sysId, initial.id, payload);
-      else await api.createEvalProgram(sysId, payload);
+      if (initial) await api.updateSystemProgram(sysId, initial.id, payload);
+      else await api.createSystemProgram(sysId, payload);
       onDone();
     } catch (e) {
       setError(String(e));
@@ -143,36 +139,31 @@ function ProgramForm({
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>{initial ? "编辑评估程序" : "新建评估程序"}</b>
+          <b>{initial ? "编辑系统程序" : "新建系统程序"}</b>
           <a className="modal-x" onClick={onCancel}>✕</a>
         </div>
         <div className="modal-body">
           <label className="fld">
-            <span>名称 *</span>
+            <span>名称 *（自定义，如 mainagent）</span>
             <input value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="chatagent 评估" />
+              placeholder="mainagent" />
           </label>
           <label className="fld">
             <span>Git 仓库 *</span>
             <input value={gitUrl} onChange={(e) => setGitUrl(e.target.value)} className="mono"
-              placeholder="/mnt/e/Documents/github/chatagent-eval 或 ssh://git@…" />
+              placeholder="ssh://git@…/chatagent.git 或本地路径" />
           </label>
           <div className="fld-row">
             <label className="fld">
-              <span>目录（仓库内单元目录，默认 . = 根）</span>
+              <span>单元目录（含 .eddplatform.yaml，默认 . = 根）</span>
               <input value={path} onChange={(e) => setPath(e.target.value)} className="mono"
-                placeholder="edd/eval" />
+                placeholder="edd/system" />
             </label>
             <label className="fld">
-              <span>code *（workflow 名/队列）</span>
-              <input value={code} onChange={(e) => setCode(e.target.value)} className="mono"
-                placeholder="chatagent-eval" />
+              <span>负责人</span>
+              <input value={owner ?? ""} onChange={(e) => setOwner(e.target.value)} placeholder="leo" />
             </label>
           </div>
-          <label className="fld">
-            <span>负责人</span>
-            <input value={owner ?? ""} onChange={(e) => setOwner(e.target.value)} placeholder="leo" />
-          </label>
           {error && <p className="err">{error}</p>}
         </div>
         <div className="modal-foot">

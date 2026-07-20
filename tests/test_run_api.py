@@ -42,7 +42,7 @@ def client(test_db, monkeypatch):
     c.post("/api/systems", json={"id": "sys1", "name": "系统1"})
     c.post("/api/systems/sys1/tasks", json={
         "name": "冒烟", "system_id": "sys1",
-        "preconditions": [{"kind": "start_system", "git_url": "/repo", "ref": "2.3-eval"}]})
+        "preconditions": [{"kind": "start_system", "git_url": "/repo", "branch": "2.3-eval", "commit": "abc123def"}]})
     return c
 
 
@@ -89,7 +89,7 @@ def test_run_uses_selected_cases_only(client, monkeypatch):
         client.post("/api/systems/sys1/cases", json={"id": cid, "name": name, "inputs": "x"})
     client.post("/api/systems/sys1/tasks", json={
         "name": "选例", "system_id": "sys1", "case_ids": ["c1", "c3"],
-        "preconditions": [{"kind": "start_system", "git_url": "/repo", "ref": "r"}]})
+        "preconditions": [{"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"}]})
     out = RunTaskOutput(namespace="ns", status="up")
     fake = FakeClient(out)
 

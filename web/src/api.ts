@@ -4,6 +4,8 @@ import type {
   Dataset,
   EvalProgram,
   EvalProgramInput,
+  SystemProgram,
+  SystemProgramInput,
   ImportResult,
   RunDetail,
   RunRecord,
@@ -39,6 +41,23 @@ export const api = {
   createSystem: (s: System) => send<System>("POST", "/systems", s),
   updateSystem: (id: string, s: System) => send<System>("PUT", `/systems/${id}`, s),
   deleteSystem: (id: string) => send<void>("DELETE", `/systems/${id}`),
+
+  // 系统程序注册（被评系统的可部署 git 单元）
+  systemPrograms: (sysId: string) => get<SystemProgram[]>(`/systems/${sysId}/system-programs`),
+  createSystemProgram: (sysId: string, p: SystemProgramInput) =>
+    send<SystemProgram>("POST", `/systems/${sysId}/system-programs`, p),
+  updateSystemProgram: (sysId: string, pid: string, p: SystemProgramInput) =>
+    send<SystemProgram>("PUT", `/systems/${sysId}/system-programs/${pid}`, p),
+  deleteSystemProgram: (sysId: string, pid: string) =>
+    send<void>("DELETE", `/systems/${sysId}/system-programs/${pid}`),
+
+  // git 解析（分支→最新 commit；commit→校验+反查分支）
+  resolveBranch: (gitUrl: string, branch: string) =>
+    send<{ branch: string; commit: string }>("POST", "/git/resolve-branch",
+      { git_url: gitUrl, branch }),
+  resolveCommit: (gitUrl: string, commit: string) =>
+    send<{ commit: string; branches: string[] }>("POST", "/git/resolve-commit",
+      { git_url: gitUrl, commit }),
 
   // 评估程序注册
   evalPrograms: (sysId: string) => get<EvalProgram[]>(`/systems/${sysId}/eval-programs`),

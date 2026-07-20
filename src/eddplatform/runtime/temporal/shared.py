@@ -119,9 +119,12 @@ class RunTaskOutput:
 
 
 def to_spec(pc: Precondition) -> PreconditionSpec:
-    """领域 Precondition → Temporal 入参（去掉 pydantic，用纯数据类）。"""
+    """领域 Precondition → Temporal 入参（去掉 pydantic，用纯数据类）。
+
+    部署 ref 用固化的 ``commit``（钉死可复现）；缺 commit 时退回 ``branch``。
+    """
     return PreconditionSpec(
         kind=pc.kind.value, name=pc.name or pc.kind.value,
-        git_url=pc.git_url, ref=pc.ref, script=pc.script,
+        git_url=pc.git_url, ref=pc.commit or pc.branch, script=pc.script,
         path=pc.path or ".",
     )

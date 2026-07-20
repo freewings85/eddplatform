@@ -5,6 +5,7 @@ import type {
   EvalProgram,
   Precondition,
   PreconditionKind,
+  SystemProgram,
   Task,
   TaskInput,
 } from "./types";
@@ -18,21 +19,18 @@ const KIND_LABEL: Record<PreconditionKind, string> = {
 /** 前置条件行的可编辑形态（提交时映射成 Precondition）。 */
 type Row = {
   kind: PreconditionKind;
-  name?: string;
-  gitUrl?: string; // start_system：被评系统仓库
-  path?: string; // 仓库内单元目录（默认 . = 根）
-  branch?: string; // start_system：分支
-  commit?: string; // start_system：可选，填了就钉死该 commit
-  ref?: string; // start_eval_program：git ref（覆盖评估程序登记的 ref）
-  programId?: string; // start_eval_program：选中的评估程序
-  script?: string; // 旧任务里的自定义脚本（仅展示/保留，不再新建）
+  programId?: string; // 下拉选中的 系统程序/评估程序 注册项
+  branch?: string; // 固化的分支
+  commit?: string; // 固化的 commit（部署用它）
+  branchesHint?: string; // 输入 commit 反查到的分支列表（展示）
+  name?: string; // helm release 名
+  script?: string; // 旧任务里的自定义脚本（仅保留展示）
 };
-
-const SHA_RE = /^[0-9a-f]{7,40}$/i;
 
 export default function Tasks({ sysId }: { sysId: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [programs, setPrograms] = useState<EvalProgram[]>([]);
+  const [sysPrograms, setSysPrograms] = useState<SystemProgram[]>([]);
+  const [evalPrograms, setEvalPrograms] = useState<EvalProgram[]>([]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +38,8 @@ export default function Tasks({ sysId }: { sysId: string }) {
 
   const reload = useCallback(() => {
     api.tasks(sysId).then(setTasks).catch((e) => setError(String(e)));
-    api.evalPrograms(sysId).then(setPrograms).catch(() => {});
+    api.systemPrograms(sysId).then(setSysPrograms).catch(() => {});
+    api.evalPrograms(sysId).then(setEvalPrograms).catch(() => {});
   }, [sysId]);
   useEffect(reload, [reload]);
 
@@ -69,8 +68,8 @@ export default function Tasks({ sysId }: { sysId: string }) {
     <>
       <h2 className="page">评估任务</h2>
       <p className="sub">
-        评估任务 = <b>启动系统</b> + <b>启动评估程序</b>（有序前置条件）+ <b>用例清单</b>。
-        点「执行」= 平台经 Temporal 拉起环境并逐用例分派评估，产出一条运行记录。
+        评估任务 = <b>启动系统</b> + <b>启动评估程序</b>（下拉选已登记的程序，固化 分支+commit）
+        + <b>用例清单</b>。点「执行」= 平台经 Temporal 拉起环境并逐用例分派评估。
       </p>
       {error && <p className="err">{error}</p>}
       {notice && <p className="note">{notice}</p>}
@@ -88,7 +87,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
             <tr>
               <th>#</th>
               <th>任务名</th>
-              <th>前置条件</th>
+              <th>前置条件（分支@commit）</th>
               <th>评估程序</th>
               <th>用例</th>
               <th></th>
@@ -104,13 +103,14 @@ export default function Tasks({ sysId }: { sysId: string }) {
                 <td>
                   {t.preconditions.map((p, i) => (
                     <span key={i} className="tag">
-                      {i + 1}. {KIND_LABEL[p.kind]}
-                      {p.ref ? ` · ${p.ref}` : ""}
+                      {i + 1}. {p.name || KIND_LABEL[p.kind]}
+                      {p.branch ? ` · ${p.branch}` : ""}
+                      {p.commit ? `@${p.commit.slice(0, 8)}` : ""}
                     </span>
                   ))}
                 </td>
                 <td className="mono">
-                  {programs.find((p) => p.id === t.eval_program_id)?.code ??
+                  {evalPrograms.find((p) => p.id === t.eval_program_id)?.code ??
                     (t.eval_program_id || "—")}
                 </td>
                 <td>{t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}</td>
@@ -135,7 +135,8 @@ export default function Tasks({ sysId }: { sysId: string }) {
       {(creating || editing) && (
         <TaskForm
           sysId={sysId}
-          programs={programs}
+          sysPrograms={sysPrograms}
+          evalPrograms={evalPrograms}
           initial={editing}
           onCancel={() => {
             setCreating(false);
@@ -153,53 +154,46 @@ export default function Tasks({ sysId }: { sysId: string }) {
 }
 
 function toRows(task: Task): Row[] {
-  return task.preconditions.map((p) => {
-    const isSha = p.ref != null && SHA_RE.test(p.ref);
-    return {
-      kind: p.kind,
-      name: p.name ?? undefined,
-      gitUrl: p.git_url ?? undefined,
-      path: p.path ?? ".",
-      branch: p.kind === "start_system" && !isSha ? p.ref ?? undefined : undefined,
-      commit: p.kind === "start_system" && isSha ? p.ref ?? undefined : undefined,
-      ref: p.kind === "start_system" ? undefined : p.ref ?? undefined,
-      script: p.script ?? undefined,
-    };
-  });
+  return task.preconditions.map((p) => ({
+    kind: p.kind,
+    programId: p.program_id ?? undefined,
+    branch: p.branch ?? undefined,
+    commit: p.commit ?? undefined,
+    name: p.name ?? undefined,
+    script: p.script ?? undefined,
+  }));
 }
 
 function TaskForm({
   sysId,
-  programs,
+  sysPrograms,
+  evalPrograms,
   initial,
   onCancel,
   onDone,
 }: {
   sysId: string;
-  programs: EvalProgram[];
+  sysPrograms: SystemProgram[];
+  evalPrograms: EvalProgram[];
   initial: Task | null;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const prog0 = programs[0];
   const [name, setName] = useState(initial?.name ?? "");
   const [rows, setRows] = useState<Row[]>(
     initial
       ? toRows(initial)
       : [
-          { kind: "start_system", gitUrl: "", path: ".", branch: "" },
-          { kind: "start_eval_program", programId: prog0?.id, gitUrl: prog0?.git_url,
-            path: prog0?.path, ref: prog0?.ref },
+          { kind: "start_system", programId: sysPrograms[0]?.id, name: "system" },
+          { kind: "start_eval_program", programId: evalPrograms[0]?.id },
         ],
   );
   const [evalProgramId, setEvalProgramId] = useState<string>(
-    initial?.eval_program_id ?? prog0?.id ?? "",
+    initial?.eval_program_id ?? evalPrograms[0]?.id ?? "",
   );
   const [cases, setCases] = useState<Case[]>([]);
   const [allCases, setAllCases] = useState<boolean>(initial ? initial.case_ids == null : true);
-  const [selected, setSelected] = useState<Set<string>>(
-    new Set(initial?.case_ids ?? []),
-  );
+  const [selected, setSelected] = useState<Set<string>>(new Set(initial?.case_ids ?? []));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -207,24 +201,37 @@ function TaskForm({
     api.dataset(sysId).then((d) => setCases(d.cases)).catch(() => {});
   }, [sysId]);
 
-  // programs 是异步加载的：到位后给「启动评估程序」行和任务级评估程序补默认值
+  // 注册表是异步加载的：到位后给行和任务级评估程序补默认值
   useEffect(() => {
-    if (!programs.length) return;
-    const prog = programs[0];
-    setRows((rs) => rs.map((r) =>
-      r.kind === "start_eval_program" && !r.programId
-        ? { ...r, programId: prog.id, gitUrl: prog.git_url, path: prog.path, ref: r.ref || prog.ref }
-        : r));
-    if (!initial) setEvalProgramId((v) => v || prog.id);
+    setRows((rs) => rs.map((r) => {
+      if (r.kind === "start_system" && !r.programId && sysPrograms.length)
+        return { ...r, programId: sysPrograms[0].id };
+      if (r.kind === "start_eval_program" && !r.programId && evalPrograms.length)
+        return { ...r, programId: evalPrograms[0].id };
+      return r;
+    }));
+    if (!initial && evalPrograms.length) setEvalProgramId((v) => v || evalPrograms[0].id);
     // eslint-disable-next-line
-  }, [programs]);
+  }, [sysPrograms, evalPrograms]);
+
+  /** 行对应的注册项（系统程序 或 评估程序）。 */
+  function regOf(row: Row): { git_url: string; path: string; label: string; code?: string } | null {
+    if (row.kind === "start_system") {
+      const p = sysPrograms.find((x) => x.id === row.programId);
+      return p ? { git_url: p.git_url, path: p.path, label: p.name } : null;
+    }
+    if (row.kind === "start_eval_program") {
+      const p = evalPrograms.find((x) => x.id === row.programId);
+      return p ? { git_url: p.git_url, path: p.path, label: p.name, code: p.code } : null;
+    }
+    return null;
+  }
 
   function addRow(kind: PreconditionKind) {
-    const prog = programs[0];
     const seed: Row =
       kind === "start_system"
-        ? { kind, gitUrl: "", path: ".", branch: "" }
-        : { kind, programId: prog?.id, gitUrl: prog?.git_url, path: prog?.path, ref: prog?.ref };
+        ? { kind, programId: sysPrograms[0]?.id }
+        : { kind, programId: evalPrograms[0]?.id };
     setRows((r) => [...r, seed]);
   }
 
@@ -244,6 +251,38 @@ function TaskForm({
     setRows((r) => r.filter((_, idx) => idx !== i));
   }
 
+  async function fetchLatestCommit(i: number) {
+    const row = rows[i];
+    const reg = regOf(row);
+    setError(null);
+    if (!reg) return setError("先选择程序");
+    if (!row.branch?.trim()) return setError("先填分支名，再点「获取最新 commit」");
+    try {
+      const r = await api.resolveBranch(reg.git_url, row.branch.trim());
+      patch(i, { commit: r.commit, branchesHint: undefined });
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function verifyCommit(i: number) {
+    const row = rows[i];
+    const reg = regOf(row);
+    setError(null);
+    if (!reg) return setError("先选择程序");
+    if (!row.commit?.trim()) return setError("先填 commit id，再点「校验」");
+    try {
+      const r = await api.resolveCommit(reg.git_url, row.commit.trim());
+      patch(i, {
+        commit: r.commit,
+        branch: r.branches[0] ?? row.branch,
+        branchesHint: r.branches.join(", "),
+      });
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
   function toggleCase(id: string) {
     setSelected((cur) => {
       const next = new Set(cur);
@@ -254,27 +293,19 @@ function TaskForm({
   }
 
   function toPrecondition(row: Row): Precondition {
-    if (row.kind === "start_system") {
-      return {
-        kind: row.kind,
-        name: row.name || "system",
-        git_url: row.gitUrl?.trim() || null,
-        // commit 优先钉死；不填则用分支最新（部署器会 resolve 成 sha 记进运行记录）
-        ref: row.commit?.trim() || row.branch?.trim() || null,
-        path: row.path?.trim() || ".",
-      };
-    }
-    if (row.kind === "start_eval_program") {
-      const prog = programs.find((p) => p.id === row.programId);
-      return {
-        kind: row.kind,
-        name: row.name || (prog ? `eval-${prog.code}` : "eval"),
-        git_url: prog?.git_url ?? row.gitUrl ?? null,
-        ref: row.ref?.trim() || prog?.ref || null,
-        path: prog?.path ?? row.path ?? ".",
-      };
-    }
-    return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
+    const reg = regOf(row);
+    if (row.kind === "custom_script")
+      return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
+    const fallback = row.kind === "start_system" ? "system" : `eval-${reg?.code ?? "program"}`;
+    return {
+      kind: row.kind,
+      name: (row.name ?? "").trim() || fallback,
+      program_id: row.programId ?? null,
+      git_url: reg?.git_url ?? null,
+      path: reg?.path ?? ".",
+      branch: row.branch?.trim() || null,
+      commit: row.commit?.trim() || null,
+    };
   }
 
   async function submit() {
@@ -283,20 +314,16 @@ function TaskForm({
     if (rows.length === 0) return setError("至少保留一条前置条件");
     const releaseNames: string[] = [];
     for (const row of rows) {
-      if (row.kind === "start_system") {
-        if (!row.gitUrl?.trim() || !row.branch?.trim())
-          return setError("「启动系统」需要 Git 仓库和分支");
-        const rel = (row.name ?? "system").trim() || "system";
-        if (!/^[a-z0-9][a-z0-9-]*$/.test(rel))
-          return setError(`名称「${rel}」不合法：小写字母/数字/中划线（作 helm release 名）`);
-        releaseNames.push(rel);
-      }
-      if (row.kind === "start_eval_program") {
-        if (!row.programId)
-          return setError("「启动评估程序」需要选择评估程序（先去「评估程序」页登记）");
-        const prog = programs.find((p) => p.id === row.programId);
-        releaseNames.push(row.name || (prog ? `eval-${prog.code}` : "eval"));
-      }
+      if (row.kind === "custom_script") continue;
+      if (!row.programId || !regOf(row))
+        return setError(`「${KIND_LABEL[row.kind]}」需要先在对应页面登记程序，再下拉选择`);
+      if (!row.branch?.trim() || !row.commit?.trim())
+        return setError(`「${KIND_LABEL[row.kind]} · ${regOf(row)?.label}」需要固化 分支+commit：`
+          + "填分支点「获取最新 commit」，或填 commit 点「校验」");
+      const rel = toPrecondition(row).name ?? "";
+      if (!/^[a-z0-9][a-z0-9-]*$/.test(rel))
+        return setError(`名称「${rel}」不合法：小写字母/数字/中划线（作 helm release 名）`);
+      releaseNames.push(rel);
     }
     const dup = releaseNames.find((n, i) => releaseNames.indexOf(n) !== i);
     if (dup) return setError(`多条启动条件的名称必须唯一（「${dup}」重复了）——每条各是一个 helm release`);
@@ -342,7 +369,7 @@ function TaskForm({
               <span>评估程序（逐用例评估；空 = 只拉环境不评估）</span>
               <select value={evalProgramId} onChange={(e) => setEvalProgramId(e.target.value)}>
                 <option value="">（不评估）</option>
-                {programs.map((p) => (
+                {evalPrograms.map((p) => (
                   <option key={p.id} value={p.id}>{p.name} · code={p.code}</option>
                 ))}
               </select>
@@ -357,89 +384,102 @@ function TaskForm({
             </div>
 
             {rows.length === 0 && <i className="muted">还没有前置条件，用上面的按钮添加。</i>}
-            {rows.map((row, i) => (
-              <div key={i} className="pc-row">
-                <div className="pc-head">
-                  <span className="pc-idx">{i + 1}</span>
-                  <span className={`pill ${row.kind === "custom_script" ? "neutral" : "new"}`}>
-                    {KIND_LABEL[row.kind]}
-                  </span>
-                  <span className="pc-ctl">
-                    <button className="btn sm" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
-                    <button className="btn sm" onClick={() => move(i, 1)} disabled={i === rows.length - 1}>↓</button>
-                    <button className="btn sm danger" onClick={() => remove(i)}>删除</button>
-                  </span>
-                </div>
-
-                {row.kind === "start_system" && (
-                  <>
-                    <div className="fld-row">
-                      <label className="fld">
-                        <span>名称 *（helm release 名；多条系统时各取一个，如 mainagent）</span>
-                        <input className="mono" value={row.name ?? "system"}
-                          onChange={(e) => patch(i, { name: e.target.value })}
-                          placeholder="system / mainagent / sessionstore…" />
-                      </label>
-                      <label className="fld">
-                        <span>Git 仓库 *</span>
-                        <input className="mono" value={row.gitUrl ?? ""}
-                          onChange={(e) => patch(i, { gitUrl: e.target.value })}
-                          placeholder="ssh://git@…/chatagent.git 或本地路径" />
-                      </label>
-                      <label className="fld">
-                        <span>单元目录（含 .eddplatform.yaml/构建脚本/helm chart）</span>
-                        <input className="mono" value={row.path ?? "."}
-                          onChange={(e) => patch(i, { path: e.target.value })}
-                          placeholder="edd/system（默认 . = 仓库根）" />
-                      </label>
-                    </div>
-                    <div className="fld-row">
-                      <label className="fld">
-                        <span>分支 *</span>
-                        <input className="mono" value={row.branch ?? ""}
-                          onChange={(e) => patch(i, { branch: e.target.value })}
-                          placeholder="2.3-eval" />
-                      </label>
-                      <label className="fld">
-                        <span>commit id（可选；填了钉死该提交，不填用分支最新）</span>
-                        <input className="mono" value={row.commit ?? ""}
-                          onChange={(e) => patch(i, { commit: e.target.value })}
-                          placeholder="留空 = 分支最新（执行时记录实际 sha）" />
-                      </label>
-                    </div>
-                  </>
-                )}
-
-                {row.kind === "start_eval_program" && (
-                  <div className="fld-row">
-                    <label className="fld">
-                      <span>选择评估程序（评估代码）</span>
-                      <select value={row.programId ?? ""} onChange={(e) => {
-                        const prog = programs.find((p) => p.id === e.target.value);
-                        patch(i, { programId: e.target.value, gitUrl: prog?.git_url, ref: prog?.ref });
-                      }}>
-                        {programs.length === 0 && <option value="">（无评估程序，先去登记）</option>}
-                        {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                    </label>
-                    <label className="fld">
-                      <span>ref（默认用评估程序登记的 ref）</span>
-                      <input className="mono" value={row.ref ?? ""}
-                        onChange={(e) => patch(i, { ref: e.target.value })}
-                        placeholder="main" />
-                    </label>
+            {rows.map((row, i) => {
+              const reg = regOf(row);
+              const programs: { id: string; name: string }[] =
+                row.kind === "start_system" ? sysPrograms : evalPrograms;
+              return (
+                <div key={i} className="pc-row">
+                  <div className="pc-head">
+                    <span className="pc-idx">{i + 1}</span>
+                    <span className={`pill ${row.kind === "custom_script" ? "neutral" : "new"}`}>
+                      {KIND_LABEL[row.kind]}
+                    </span>
+                    <span className="pc-ctl">
+                      <button className="btn sm" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
+                      <button className="btn sm" onClick={() => move(i, 1)} disabled={i === rows.length - 1}>↓</button>
+                      <button className="btn sm danger" onClick={() => remove(i)}>删除</button>
+                    </span>
                   </div>
-                )}
 
-                {row.kind === "custom_script" && (
-                  <label className="fld">
-                    <span>脚本（旧任务保留字段）</span>
-                    <textarea className="mono" rows={3} value={row.script ?? ""}
-                      onChange={(e) => patch(i, { script: e.target.value })} />
-                  </label>
-                )}
-              </div>
-            ))}
+                  {row.kind !== "custom_script" && (
+                    <>
+                      {/* 区块 1：git 相关 —— 下拉选注册项 + 固化 分支/commit */}
+                      <div className="pc-block">
+                        <div className="pc-block-title">Git 设置</div>
+                        <div className="fld-row">
+                          <label className="fld">
+                            <span>{row.kind === "start_system" ? "系统程序" : "评估程序"} *</span>
+                            <select value={row.programId ?? ""}
+                              onChange={(e) => patch(i, { programId: e.target.value,
+                                branch: undefined, commit: undefined, branchesHint: undefined })}>
+                              {programs.length === 0 && (
+                                <option value="">
+                                  {row.kind === "start_system"
+                                    ? "（无系统程序，先去「系统程序」页登记）"
+                                    : "（无评估程序，先去「评估程序」页登记）"}
+                                </option>
+                              )}
+                              {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                          </label>
+                          <label className="fld">
+                            <span>Git 仓库（来自登记项）</span>
+                            <input className="mono" readOnly
+                              value={reg ? `${reg.git_url}${reg.path && reg.path !== "." ? `  ·  ${reg.path}` : ""}` : ""} />
+                          </label>
+                        </div>
+                        <div className="fld-row">
+                          <label className="fld">
+                            <span>分支</span>
+                            <div className="inline-btn">
+                              <input className="mono" value={row.branch ?? ""}
+                                onChange={(e) => patch(i, { branch: e.target.value, commit: undefined })}
+                                placeholder="2.3-eval" />
+                              <button className="btn sm" onClick={() => fetchLatestCommit(i)}>
+                                获取最新 commit
+                              </button>
+                            </div>
+                          </label>
+                          <label className="fld">
+                            <span>commit id（固化；部署用它）</span>
+                            <div className="inline-btn">
+                              <input className="mono" value={row.commit ?? ""}
+                                onChange={(e) => patch(i, { commit: e.target.value, branchesHint: undefined })}
+                                placeholder="点左侧按钮获取，或直接输入后校验" />
+                              <button className="btn sm" onClick={() => verifyCommit(i)}>校验</button>
+                            </div>
+                          </label>
+                        </div>
+                        {row.branchesHint && (
+                          <p className="hint">该 commit 属于分支：{row.branchesHint}</p>
+                        )}
+                      </div>
+
+                      {/* 区块 2：名称（helm release 名） */}
+                      <div className="pc-block">
+                        <div className="pc-block-title">部署设置</div>
+                        <label className="fld">
+                          <span>名称 *（helm release 名；多条启动条件时各取一个）</span>
+                          <input className="mono"
+                            value={row.name ?? (row.kind === "start_system" ? "system" : `eval-${reg?.code ?? ""}`)}
+                            onChange={(e) => patch(i, { name: e.target.value })}
+                            placeholder="system / mainagent / eval-chatagent…" />
+                        </label>
+                      </div>
+                    </>
+                  )}
+
+                  {row.kind === "custom_script" && (
+                    <label className="fld">
+                      <span>脚本（旧任务保留字段）</span>
+                      <textarea className="mono" rows={3} value={row.script ?? ""}
+                        onChange={(e) => patch(i, { script: e.target.value })} />
+                    </label>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <div className="fld">

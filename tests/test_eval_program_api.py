@@ -22,14 +22,14 @@ def client(test_db, monkeypatch):
 def test_eval_program_crud(client):
     r = client.post("/api/systems/sys1/eval-programs", json={
         "name": "chatagent 评估", "git_url": "/mnt/repos/chatagent-eval",
-        "ref": "main", "code": "chatagent-eval"})
+        "path": "edd/eval", "code": "chatagent-eval"})
     assert r.status_code == 201
     pid = r.json()["id"]
     assert pid.startswith("EP-")
     assert client.get("/api/systems/sys1/eval-programs").json()[0]["code"] == "chatagent-eval"
     r = client.put(f"/api/systems/sys1/eval-programs/{pid}", json={
         "name": "chatagent 评估", "git_url": "/mnt/repos/chatagent-eval",
-        "ref": "2.0", "code": "chatagent-eval"})
-    assert r.json()["ref"] == "2.0"
+        "path": "edd/eval2", "code": "chatagent-eval"})
+    assert r.json()["path"] == "edd/eval2"
     assert client.delete(f"/api/systems/sys1/eval-programs/{pid}").status_code == 204
     assert client.get("/api/systems/sys1/eval-programs").json() == []

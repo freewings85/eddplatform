@@ -3,6 +3,7 @@ import { api } from "./api";
 import Datasets from "./Datasets";
 import EvalPrograms from "./EvalPrograms";
 import Runs from "./Runs";
+import SystemPrograms from "./SystemPrograms";
 import Systems from "./Systems";
 import Tags from "./Tags";
 import Tasks from "./Tasks";
@@ -34,7 +35,7 @@ const GLOBAL_NAV: Nav[] = [
 ];
 
 const SYSTEM_NAV: Nav[] = [
-  { view: "system-code", label: "系统代码", icon: "🧩" }, // 被测系统 git/版本
+  { view: "system-code", label: "系统程序", icon: "🧩" }, // 被评系统的 git 单元注册
   { view: "eval-programs", label: "评估程序", icon: "🧪" }, // 评估代码 git/版本
   { view: "datasets", label: "用例库", icon: "📁" }, // 评估数据
   { view: "tags", label: "标签", icon: "🏷️" },
@@ -118,7 +119,7 @@ export default function App() {
             <Systems onOpen={openSystem} />
           )}
           {mode === "system" && sysId && view === "system-code" && (
-            <SysOverview sysId={sysId} />
+            <SystemPrograms sysId={sysId} />
           )}
           {mode === "system" && sysId && view === "eval-programs" && (
             <EvalPrograms sysId={sysId} />
@@ -157,79 +158,6 @@ function Overview() {
       {data && data.length === 0 && (
         <p className="note">平台是空的 — 去「系统管理」注册第一套被评系统。</p>
       )}
-    </>
-  );
-}
-
-function SysOverview({ sysId }: { sysId: string }) {
-  const sys = useData(() => api.system(sysId), [sysId]);
-  return (
-    <>
-      <h2 className="page">系统代码 · {sys.data?.name ?? ""}</h2>
-      <p className="sub">
-        被评系统的基本信息。约定式部署直接用 git 仓库（仓里带 .eddplatform.yaml /
-        deploy/chart / build.sh），在「评估任务」的前置条件里填仓库 + ref。
-      </p>
-
-      <div className="card">
-        <table>
-          <tbody>
-            <tr>
-              <th style={{ width: 140 }}>系统 ID</th>
-              <td className="mono">{sys.data?.id ?? "…"}</td>
-            </tr>
-            <tr>
-              <th>名称</th>
-              <td>{sys.data?.name ?? "…"}</td>
-            </tr>
-            <tr>
-              <th>负责人</th>
-              <td>{sys.data?.owner ?? "—"}</td>
-            </tr>
-            <tr>
-              <th>说明</th>
-              <td className="muted">{sys.data?.description ?? "—"}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="section-title">模块 &amp; Git（{sys.data?.modules?.length ?? 0}）</div>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>模块</th>
-              <th>Git 仓库</th>
-              <th>分支</th>
-              <th>镜像</th>
-              <th>负责人</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(sys.data?.modules ?? []).map((m) => (
-              <tr key={m.name}>
-                <td>
-                  <b>{m.name}</b>
-                </td>
-                <td className="mono">{m.git_url}</td>
-                <td>
-                  <span className="tag">{m.branch}</span>
-                </td>
-                <td className="mono">{m.image}</td>
-                <td>{m.owner}</td>
-              </tr>
-            ))}
-            {sys.data && (sys.data.modules ?? []).length === 0 && (
-              <tr>
-                <td colSpan={5} className="empty">
-                  该系统未登记模块 — 约定式部署直接用 git 仓库，无需在此配置。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </>
   );
 }

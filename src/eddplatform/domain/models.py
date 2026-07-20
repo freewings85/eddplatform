@@ -78,19 +78,32 @@ class System(BaseModel):
     prod_version: str | None = None
 
 
+class SystemProgram(BaseModel):
+    """系统程序：被评系统的一个可部署 git 单元的**注册项**（名称 + git 地址 + 目录）。
+
+    建评估任务时从这里下拉选择，分支/commit 在任务里固化——git 信息只登记一次。
+    """
+
+    id: str = ""                      # 空 = store 落库时生成（SP-0001）
+    system_id: str = ""
+    name: str
+    git_url: str
+    path: str = "."                   # 仓库内单元目录（一个仓库可含多个单元）
+    owner: str | None = None
+
+
 class EvalProgram(BaseModel):
-    """评估程序（评估代码库）——**独立于系统代码**的另一套 git 仓库。
+    """评估程序（评估代码库）——**独立于系统程序**的另一套 git 单元注册项。
 
     实现评估逻辑（怎么算分），按 ``.eddplatform.yaml`` 约定被拉起来当 worker。
     ``code`` 是它认领的 Temporal RunCase workflow 名 = task queue：平台逐用例
-    分派 child workflow 时按 ``code`` 找到它。
+    分派 child workflow 时按 ``code`` 找到它。分支/commit 同样在任务里固化。
     """
 
     id: str = ""                      # 空 = store 落库时生成（EP-0001）
     system_id: str = ""
     name: str
     git_url: str
-    ref: str = "main"                 # 部署用的 git ref（分支/tag/sha）
     path: str = "."                   # 仓库内单元目录（评估程序可与被评系统同仓不同目录）
     code: str                         # RunCase workflow 名 + task queue
     owner: str | None = None
@@ -261,9 +274,11 @@ class Precondition(BaseModel):
 
     kind: PreconditionKind
     name: str | None = None                  # 人读标签 / helm release 名
-    git_url: str | None = None               # start_system / start_eval_program 的仓库
-    ref: str | None = None                   # 选定的 git ref（分支/commit；commit 优先钉死）
-    path: str | None = None                  # 仓库内单元目录（None = 根）
+    program_id: str | None = None            # 引用的 系统程序/评估程序 注册项（展示溯源用）
+    git_url: str | None = None               # 固化：保存任务时从注册项复制
+    path: str | None = None                  # 固化：仓库内单元目录（None = 根）
+    branch: str | None = None                # 固化的分支名（用户可见）
+    commit: str | None = None                # 固化的 commit sha（部署用它，钉死可复现）
     script: str | None = None                # custom_script 的脚本内容
 
 

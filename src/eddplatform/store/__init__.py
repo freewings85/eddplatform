@@ -7,6 +7,7 @@ from eddplatform.store.case_store import CaseStore, ImportResult
 from eddplatform.store.db import Db
 from eddplatform.store.eval_program_store import EvalProgramStore
 from eddplatform.store.run_store import RunStore
+from eddplatform.store.system_program_store import SystemProgramStore
 from eddplatform.store.system_store import SystemStore
 from eddplatform.store.tag_store import TagStore
 from eddplatform.store.task_store import TaskStore
@@ -17,6 +18,7 @@ __all__ = [
     "EvalProgramStore",
     "ImportResult",
     "RunStore",
+    "SystemProgramStore",
     "SystemStore",
     "TagStore",
     "TaskStore",

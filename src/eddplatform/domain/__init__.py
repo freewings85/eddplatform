@@ -20,5 +20,6 @@ from eddplatform.domain.models import (  # noqa: F401
     RunRecord,
     RunStatus,
     System,
+    SystemProgram,
     Task,
 )

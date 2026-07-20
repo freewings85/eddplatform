@@ -18,12 +18,25 @@ export interface System {
   prod_version?: string | null;
 }
 
+export interface SystemProgram {
+  id: string;
+  system_id: string;
+  name: string;
+  git_url: string;
+  path: string; // 仓库内单元目录
+  owner?: string | null;
+}
+
+export type SystemProgramInput = Omit<SystemProgram, "id" | "system_id"> & {
+  id?: string;
+  system_id?: string;
+};
+
 export interface EvalProgram {
   id: string;
   system_id: string;
   name: string;
   git_url: string;
-  ref: string; // 部署用的 git ref（分支/tag/sha）
   path: string; // 仓库内单元目录（可与被评系统同仓不同目录）
   code: string; // RunCase workflow 名 = task queue
   owner?: string | null;
@@ -39,9 +52,11 @@ export type PreconditionKind = "start_system" | "start_eval_program" | "custom_s
 export interface Precondition {
   kind: PreconditionKind;
   name?: string | null;
-  git_url?: string | null;
-  ref?: string | null; // 选定的版本（分支或 commit；commit 优先钉死）
-  path?: string | null; // 仓库内单元目录（null = 根）
+  program_id?: string | null; // 引用的 系统程序/评估程序 注册项
+  git_url?: string | null; // 固化：保存任务时从注册项复制
+  path?: string | null; // 固化：仓库内单元目录（null = 根）
+  branch?: string | null; // 固化的分支名（用户可见）
+  commit?: string | null; // 固化的 commit sha（部署用它，钉死可复现）
   script?: string | null;
 }
 

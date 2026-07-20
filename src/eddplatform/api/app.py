@@ -12,11 +12,11 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
-from eddplatform.api import case_yaml, run_service
+from eddplatform.api import case_yaml, git_resolve, run_service
 from eddplatform.domain.models import (Case, Dataset, EvalProgram, RunRecord, System,
-                                       TagNode, Task)
-from eddplatform.store import (CaseStore, EvalProgramStore, RunStore, SystemStore,
-                               TagStore, TaskStore)
+                                       SystemProgram, TagNode, Task)
+from eddplatform.store import (CaseStore, EvalProgramStore, RunStore, SystemProgramStore,
+                               SystemStore, TagStore, TaskStore)
 
 app = FastAPI(
     title="EddPlatform",
@@ -30,6 +30,7 @@ PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
 store = CaseStore()
 tag_store = TagStore()
 system_store = SystemStore()
+system_program_store = SystemProgramStore()
 task_store = TaskStore()
 eval_program_store = EvalProgramStore()
 run_store = RunStore()
@@ -110,6 +111,67 @@ def delete_system(system_id: str) -> None:
         system_store.delete(system_id)
     except KeyError:
         raise HTTPException(404, "system not found")
+
+
+# --- 系统程序注册（被评系统的可部署 git 单元）------------------------------
+@app.get("/api/systems/{system_id}/system-programs")
+def list_system_programs(system_id: str) -> list[SystemProgram]:
+    _require_system(system_id)
+    return system_program_store.list(system_id)
+
+
+@app.post("/api/systems/{system_id}/system-programs", status_code=201)
+def create_system_program(system_id: str, program: SystemProgram) -> SystemProgram:
+    _require_system(system_id)
+    try:
+        return system_program_store.create(system_id, program)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.put("/api/systems/{system_id}/system-programs/{program_id}")
+def update_system_program(system_id: str, program_id: str, program: SystemProgram) -> SystemProgram:
+    _require_system(system_id)
+    try:
+        return system_program_store.update(system_id, program_id, program)
+    except KeyError:
+        raise HTTPException(404, "system program not found")
+
+
+@app.delete("/api/systems/{system_id}/system-programs/{program_id}", status_code=204)
+def delete_system_program(system_id: str, program_id: str) -> None:
+    _require_system(system_id)
+    try:
+        system_program_store.delete(system_id, program_id)
+    except KeyError:
+        raise HTTPException(404, "system program not found")
+
+
+# --- git 解析（建任务时把 分支/commit 固化成双字段）-------------------------
+class GitBranchQuery(BaseModel):
+    git_url: str
+    branch: str
+
+
+class GitCommitQuery(BaseModel):
+    git_url: str
+    commit: str
+
+
+@app.post("/api/git/resolve-branch")
+def resolve_branch(body: GitBranchQuery):
+    try:
+        return git_resolve.resolve_branch(body.git_url, body.branch)
+    except git_resolve.GitResolveError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/git/resolve-commit")
+def resolve_commit(body: GitCommitQuery):
+    try:
+        return git_resolve.resolve_commit(body.git_url, body.commit)
+    except git_resolve.GitResolveError as e:
+        raise HTTPException(400, str(e))
 
 
 # --- 评估程序注册 ----------------------------------------------------------

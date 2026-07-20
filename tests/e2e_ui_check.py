@@ -6,6 +6,7 @@ vite dev 起在 :5173）：
     .venv/bin/python tests/e2e_ui_check.py
 文件名不带 test_ 前缀，不进 pytest 默认收集。
 """
+import re
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
@@ -51,15 +52,26 @@ def main() -> None:
         expect(page.get_by_role("cell", name="chatagent 2.3")).to_be_visible()
         page.screenshot(path=str(SHOTS / "02-system-created.png"))
 
-        # 3 进入系统 → 注册评估程序
+        # 3a 进入系统 → 登记「系统程序」（git 注册一次，任务里下拉复用）
         page.get_by_role("button", name="进入").click()
+        expect(page.get_by_text("暂无系统程序")).to_be_visible()
+        page.get_by_role("button", name="＋ 新建系统程序").click()
+        modal = page.locator(".modal")
+        modal.get_by_placeholder("mainagent").fill("mainagent")
+        modal.get_by_placeholder("ssh://git@…/chatagent.git 或本地路径").fill(
+            "/mnt/e/Documents/github/com.celiang.hlsc.service.ai.chatagent3")
+        modal.get_by_role("button", name="保存").click()
+        expect(page.get_by_text("SP-0001")).to_be_visible()
+        page.screenshot(path=str(SHOTS / "03a-system-program.png"))
+
+        # 3b 注册评估程序（无 ref——分支/commit 在任务里固化）
         page.locator("nav.nav").get_by_text("评估程序").click()
         expect(page.get_by_text("暂无评估程序")).to_be_visible()
         page.get_by_role("button", name="＋ 新建评估程序").click()
         modal = page.locator(".modal")
         modal.get_by_placeholder("chatagent 评估").fill("chatagent 评估")
         modal.get_by_placeholder("/mnt/e/Documents/github/chatagent-eval 或 ssh://git@…").fill(
-            "/mnt/e/Documents/github/chatagent-eval")
+            "/mnt/e/Documents/github/com.celiang.hlsc.service.ai.chatagent3")
         modal.get_by_placeholder("chatagent-eval", exact=True).fill("chatagent-eval")
         modal.get_by_role("button", name="保存").click()
         expect(page.get_by_role("cell", name="chatagent-eval", exact=True)).to_be_visible()
@@ -76,24 +88,30 @@ def main() -> None:
         expect(page.get_by_text("group/guide").first).to_be_visible()
         page.screenshot(path=str(SHOTS / "04-cases-imported.png"))
 
-        # 5 新建任务：默认已带 启动系统+启动评估程序 两条前置条件，填仓库/ref + 勾选用例
+        # 5 新建任务：下拉选程序 + 分支→获取最新 commit（固化双字段）+ 勾选用例
         page.locator("nav.nav").get_by_text("评估任务").click()
         expect(page.get_by_text("还没有评估任务")).to_be_visible()
         page.get_by_role("button", name="＋ 新建评估任务").click()
         modal = page.locator(".modal")
         modal.get_by_placeholder("chatagent 2.3-eval guide 冒烟").fill("guide 冒烟")
-        expect(modal.locator(".pill", has_text="启动系统").first).to_be_visible()  # 默认第 1 条
-        expect(modal.locator(".pill", has_text="启动评估程序").first).to_be_visible()  # 默认第 2 条
-        modal.get_by_placeholder("ssh://git@…/chatagent.git 或本地路径").fill(
-            "/mnt/e/Documents/github/com.celiang.hlsc.service.ai.chatagent3")
-        modal.get_by_placeholder("2.3-eval", exact=True).fill("2.3-eval")
+        # 启动系统：下拉默认 mainagent，git 路径回显；填分支 → 获取最新 commit
+        modal.get_by_placeholder("2.3-eval", exact=True).nth(0).fill("2.3-eval")
+        modal.get_by_role("button", name="获取最新 commit").nth(0).click()
+        expect(modal.get_by_placeholder("点左侧按钮获取，或直接输入后校验").nth(0)
+               ).to_have_value(re.compile(r"^[0-9a-f]{40}$"), timeout=15000)
+        # 启动评估程序：同样固化
+        modal.get_by_placeholder("2.3-eval", exact=True).nth(1).fill("2.3-eval")
+        modal.get_by_role("button", name="获取最新 commit").nth(1).click()
+        expect(modal.get_by_placeholder("点左侧按钮获取，或直接输入后校验").nth(1)
+               ).to_have_value(re.compile(r"^[0-9a-f]{40}$"), timeout=15000)
         # 用例清单：切手动勾选 → 全选 → 已选 2/2
         modal.get_by_text("手动勾选（固定清单）").click()
         modal.get_by_role("button", name="全选").click()
         expect(modal.get_by_text("已选 2 / 2")).to_be_visible()
         modal.get_by_role("button", name="创建任务").click()
         expect(page.get_by_role("cell", name="guide 冒烟")).to_be_visible()
-        expect(page.get_by_role("cell", name="勾选 2 条")).to_be_visible()
+        # 任务列表可见固化的 分支@commit
+        expect(page.get_by_text(re.compile(r"2\.3-eval@[0-9a-f]{8}")).first).to_be_visible()
         page.screenshot(path=str(SHOTS / "05-task-created.png"))
 
         # 6 执行 → 提示已提交 → 运行记录出现 running
