@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
 import type {
-  Dataset,
   EvalProgram,
   Precondition,
   PreconditionKind,
-  SystemVersion,
   Task,
   TaskInput,
 } from "./types";
@@ -19,31 +17,57 @@ const KIND_LABEL: Record<PreconditionKind, string> = {
 /** 前置条件行的可编辑形态（提交时映射成 Precondition）。 */
 type Row = {
   kind: PreconditionKind;
-  versionLabel?: string; // start_system：选中的系统版本
+  name?: string;
+  gitUrl?: string; // start_system：被评系统仓库
+  ref?: string; // start_system / start_eval_program：git ref
   programId?: string; // start_eval_program：选中的评估程序
-  version?: string; // start_eval_program：选中的评估程序版本
-  name?: string; // custom_script
   script?: string; // custom_script
 };
 
 export default function Tasks({ sysId }: { sysId: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [programs, setPrograms] = useState<EvalProgram[]>([]);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     api.tasks(sysId).then(setTasks).catch((e) => setError(String(e)));
+    api.evalPrograms(sysId).then(setPrograms).catch(() => {});
   }, [sysId]);
   useEffect(reload, [reload]);
+
+  async function run(t: Task) {
+    setError(null);
+    setNotice(null);
+    try {
+      const r = await api.runTask(sysId, t.id);
+      setNotice(`已提交执行 ${r.id}，去「运行记录」查看进度与结果。`);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function remove(t: Task) {
+    if (!confirm(`删除任务「${t.name}」？`)) return;
+    try {
+      await api.deleteTask(sysId, t.id);
+      reload();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
 
   return (
     <>
       <h2 className="page">评估任务</h2>
       <p className="sub">
-        评估任务 = <b>评估数据集</b> + <b>有序前置条件</b>（启动系统 / 启动评估程序 / 自定义脚本）。
-        运行一次 = 一条运行记录（experiment）；版本在此选定。
+        评估任务 = <b>有序前置条件</b>（启动系统 / 启动评估程序 / 自定义脚本）+ <b>评估程序</b>。
+        点「执行」= 平台经 Temporal 拉起环境并逐用例分派评估，产出一条运行记录。
       </p>
       {error && <p className="err">{error}</p>}
+      {notice && <p className="note">{notice}</p>}
 
       <div className="toolbar">
         <button className="btn primary" onClick={() => setCreating(true)}>
@@ -58,9 +82,9 @@ export default function Tasks({ sysId }: { sysId: string }) {
             <tr>
               <th>#</th>
               <th>任务名</th>
-              <th>数据集</th>
               <th>前置条件</th>
-              <th>评估目标</th>
+              <th>评估程序</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -70,7 +94,6 @@ export default function Tasks({ sysId }: { sysId: string }) {
                 <td>
                   <b>{t.name}</b>
                 </td>
-                <td>{t.dataset_name ?? "—"}</td>
                 <td>
                   {t.preconditions.map((p, i) => (
                     <span key={i} className="tag">
@@ -79,7 +102,15 @@ export default function Tasks({ sysId }: { sysId: string }) {
                     </span>
                   ))}
                 </td>
-                <td className="mono">{t.eval_target ?? "—"}</td>
+                <td className="mono">
+                  {programs.find((p) => p.id === t.eval_program_id)?.code ??
+                    (t.eval_program_id || "—")}
+                </td>
+                <td>
+                  <button className="btn sm primary" onClick={() => run(t)}>执行</button>{" "}
+                  <button className="btn sm" onClick={() => setEditing(t)}>编辑</button>{" "}
+                  <button className="btn sm danger" onClick={() => remove(t)}>删除</button>
+                </td>
               </tr>
             ))}
             {tasks.length === 0 && (
@@ -93,12 +124,18 @@ export default function Tasks({ sysId }: { sysId: string }) {
         </table>
       </div>
 
-      {creating && (
+      {(creating || editing) && (
         <TaskForm
           sysId={sysId}
-          onCancel={() => setCreating(false)}
+          programs={programs}
+          initial={editing}
+          onCancel={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
           onDone={() => {
             setCreating(false);
+            setEditing(null);
             reload();
           }}
         />
@@ -107,36 +144,42 @@ export default function Tasks({ sysId }: { sysId: string }) {
   );
 }
 
+function toRows(task: Task): Row[] {
+  return task.preconditions.map((p) => ({
+    kind: p.kind,
+    name: p.name ?? undefined,
+    gitUrl: p.git_url ?? undefined,
+    ref: p.ref ?? undefined,
+    script: p.script ?? undefined,
+  }));
+}
+
 function TaskForm({
   sysId,
+  programs,
+  initial,
   onCancel,
   onDone,
 }: {
   sysId: string;
+  programs: EvalProgram[];
+  initial: Task | null;
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [dataset, setDataset] = useState<Dataset | null>(null);
-  const [versions, setVersions] = useState<SystemVersion[]>([]);
-  const [programs, setPrograms] = useState<EvalProgram[]>([]);
-  const [rows, setRows] = useState<Row[]>([]);
-  const [evalTarget, setEvalTarget] = useState("");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [rows, setRows] = useState<Row[]>(initial ? toRows(initial) : []);
+  const [evalProgramId, setEvalProgramId] = useState<string>(initial?.eval_program_id ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    api.dataset(sysId).then(setDataset).catch(() => {});
-    api.versions(sysId).then(setVersions).catch(() => {});
-    api.evalPrograms(sysId).then(setPrograms).catch(() => {});
-  }, [sysId]);
-
   function addRow(kind: PreconditionKind) {
+    const prog = programs[0];
     const seed: Row =
       kind === "start_system"
-        ? { kind, versionLabel: versions[0]?.label }
+        ? { kind, gitUrl: "", ref: "" }
         : kind === "start_eval_program"
-          ? { kind, programId: programs[0]?.id, version: programs[0]?.versions[0] }
+          ? { kind, programId: prog?.id, gitUrl: prog?.git_url, ref: prog?.ref }
           : { kind, name: "seed", script: "" };
     setRows((r) => [...r, seed]);
   }
@@ -159,15 +202,20 @@ function TaskForm({
 
   function toPrecondition(row: Row): Precondition {
     if (row.kind === "start_system") {
-      return { kind: row.kind, name: `启动系统 ${row.versionLabel ?? ""}`, ref: row.versionLabel };
+      return {
+        kind: row.kind,
+        name: row.name || "system",
+        git_url: row.gitUrl?.trim() || null,
+        ref: row.ref?.trim() || null,
+      };
     }
     if (row.kind === "start_eval_program") {
       const prog = programs.find((p) => p.id === row.programId);
       return {
         kind: row.kind,
-        name: `启动评估程序 ${prog?.name ?? ""}@${row.version ?? ""}`,
-        git_url: prog?.git_url,
-        ref: row.version,
+        name: row.name || (prog ? `eval-${prog.code}` : "eval"),
+        git_url: prog?.git_url ?? row.gitUrl ?? null,
+        ref: row.ref?.trim() || prog?.ref || null,
       };
     }
     return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
@@ -177,16 +225,22 @@ function TaskForm({
     setError(null);
     if (!name.trim()) return setError("任务名不能为空");
     if (rows.length === 0) return setError("至少添加一条前置条件");
+    for (const row of rows) {
+      if (row.kind === "start_system" && (!row.gitUrl?.trim() || !row.ref?.trim()))
+        return setError("「启动系统」需要 Git 仓库和 ref");
+      if (row.kind === "start_eval_program" && !row.programId)
+        return setError("「启动评估程序」需要选择评估程序");
+    }
     const payload: TaskInput = {
       name: name.trim(),
       system_id: sysId,
-      dataset_name: dataset?.name ?? null,
       preconditions: rows.map(toPrecondition),
-      eval_target: evalTarget.trim() || null,
+      eval_program_id: evalProgramId || null,
     };
     setBusy(true);
     try {
-      await api.createTask(sysId, payload);
+      if (initial) await api.updateTask(sysId, initial.id, payload);
+      else await api.createTask(sysId, payload);
       onDone();
     } catch (e) {
       setError(String(e));
@@ -199,28 +253,27 @@ function TaskForm({
     <div className="modal-backdrop" onClick={onCancel}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <b>新建评估任务</b>
+          <b>{initial ? "编辑评估任务" : "新建评估任务"}</b>
           <a className="modal-x" onClick={onCancel}>
             ✕
           </a>
         </div>
 
         <div className="modal-body">
-          <label className="fld">
-            <span>任务名 *</span>
-            <input value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="保险报价重构·v1 vs v2" />
-          </label>
-
           <div className="fld-row">
             <label className="fld">
-              <span>评估数据集（用例集）</span>
-              <input value={dataset?.name ?? "…"} readOnly className="mono" />
+              <span>任务名 *</span>
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="chatagent 2.3-eval guide 冒烟" />
             </label>
             <label className="fld">
-              <span>评估观测目标（被测服务）</span>
-              <input value={evalTarget} onChange={(e) => setEvalTarget(e.target.value)}
-                placeholder="quote" />
+              <span>评估程序（逐用例评估；空 = 只拉环境不评估）</span>
+              <select value={evalProgramId} onChange={(e) => setEvalProgramId(e.target.value)}>
+                <option value="">（不评估）</option>
+                {programs.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} · code={p.code}</option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -248,15 +301,20 @@ function TaskForm({
                 </div>
 
                 {row.kind === "start_system" && (
-                  <label className="fld">
-                    <span>选择系统版本（被测系统代码）</span>
-                    <select value={row.versionLabel ?? ""} onChange={(e) => patch(i, { versionLabel: e.target.value })}>
-                      {versions.length === 0 && <option value="">（无系统版本）</option>}
-                      {versions.map((v) => (
-                        <option key={v.id} value={v.label}>{v.label} · {v.status}</option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="fld-row">
+                    <label className="fld">
+                      <span>Git 仓库 *（含 .eddplatform.yaml 部署约定）</span>
+                      <input className="mono" value={row.gitUrl ?? ""}
+                        onChange={(e) => patch(i, { gitUrl: e.target.value })}
+                        placeholder="ssh://git@…/chatagent.git 或本地路径" />
+                    </label>
+                    <label className="fld">
+                      <span>ref *（分支/tag/sha）</span>
+                      <input className="mono" value={row.ref ?? ""}
+                        onChange={(e) => patch(i, { ref: e.target.value })}
+                        placeholder="2.3-eval" />
+                    </label>
+                  </div>
                 )}
 
                 {row.kind === "start_eval_program" && (
@@ -265,19 +323,17 @@ function TaskForm({
                       <span>选择评估程序（评估代码）</span>
                       <select value={row.programId ?? ""} onChange={(e) => {
                         const prog = programs.find((p) => p.id === e.target.value);
-                        patch(i, { programId: e.target.value, version: prog?.versions[0] });
+                        patch(i, { programId: e.target.value, gitUrl: prog?.git_url, ref: prog?.ref });
                       }}>
-                        {programs.length === 0 && <option value="">（无评估程序）</option>}
+                        {programs.length === 0 && <option value="">（无评估程序，先去登记）</option>}
                         {programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </label>
                     <label className="fld">
-                      <span>版本</span>
-                      <select value={row.version ?? ""} onChange={(e) => patch(i, { version: e.target.value })}>
-                        {(programs.find((p) => p.id === row.programId)?.versions ?? []).map((v) => (
-                          <option key={v} value={v}>{v}</option>
-                        ))}
-                      </select>
+                      <span>ref（默认用评估程序登记的 ref）</span>
+                      <input className="mono" value={row.ref ?? ""}
+                        onChange={(e) => patch(i, { ref: e.target.value })}
+                        placeholder="main" />
                     </label>
                   </div>
                 )}
@@ -307,7 +363,7 @@ function TaskForm({
         <div className="modal-foot">
           <button className="btn" onClick={onCancel} disabled={busy}>取消</button>
           <button className="btn primary" onClick={submit} disabled={busy}>
-            {busy ? "创建中…" : "创建任务"}
+            {busy ? "保存中…" : initial ? "保存修改" : "创建任务"}
           </button>
         </div>
       </div>

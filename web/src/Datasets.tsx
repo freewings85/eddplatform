@@ -257,20 +257,28 @@ function ImportDialog({
 }) {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<"append" | "replace">("append");
+  const [format, setFormat] = useState<"json" | "yaml">("json");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function run() {
     setError(null);
-    let cases: Case[];
-    try {
-      cases = JSON.parse(text);
-      if (!Array.isArray(cases)) throw new Error("需要一个用例数组（JSON array）");
-    } catch (e) {
-      return setError("JSON 解析失败：" + String(e));
-    }
     setBusy(true);
     try {
+      if (format === "yaml") {
+        const res = await api.importCasesYaml(sysId, text, mode);
+        alert(`导入完成：新增 ${res.added}、更新 ${res.updated}，共 ${res.total} 条`);
+        onDone();
+        return;
+      }
+      let cases: Case[];
+      try {
+        cases = JSON.parse(text);
+        if (!Array.isArray(cases)) throw new Error("需要一个用例数组（JSON array）");
+      } catch (e) {
+        setError("JSON 解析失败：" + String(e));
+        return;
+      }
       const res = await api.importCases(sysId, cases, mode);
       alert(`导入完成：新增 ${res.added}、更新 ${res.updated}，共 ${res.total} 条`);
       onDone();
@@ -291,15 +299,29 @@ function ImportDialog({
           </a>
         </div>
         <div className="modal-body">
-          <p className="hint">粘贴一个用例数组（JSON），格式同「导出」。</p>
+          <div className="fld">
+            <span>格式</span>
+            <div className="chips">
+              <label className={`chip ${format === "json" ? "on" : ""}`}>
+                <input type="radio" checked={format === "json"} onChange={() => setFormat("json")} />
+                JSON（同「导出」格式）
+              </label>
+              <label className={`chip ${format === "yaml" ? "on" : ""}`}>
+                <input type="radio" checked={format === "yaml"} onChange={() => setFormat("yaml")} />
+                评估 YAML（group/role/turns/expect）
+              </label>
+            </div>
+          </div>
           <label className="fld">
-            <span>用例 JSON</span>
+            <span>{format === "json" ? "用例 JSON" : "评估用例 YAML"}</span>
             <textarea
               className="mono"
               rows={10}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder='[{"name": "...", "inputs": {...}}]'
+              placeholder={format === "json"
+                ? '[{"name": "...", "inputs": {...}}]'
+                : "group: guide\nrole: guide\ncases:\n  - id: guide_intro\n    turns: [{user: \"介绍一下平台\"}]\n    expect: {judge: {rubric: \"介绍准确\"}}"}
             />
           </label>
           <div className="fld">

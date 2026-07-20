@@ -1,0 +1,172 @@
+import { useCallback, useEffect, useState } from "react";
+import { api } from "./api";
+import type { System } from "./types";
+
+export default function Systems({ onOpen }: { onOpen: (id: string, name: string) => void }) {
+  const [systems, setSystems] = useState<System[] | null>(null);
+  const [editing, setEditing] = useState<System | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(() => {
+    api.systems().then(setSystems).catch((e) => setError(String(e)));
+  }, []);
+  useEffect(reload, [reload]);
+
+  async function remove(s: System) {
+    if (!confirm(`删除系统「${s.name}」？（有任务或运行记录时会被拒绝）`)) return;
+    try {
+      await api.deleteSystem(s.id);
+      reload();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  return (
+    <>
+      <h2 className="page">系统管理</h2>
+      <p className="sub">注册被评系统；进入系统工作台管理它的评估程序、用例与任务</p>
+      {error && <p className="err">{error}</p>}
+
+      <div className="toolbar">
+        <button className="btn primary" onClick={() => setCreating(true)}>
+          ＋ 新建系统
+        </button>
+        <span className="muted count">{systems?.length ?? 0} 套系统</span>
+      </div>
+
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>系统</th>
+              <th>ID</th>
+              <th>负责人</th>
+              <th>说明</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(systems ?? []).map((s) => (
+              <tr key={s.id}>
+                <td className="click" onClick={() => onOpen(s.id, s.name)}>
+                  <b>{s.name}</b>
+                </td>
+                <td className="mono">{s.id}</td>
+                <td>{s.owner ?? "—"}</td>
+                <td className="muted">{s.description ?? "—"}</td>
+                <td>
+                  <button className="btn sm" onClick={() => onOpen(s.id, s.name)}>进入</button>{" "}
+                  <button className="btn sm" onClick={() => setEditing(s)}>编辑</button>{" "}
+                  <button className="btn sm danger" onClick={() => remove(s)}>删除</button>
+                </td>
+              </tr>
+            ))}
+            {systems && systems.length === 0 && (
+              <tr>
+                <td colSpan={5} className="empty">
+                  暂无系统 — 点击「新建系统」注册你的第一套被评系统。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {(creating || editing) && (
+        <SystemForm
+          initial={editing}
+          onCancel={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+          onDone={() => {
+            setCreating(false);
+            setEditing(null);
+            reload();
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function SystemForm({
+  initial,
+  onCancel,
+  onDone,
+}: {
+  initial: System | null;
+  onCancel: () => void;
+  onDone: () => void;
+}) {
+  const [id, setId] = useState(initial?.id ?? "");
+  const [name, setName] = useState(initial?.name ?? "");
+  const [owner, setOwner] = useState(initial?.owner ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setError(null);
+    if (!id.trim()) return setError("系统 ID 不能为空（如 chatagent）");
+    if (!name.trim()) return setError("名称不能为空");
+    const payload: System = {
+      id: id.trim(),
+      name: name.trim(),
+      owner: owner.trim() || null,
+      description: description.trim() || null,
+    };
+    setBusy(true);
+    try {
+      if (initial) await api.updateSystem(initial.id, payload);
+      else await api.createSystem(payload);
+      onDone();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <b>{initial ? "编辑系统" : "新建系统"}</b>
+          <a className="modal-x" onClick={onCancel}>✕</a>
+        </div>
+        <div className="modal-body">
+          <label className="fld">
+            <span>系统 ID *</span>
+            <input value={id} onChange={(e) => setId(e.target.value)}
+              readOnly={!!initial} className="mono" placeholder="chatagent" />
+          </label>
+          <label className="fld">
+            <span>名称 *</span>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="chatagent 2.3" />
+          </label>
+          <label className="fld">
+            <span>负责人</span>
+            <input value={owner ?? ""} onChange={(e) => setOwner(e.target.value)} placeholder="leo" />
+          </label>
+          <label className="fld">
+            <span>说明</span>
+            <textarea rows={3} value={description ?? ""}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="被评系统的一句话说明" />
+          </label>
+          {error && <p className="err">{error}</p>}
+        </div>
+        <div className="modal-foot">
+          <button className="btn" onClick={onCancel} disabled={busy}>取消</button>
+          <button className="btn primary" onClick={submit} disabled={busy}>
+            {busy ? "保存中…" : "保存"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

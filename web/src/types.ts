@@ -13,17 +13,9 @@ export interface System {
   id: string;
   name: string;
   owner?: string | null;
-  modules: Module[];
+  description?: string | null;
+  modules?: Module[];
   prod_version?: string | null;
-}
-
-export interface SystemVersion {
-  id: string;
-  system_id: string;
-  label: string;
-  module_pins: Record<string, string>;
-  status: string;
-  note?: string | null;
 }
 
 export interface EvalProgram {
@@ -31,12 +23,15 @@ export interface EvalProgram {
   system_id: string;
   name: string;
   git_url: string;
-  branch: string;
-  image: string;
+  ref: string; // 部署用的 git ref（分支/tag/sha）
+  code: string; // RunCase workflow 名 = task queue
   owner?: string | null;
-  versions: string[];
-  prod_tag?: string | null;
 }
+
+export type EvalProgramInput = Omit<EvalProgram, "id" | "system_id"> & {
+  id?: string;
+  system_id?: string;
+};
 
 export type PreconditionKind = "start_system" | "start_eval_program" | "custom_script";
 
@@ -54,6 +49,7 @@ export interface Task {
   system_id: string;
   dataset_name?: string | null;
   preconditions: Precondition[];
+  eval_program_id?: string | null;
   eval_target?: string | null;
 }
 
@@ -107,63 +103,37 @@ export interface Dataset {
   evaluator_names: string[];
 }
 
-export interface EvaluatorDef {
-  name: string;
+export interface Outcome {
   kind: string;
-  builtin_type?: string | null;
-  input_field: string;
-  output_type: string;
-  threshold?: number | null;
-  case_refs: string[];
-}
-
-export interface Environment {
-  id: string;
   name: string;
-  config_name: string;
-  version_label: string;
   status: string;
-  ttl_hours_left?: number | null;
-  purpose?: string | null;
+  ref?: string | null;
+  images?: Record<string, string>;
+  detail?: string;
 }
 
 export interface RunRecord {
   id: string;
-  type: string;
   system_id: string;
-  version_label: string;
-  status: string;
-  duration_s?: number | null;
-  eval_id?: string | null;
+  task_id: string;
+  task_name: string;
+  status: "running" | "succeeded" | "failed";
+  workflow_id: string;
+  namespace: string;
+  versions: Record<string, string>;
+  outcomes: Outcome[];
+  detail: string;
+  created_at?: string | null;
+  finished_at?: string | null;
 }
 
-export interface EvalResult {
-  pass_rate: number;
+export interface CaseRunResult {
+  case_id: string;
+  status: string; // passed | failed | error
+  scores: Record<string, number>;
   metrics: Record<string, number>;
+  detail: string;
+  trace_url?: string | null;
 }
 
-export interface Evaluation {
-  id: string;
-  name: string;
-  version_label: string;
-  dataset_name: string;
-  status: string;
-  run_id?: string | null;
-  result?: EvalResult | null;
-}
-
-export interface MetricDelta {
-  metric: string;
-  baseline: number;
-  candidate: number;
-}
-
-export interface Comparison {
-  baseline_eval_id: string;
-  candidate_eval_id: string;
-  applicable_cases: number;
-  improved: number;
-  regressed: number;
-  unchanged: number;
-  metrics: MetricDelta[];
-}
+export type RunDetail = RunRecord & { case_results: CaseRunResult[] };

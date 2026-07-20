@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import Datasets from "./Datasets";
+import EvalPrograms from "./EvalPrograms";
+import Runs from "./Runs";
+import Systems from "./Systems";
 import Tags from "./Tags";
 import Tasks from "./Tasks";
-import type {
-  Comparison,
-  EvalProgram,
-  EvaluatorDef,
-  Evaluation,
-  RunRecord,
-  System,
-  SystemVersion,
-} from "./types";
 
 /** 极简数据加载 hook。 */
 function useData<T>(loader: () => Promise<T>, deps: unknown[]) {
@@ -48,10 +42,6 @@ const SYSTEM_NAV: Nav[] = [
   { view: "runs", label: "运行记录", icon: "🏃" }, // experiment = 运行记录
   { view: "comparison", label: "评估对比", icon: "🔀" },
 ];
-
-function Pill({ kind, children }: { kind?: string; children: React.ReactNode }) {
-  return <span className={`pill ${kind ?? "neutral"}`}>{children}</span>;
-}
 
 export default function App() {
   const [mode, setMode] = useState<"global" | "system">("global");
@@ -106,7 +96,7 @@ export default function App() {
           ))}
         </nav>
         <div className="side-foot">
-          底座：Langfuse · Garden · Temporal · Harbor · Backstage
+          底座：Langfuse · Temporal · k8s（约定式部署）
         </div>
       </aside>
 
@@ -138,8 +128,8 @@ export default function App() {
           )}
           {mode === "system" && sysId && view === "tags" && <Tags sysId={sysId} />}
           {mode === "system" && sysId && view === "tasks" && <Tasks sysId={sysId} />}
-          {mode === "system" && view === "runs" && <Runs />}
-          {mode === "system" && view === "comparison" && <ComparisonView />}
+          {mode === "system" && sysId && view === "runs" && <Runs sysId={sysId} />}
+          {mode === "system" && view === "comparison" && <ComparisonPlaceholder />}
         </div>
       </main>
     </div>
@@ -152,6 +142,8 @@ function navLabel(nav: Nav[], view: string): string {
 
 function Overview() {
   const { data, error } = useData(api.systems, []);
+  const runs = useData(() => api.runs(), []);
+  const running = runs.data?.filter((r) => r.status === "running").length ?? 0;
   return (
     <>
       <h2 className="page">全局概览</h2>
@@ -159,64 +151,50 @@ function Overview() {
       {error && <p className="err">{error}</p>}
       <div className="stats">
         <Stat k="系统" v={data ? String(data.length) : "…"} />
-        <Stat k="进行中评估" v="1" />
-        <Stat k="运行中沙箱" v="3" />
-        <Stat k="待处理回归" v="5" />
+        <Stat k="运行记录" v={runs.data ? String(runs.data.length) : "…"} />
+        <Stat k="进行中" v={runs.data ? String(running) : "…"} />
       </div>
-    </>
-  );
-}
-
-function Systems({ onOpen }: { onOpen: (id: string, name: string) => void }) {
-  const { data, error } = useData(api.systems, []);
-  return (
-    <>
-      <h2 className="page">系统管理</h2>
-      <p className="sub">平台支持多套系统；每套系统管理自己的模块与各模块的 Git</p>
-      {error && <p className="err">{error}</p>}
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>系统</th>
-              <th>模块数</th>
-              <th>负责人</th>
-              <th>生产版本</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data ?? []).map((s) => (
-              <tr key={s.id} className="click" onClick={() => onOpen(s.id, s.name)}>
-                <td>
-                  <b>{s.name}</b>
-                </td>
-                <td>{s.modules.length}</td>
-                <td>{s.owner}</td>
-                <td>{s.prod_version}</td>
-                <td>
-                  <button className="btn sm">管理</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {data && data.length === 0 && (
+        <p className="note">平台是空的 — 去「系统管理」注册第一套被评系统。</p>
+      )}
     </>
   );
 }
 
 function SysOverview({ sysId }: { sysId: string }) {
   const sys = useData(() => api.system(sysId), [sysId]);
-  const versions = useData(() => api.versions(sysId), [sysId]);
   return (
     <>
       <h2 className="page">系统代码 · {sys.data?.name ?? ""}</h2>
       <p className="sub">
-        被测系统的代码库：各模块的 Git 仓库 + 按版本钉住 tag 的快照。与「评估程序」对称，各自版本化。
+        被评系统的基本信息。约定式部署直接用 git 仓库（仓里带 .eddplatform.yaml /
+        deploy/chart / build.sh），在「评估任务」的前置条件里填仓库 + ref。
       </p>
 
-      <div className="section-title">模块 &amp; Git（{sys.data?.modules.length ?? 0}）</div>
+      <div className="card">
+        <table>
+          <tbody>
+            <tr>
+              <th style={{ width: 140 }}>系统 ID</th>
+              <td className="mono">{sys.data?.id ?? "…"}</td>
+            </tr>
+            <tr>
+              <th>名称</th>
+              <td>{sys.data?.name ?? "…"}</td>
+            </tr>
+            <tr>
+              <th>负责人</th>
+              <td>{sys.data?.owner ?? "—"}</td>
+            </tr>
+            <tr>
+              <th>说明</th>
+              <td className="muted">{sys.data?.description ?? "—"}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="section-title">模块 &amp; Git（{sys.data?.modules?.length ?? 0}）</div>
       <div className="card">
         <table>
           <thead>
@@ -225,7 +203,6 @@ function SysOverview({ sysId }: { sysId: string }) {
               <th>Git 仓库</th>
               <th>分支</th>
               <th>镜像</th>
-              <th>生产 tag</th>
               <th>负责人</th>
             </tr>
           </thead>
@@ -240,97 +217,13 @@ function SysOverview({ sysId }: { sysId: string }) {
                   <span className="tag">{m.branch}</span>
                 </td>
                 <td className="mono">{m.image}</td>
-                <td className="mono">{m.prod_tag}</td>
                 <td>{m.owner}</td>
               </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="section-title">系统版本</div>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>版本</th>
-              <th>模块组合</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(versions.data ?? []).map((v: SystemVersion) => (
-              <tr key={v.id}>
-                <td>
-                  <b>{v.label}</b>
-                </td>
-                <td className="muted">
-                  {Object.keys(v.module_pins).length} 模块
-                  {v.note ? ` · ${v.note}` : ""}
-                </td>
-                <td>
-                  <Pill kind={v.status === "production" ? "ok" : undefined}>
-                    {v.status}
-                  </Pill>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function EvalPrograms({ sysId }: { sysId: string }) {
-  const { data, error } = useData<EvalProgram[]>(() => api.evalPrograms(sysId), [sysId]);
-  return (
-    <>
-      <h2 className="page">评估程序（评估代码）</h2>
-      <p className="sub">
-        独立于系统代码的<b>另一套 git 代码库</b>：实现评估逻辑（怎么算分），按 .eddplatform.yaml
-        约定被拉起来评估系统。与「系统代码」对称，各自版本化。
-      </p>
-      {error && <p className="err">{error}</p>}
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>评估程序</th>
-              <th>Git 仓库</th>
-              <th>分支</th>
-              <th>镜像</th>
-              <th>版本</th>
-              <th>生产 tag</th>
-              <th>负责人</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data ?? []).map((e) => (
-              <tr key={e.id}>
-                <td>
-                  <b>{e.name}</b>
-                </td>
-                <td className="mono">{e.git_url}</td>
-                <td>
-                  <span className="tag">{e.branch}</span>
-                </td>
-                <td className="mono">{e.image}</td>
-                <td>
-                  {e.versions.map((v) => (
-                    <span key={v} className="tag v">
-                      {v}
-                    </span>
-                  ))}
-                </td>
-                <td className="mono">{e.prod_tag ?? "—"}</td>
-                <td>{e.owner}</td>
-              </tr>
-            ))}
-            {data && data.length === 0 && (
+            {sys.data && (sys.data.modules ?? []).length === 0 && (
               <tr>
-                <td colSpan={7} className="empty">
-                  该系统还没有登记评估程序。
+                <td colSpan={5} className="empty">
+                  该系统未登记模块 — 约定式部署直接用 git 仓库，无需在此配置。
                 </td>
               </tr>
             )}
@@ -341,177 +234,17 @@ function EvalPrograms({ sysId }: { sysId: string }) {
   );
 }
 
-function Evaluators({ sysId }: { sysId: string }) {
-  const { data } = useData<EvaluatorDef[]>(() => api.evaluators(sysId), [sysId]);
-  return (
-    <>
-      <h2 className="page">评估器</h2>
-      <p className="sub">引擎复用 Langfuse（框架无关）；code + LLM-judge</p>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>评估器</th>
-              <th>定义方式</th>
-              <th>读取</th>
-              <th>输出</th>
-              <th>阈值</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data ?? []).map((e) => (
-              <tr key={e.name}>
-                <td>
-                  <b>{e.name}</b>
-                </td>
-                <td>
-                  <Pill kind={e.kind === "llm_judge" ? "new" : undefined}>
-                    {e.kind}
-                  </Pill>
-                </td>
-                <td className="mono">{e.input_field}</td>
-                <td>{e.output_type}</td>
-                <td className="muted">{e.threshold ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function Runs() {
-  const { data } = useData<RunRecord[]>(api.runs, []);
-  return (
-    <>
-      <h2 className="page">运行记录</h2>
-      <p className="sub">一次运行 = 拉起环境 → 跑（日志/轨迹）；可单独运行或由评估产生</p>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>运行</th>
-              <th>类型</th>
-              <th>版本</th>
-              <th>状态</th>
-              <th>时长</th>
-              <th>关联评估</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data ?? []).map((r) => (
-              <tr key={r.id}>
-                <td className="mono">#{r.id}</td>
-                <td>
-                  <Pill kind={r.type === "evaluation" ? "new" : undefined}>
-                    {r.type === "evaluation" ? "评估运行" : "单独运行"}
-                  </Pill>
-                </td>
-                <td>{r.version_label}</td>
-                <td>
-                  <Pill kind={r.status === "completed" ? "ok" : "run"}>
-                    {r.status}
-                  </Pill>
-                </td>
-                <td>{r.duration_s ? `${Math.round(r.duration_s)}s` : "—"}</td>
-                <td className="muted">{r.eval_id ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function Evaluations() {
-  const { data } = useData<Evaluation[]>(api.evaluations, []);
-  return (
-    <>
-      <h2 className="page">评估</h2>
-      <p className="sub">评估任务 = 系统版本 × 用例集 × 环境 → 必带运行记录 → 结果</p>
-      <div className="card">
-        <table>
-          <thead>
-            <tr>
-              <th>评估任务</th>
-              <th>版本</th>
-              <th>状态</th>
-              <th>结果</th>
-              <th>运行</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(data ?? []).map((e) => (
-              <tr key={e.id}>
-                <td>
-                  <b>{e.name}</b>
-                </td>
-                <td>{e.version_label}</td>
-                <td>
-                  <Pill kind={e.status === "completed" ? "ok" : "run"}>
-                    {e.status}
-                  </Pill>
-                </td>
-                <td>
-                  {e.result ? `通过 ${Math.round(e.result.pass_rate * 100)}%` : "—"}
-                </td>
-                <td className="mono">{e.run_id ?? "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
-function ComparisonView() {
-  const { data } = useData<Comparison>(api.comparison, []);
+function ComparisonPlaceholder() {
   return (
     <>
       <h2 className="page">评估对比</h2>
-      <p className="sub">对比两个评估结果（只统计两版本都适用的用例）</p>
-      {data && (
-        <>
-          <p className="note">
-            适用用例 <b>{data.applicable_cases}</b> · 改善{" "}
-            <b className="up">{data.improved}</b> · 回归{" "}
-            <b className="down">{data.regressed}</b> · 持平 {data.unchanged}
-          </p>
-          <div className="card">
-            <table>
-              <thead>
-                <tr>
-                  <th>指标</th>
-                  <th>基线</th>
-                  <th>候选</th>
-                  <th>变化</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.metrics.map((m) => {
-                  const delta = m.candidate - m.baseline;
-                  return (
-                    <tr key={m.metric}>
-                      <td>{m.metric}</td>
-                      <td>{m.baseline}</td>
-                      <td>
-                        <b>{m.candidate}</b>
-                      </td>
-                      <td className={delta >= 0 ? "up" : "down"}>
-                        {delta >= 0 ? "▲" : "▼"} {delta.toFixed(3)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="hint">数据来自 FastAPI /api/comparison（示例）；生产接 Langfuse dataset run 对比。</p>
-        </>
-      )}
+      <p className="sub">对比两次运行的逐用例结果（改善 / 回归 / 持平）</p>
+      <div className="card">
+        <p className="empty" style={{ padding: 24 }}>
+          对比视图将随逐用例评估数据的积累重建：同一任务用不同 ref 各执行一次，
+          即可对齐逐用例分数做老新对比。当前请先在「运行记录」查看单次结果。
+        </p>
+      </div>
     </>
   );
 }
