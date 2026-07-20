@@ -117,6 +117,8 @@ function ProgramForm({
     setError(null);
     if (!name.trim()) return setError("名称不能为空");
     if (!gitUrl.trim()) return setError("Git 仓库不能为空");
+    if (/\s/.test(gitUrl.trim()))
+      return setError("Git 地址不能包含空格/制表符——检查是否粘贴了列表里的多余内容");
     const payload = {
       name: name.trim(),
       git_url: gitUrl.trim(),

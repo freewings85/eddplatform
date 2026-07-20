@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # --------------------------------------------------------------------------- 枚举
@@ -91,6 +91,14 @@ class SystemProgram(BaseModel):
     path: str = "."                   # 仓库内单元目录（一个仓库可含多个单元）
     owner: str | None = None
 
+    @field_validator("git_url")
+    @classmethod
+    def _git_url_no_whitespace(cls, v: str) -> str:
+        v = v.strip()
+        if any(ch.isspace() for ch in v):
+            raise ValueError("git 地址不能包含空白字符（检查是否粘贴了多余内容）")
+        return v
+
 
 class EvalProgram(BaseModel):
     """评估程序（评估代码库）——**独立于系统程序**的另一套 git 单元注册项。
@@ -107,6 +115,14 @@ class EvalProgram(BaseModel):
     path: str = "."                   # 仓库内单元目录（评估程序可与被评系统同仓不同目录）
     code: str                         # RunCase workflow 名 + task queue
     owner: str | None = None
+
+    @field_validator("git_url")
+    @classmethod
+    def _git_url_no_whitespace(cls, v: str) -> str:
+        v = v.strip()
+        if any(ch.isspace() for ch in v):
+            raise ValueError("git 地址不能包含空白字符（检查是否粘贴了多余内容）")
+        return v
 
 
 # --------------------------------------------------------------------------- 用例 / 用例集
