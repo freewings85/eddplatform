@@ -12,11 +12,13 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
-from eddplatform.api import case_git, case_yaml, git_resolve, run_service
-from eddplatform.domain.models import (Case, DatasetInfo, EvalProgram, PreconditionKind,
-                                       RunRecord, System, SystemProgram, TagNode, Task)
+from eddplatform.api import case_git, case_yaml, git_resolve, langfuse_client, run_service
+from eddplatform.domain.models import (Case, DatasetInfo, EvalProgram, GlobalSettings,
+                                       PreconditionKind, RunRecord, System, SystemProgram,
+                                       TagNode, Task)
 from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunStore,
-                               SystemProgramStore, SystemStore, TagStore, TaskStore)
+                               SettingsStore, SystemProgramStore, SystemStore, TagStore,
+                               TaskStore)
 
 app = FastAPI(
     title="EddPlatform",
@@ -35,6 +37,7 @@ system_program_store = SystemProgramStore()
 task_store = TaskStore()
 eval_program_store = EvalProgramStore()
 run_store = RunStore()
+settings_store = SettingsStore()
 
 
 def _require_system(system_id: str) -> None:
@@ -71,6 +74,25 @@ def index():
 @app.get("/api/health")
 def health():
     return {"status": "ok", "version": app.version}
+
+
+# --- 基础设置（平台级）------------------------------------------------------
+@app.get("/api/settings")
+def get_settings() -> GlobalSettings:
+    return settings_store.get()
+
+
+@app.put("/api/settings")
+def put_settings(settings: GlobalSettings) -> GlobalSettings:
+    return settings_store.put(settings)
+
+
+@app.post("/api/settings/test-langfuse")
+def test_langfuse():
+    try:
+        return langfuse_client.test_connection(settings_store.get())
+    except langfuse_client.LangfuseError as e:
+        raise HTTPException(400, str(e))
 
 
 # --- 系统注册 --------------------------------------------------------------
@@ -468,6 +490,28 @@ def import_cases_yaml(system_id: str, dataset_id: str, body: YamlImportRequest):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"added": res.added, "updated": res.updated, "total": res.total}
+
+
+@app.post("/api/systems/{system_id}/datasets/{dataset_id}/cases/{case_id}/archive-trace")
+def archive_trace(system_id: str, dataset_id: str, case_id: str):
+    """把用例关联的 Langfuse trace 完整拉回平台归档（随导出进 git，防源数据被清）。"""
+    _require_system(system_id)
+    _require_dataset(system_id, dataset_id)
+    case = store.get_case(system_id, dataset_id, case_id)
+    if case is None:
+        raise HTTPException(404, "case not found")
+    if not case.trace or not case.trace.ref:
+        raise HTTPException(400, "该用例未配置 trace id（编辑用例填 Langfuse trace id）")
+    try:
+        data = langfuse_client.fetch_trace(settings_store.get(), case.trace.ref)
+    except langfuse_client.LangfuseError as e:
+        raise HTTPException(400, str(e))
+    from datetime import datetime, timezone
+    case.trace.data = data
+    case.trace.archived_at = datetime.now(timezone.utc)
+    store.update_case(system_id, dataset_id, case_id, case)
+    n_obs = len(data.get("observations", []) or [])
+    return {"ok": True, "observations": n_obs, "archived_at": case.trace.archived_at}
 
 
 # --- 标签管理（分层）------------------------------------------------------

@@ -13,6 +13,7 @@ from eddplatform.domain.models import (  # noqa: F401
     EvaluatorDef,
     EvaluatorKind,
     EvaluatorScope,
+    GlobalSettings,
     MetricDelta,
     Module,
     OutputType,

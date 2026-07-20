@@ -129,14 +129,17 @@ class EvalProgram(BaseModel):
 
 # --------------------------------------------------------------------------- 用例 / 用例集
 class CaseTrace(BaseModel):
-    """用例对应的线上轨迹——**轻引用**。
+    """用例对应的线上轨迹：轻引用 + 可选的**归档数据**。
 
-    轨迹本体的存储与查看交给 Langfuse（内嵌引擎），平台侧只存指针。
+    轨迹本体在 Langfuse；担心被清理时可点「归档」把完整 trace JSON 拉回平台
+    （并随用例导出进 git），将来 Langfuse 里没了也能查看。
     """
 
     ref: str                              # Langfuse trace id
     url: str | None = None                # 直达轨迹视图的链接（host + id 拼）
     note: str | None = None               # 这条轨迹的问题简述
+    data: dict | None = None              # 归档的完整 trace JSON（可选）
+    archived_at: datetime | None = None   # 归档时间
 
 
 class TagNode(BaseModel):
@@ -215,6 +218,14 @@ class EvaluatorDef(BaseModel):
     threshold: float | None = None        # 通过阈值(UI 层; pydantic-evals 原生无)
     scope: EvaluatorScope = EvaluatorScope.DATASET
     case_refs: list[str] = []             # 挂到哪些用例
+
+
+class GlobalSettings(BaseModel):
+    """平台级基础设置（Langfuse 连接等）。"""
+
+    langfuse_host: str | None = None          # 如 http://localhost:3100
+    langfuse_public_key: str | None = None    # pk-lf-…
+    langfuse_secret_key: str | None = None    # sk-lf-…
 
 
 # --------------------------------------------------------------------------- 运行 / 结果

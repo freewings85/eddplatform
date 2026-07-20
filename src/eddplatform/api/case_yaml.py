@@ -31,6 +31,8 @@ def case_to_yaml_doc(case: Case) -> dict:
     item["turns"] = turns
     if case.expected_output is not None:
         item["expect"] = case.expected_output
+    if case.trace is not None:
+        item["trace"] = case.trace.model_dump(mode="json", exclude_none=True)
     if not case.enabled:
         item["enabled"] = False
     return {"cases": [item]}
@@ -55,6 +57,7 @@ def parse_eval_yaml(text: str) -> list[Case]:
             inputs=json.dumps(item.get("turns", []), ensure_ascii=False),
             expected_output=item.get("expect"),
             tags=item_tags,
+            trace=item.get("trace"),
             enabled=bool(item.get("enabled", True)),
         ))
     return out

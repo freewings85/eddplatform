@@ -8,6 +8,7 @@ from eddplatform.store.dataset_store import DatasetStore
 from eddplatform.store.db import Db
 from eddplatform.store.eval_program_store import EvalProgramStore
 from eddplatform.store.run_store import RunStore
+from eddplatform.store.settings_store import SettingsStore
 from eddplatform.store.system_program_store import SystemProgramStore
 from eddplatform.store.system_store import SystemStore
 from eddplatform.store.tag_store import TagStore
@@ -20,6 +21,7 @@ __all__ = [
     "EvalProgramStore",
     "ImportResult",
     "RunStore",
+    "SettingsStore",
     "SystemProgramStore",
     "SystemStore",
     "TagStore",

@@ -87,6 +87,28 @@ export default function Datasets({ sysId }: { sysId: string }) {
     }
   }
 
+  async function archiveTrace(c: Case) {
+    setError(null);
+    try {
+      const r = await api.archiveTrace(sysId, dsId, c.id);
+      alert(`轨迹已归档：${r.observations} 个 observation（随导出进 git，Langfuse 里删了也不丢）`);
+      reload();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  function downloadTrace(c: Case) {
+    if (!c.trace?.data) return;
+    const blob = new Blob([JSON.stringify(c.trace.data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `trace-${c.trace.ref}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function removeLibrary() {
     const lib = libraries.find((l) => l.id === dsId);
     if (!lib) return;
@@ -264,15 +286,25 @@ export default function Datasets({ sysId }: { sysId: string }) {
                 </td>
                 <td>
                   {c.trace ? (
-                    <a
-                      className="trace-link"
-                      href={c.trace.url ?? undefined}
-                      target="_blank"
-                      rel="noreferrer"
-                      title={c.trace.note ?? c.trace.ref}
-                    >
-                      🔗 轨迹
-                    </a>
+                    <>
+                      <a
+                        className="trace-link"
+                        href={c.trace.url ?? undefined}
+                        target="_blank"
+                        rel="noreferrer"
+                        title={c.trace.note ?? c.trace.ref}
+                      >
+                        🔗
+                      </a>{" "}
+                      {c.trace.data ? (
+                        <>
+                          <span className="tag v" title={`归档于 ${c.trace.archived_at ?? ""}`}>已归档</span>{" "}
+                          <a className="trace-link" onClick={() => downloadTrace(c)}>下载</a>
+                        </>
+                      ) : (
+                        <button className="btn sm" onClick={() => archiveTrace(c)}>归档</button>
+                      )}
+                    </>
                   ) : (
                     <span className="muted">—</span>
                   )}

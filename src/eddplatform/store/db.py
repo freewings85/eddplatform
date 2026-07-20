@@ -67,6 +67,11 @@ SCHEMA = [
         data       JSON NOT NULL,
         PRIMARY KEY (run_id)
     ) CHARACTER SET utf8mb4""",
+    """CREATE TABLE IF NOT EXISTS settings (
+        k VARCHAR(64) NOT NULL,
+        v JSON NOT NULL,
+        PRIMARY KEY (k)
+    ) CHARACTER SET utf8mb4""",
     """CREATE TABLE IF NOT EXISTS case_results (
         run_id  VARCHAR(64) NOT NULL,
         case_id VARCHAR(64) NOT NULL,
@@ -76,7 +81,7 @@ SCHEMA = [
 ]
 
 TABLES = ["cases", "datasets", "tags", "systems", "system_programs", "eval_programs", "tasks",
-          "runs", "case_results"]
+          "runs", "case_results", "settings"]
 
 
 class Db:

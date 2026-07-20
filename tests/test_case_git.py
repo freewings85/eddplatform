@@ -74,3 +74,23 @@ def test_export_writes_one_file_per_case_and_pushes(test_db, cases_repo, tmp_pat
     assert sorted(ids) == ["g1", "g2", "g3"]
     assert cs.get_case("sys1", guide2.id, "g1").name == "改过的g1"
     assert report["commit"] == out["commit"]
+
+
+def test_import_handles_non_ascii_folder(test_db, cases_repo, tmp_path):
+    """中文文件夹名不被 git 路径转义漏扫（曾导致库被误删）。"""
+    from eddplatform.api.case_git import import_from_git
+    from eddplatform.store import CaseStore, DatasetStore
+    work = tmp_path / "w2"
+    _sh("git", "clone", "-q", str(cases_repo), str(work))
+    _sh("git", "-C", str(work), "config", "user.email", "t@t")
+    _sh("git", "-C", str(work), "config", "user.name", "t")
+    (work / "中文用例库").mkdir()
+    (work / "中文用例库" / "c.yaml").write_text(
+        "cases:\n  - id: z1\n    turns: [{user: \"你好\"}]\n", encoding="utf-8")
+    _sh("git", "-C", str(work), "add", "-A")
+    _sh("git", "-C", str(work), "commit", "-qm", "中文库")
+    _sh("git", "-C", str(work), "push", "-q", "origin", "main")
+    ds, cs = DatasetStore(db=test_db), CaseStore(db=test_db)
+    report = import_from_git(_system(cases_repo), ds, cs)
+    paths = {l["path"] for l in report["libraries"]}
+    assert "中文用例库" in paths

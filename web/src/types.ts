@@ -79,6 +79,14 @@ export interface CaseTrace {
   ref: string;
   url?: string | null;
   note?: string | null;
+  data?: Record<string, unknown> | null; // 归档的完整 trace JSON
+  archived_at?: string | null;
+}
+
+export interface GlobalSettings {
+  langfuse_host?: string | null;
+  langfuse_public_key?: string | null;
+  langfuse_secret_key?: string | null;
 }
 
 export interface TagNode {

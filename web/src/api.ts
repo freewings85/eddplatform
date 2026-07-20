@@ -1,5 +1,6 @@
 import type {
   Case,
+  GlobalSettings,
   CaseInput,
   DatasetInfo,
   EvalProgram,
@@ -35,6 +36,11 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<T>
 }
 
 export const api = {
+  // 基础设置
+  settings: () => get<GlobalSettings>("/settings"),
+  saveSettings: (s: GlobalSettings) => send<GlobalSettings>("PUT", "/settings", s),
+  testLangfuse: () => send<{ ok: boolean; projects: string[] }>("POST", "/settings/test-langfuse"),
+
   // 系统注册
   systems: () => get<System[]>("/systems"),
   system: (id: string) => get<System>(`/systems/${id}`),
@@ -79,6 +85,9 @@ export const api = {
     send<DatasetInfo>("PUT", `/systems/${sysId}/datasets/${dsId}`, d),
   deleteDataset: (sysId: string, dsId: string) =>
     send<void>("DELETE", `/systems/${sysId}/datasets/${dsId}`),
+  archiveTrace: (sysId: string, dsId: string, caseId: string) =>
+    send<{ ok: boolean; observations: number; archived_at: string }>(
+      "POST", `/systems/${sysId}/datasets/${dsId}/cases/${caseId}/archive-trace`),
   importCasesGit: (sysId: string) =>
     send<{ commit: string; libraries: { id: string; path: string; count: number }[];
            errors?: string[] }>("POST", `/systems/${sysId}/cases-import-git`),

@@ -4,6 +4,7 @@ import Datasets from "./Datasets";
 import EvalPrograms from "./EvalPrograms";
 import Runs from "./Runs";
 import SystemPrograms from "./SystemPrograms";
+import Settings from "./Settings";
 import Systems from "./Systems";
 import Tags from "./Tags";
 import Tasks from "./Tasks";
@@ -32,6 +33,7 @@ type Nav = { view: string; label: string; icon: string };
 const GLOBAL_NAV: Nav[] = [
   { view: "overview", label: "全局概览", icon: "📊" },
   { view: "systems", label: "系统管理", icon: "🗂️" },
+  { view: "settings", label: "基础设置", icon: "⚙️" },
 ];
 
 const SYSTEM_NAV: Nav[] = [
@@ -118,6 +120,7 @@ export default function App() {
           {mode === "global" && view === "systems" && (
             <Systems onOpen={openSystem} />
           )}
+          {mode === "global" && view === "settings" && <Settings />}
           {mode === "system" && sysId && view === "system-code" && (
             <SystemPrograms sysId={sysId} />
           )}

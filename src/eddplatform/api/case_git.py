@@ -38,11 +38,14 @@ def import_from_git(system: System, dataset_store: DatasetStore, case_store: Cas
     d = _mirror(git_url)
     out = _run(["git", "ls-remote", git_url, f"refs/heads/{branch}"]).strip().splitlines()
     if not out:
-        raise GitResolveError(f"用例仓里没有分支 {branch!r}")
+        raise GitResolveError(
+            f"用例仓里没有分支 {branch!r}（新建的空仓库？先「导出」一次即可自动创建该分支）")
     commit = out[0].split()[0]
     _run(["git", "-C", str(d), "fetch", "--prune", "--quiet"])
 
-    files = _run(["git", "-C", str(d), "ls-tree", "-r", "--name-only", commit]).splitlines()
+    # -z：NUL 分隔且不转义（中文路径不加引号），否则非 ASCII 文件夹会被漏扫
+    files = [f for f in _run(["git", "-C", str(d), "ls-tree", "-r", "--name-only", "-z",
+                              commit]).split("\0") if f]
     by_folder: dict[str, list[str]] = defaultdict(list)
     for f in files:
         if f.endswith((".yaml", ".yml")):
@@ -94,8 +97,13 @@ def export_to_git(system: System, dataset: DatasetInfo, cases: list[Case]) -> di
     folder = dataset.path or dataset.name
     with tempfile.TemporaryDirectory(prefix="edd-cases-") as tmp:
         work = Path(tmp) / "repo"
-        _run(["git", "clone", "--quiet", "--branch", branch, "--single-branch",
-              git_url, str(work)])
+        try:
+            _run(["git", "clone", "--quiet", "--branch", branch, "--single-branch",
+                  git_url, str(work)])
+        except GitResolveError:
+            # 空仓库 / 分支不存在：普通 clone 后建分支（首次导出自动初始化）
+            _run(["git", "clone", "--quiet", git_url, str(work)])
+            _run(["git", "-C", str(work), "checkout", "-B", branch])
         target = work / folder
         target.mkdir(parents=True, exist_ok=True)
         for old in list(target.glob("*.yaml")) + list(target.glob("*.yml")):
