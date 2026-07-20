@@ -375,6 +375,11 @@ temporal = [
     { name = "temporalio" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest-asyncio" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "deepeval", marker = "extra == 'deepeval'" },
@@ -391,6 +396,9 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.29" },
 ]
 provides-extras = ["langfuse", "deepeval", "pydantic-evals", "temporal", "dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest-asyncio", specifier = ">=1.4.0" }]
 
 [[package]]
 name = "execnet"

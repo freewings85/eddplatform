@@ -16,9 +16,11 @@ from temporalio.exceptions import ActivityError
 with workflow.unsafe.imports_passed_through():
     from eddplatform.runtime.temporal.activities import TaskActivities
     from eddplatform.runtime.temporal.shared import (
+        CaseResultOut,
         DeployArgs,
         EvalArgs,
         OutcomeOut,
+        RunCaseInput,
         RunTaskInput,
         RunTaskOutput,
         ScriptArgs,
@@ -74,4 +76,25 @@ class RunTaskWorkflow:
                 EvalArgs(inp.namespace, inp.eval_deploy, inp.eval_target),
                 **opts,
             )
+
+        # 逐用例分派：评估程序 worker 认领 eval_code 队列（方案 A：平台=client / 评估程序=worker）
+        if out.status == "up" and inp.eval_code and inp.cases:
+            for case in inp.cases:
+                try:
+                    r = await workflow.execute_child_workflow(
+                        inp.eval_code,
+                        RunCaseInput(run_id=inp.run_id, namespace=inp.namespace, case=case),
+                        id=f"{workflow.info().workflow_id}-case-{case.case_id}",
+                        task_queue=inp.eval_code,
+                        result_type=CaseResultOut,
+                        execution_timeout=timedelta(minutes=5),
+                    )
+                    out.case_results.append(r)
+                except Exception as e:  # noqa: BLE001 —— 单用例失败不拖垮整场
+                    cause = e
+                    while getattr(cause, "cause", None) is not None:
+                        cause = cause.cause
+                    out.case_results.append(
+                        CaseResultOut(case_id=case.case_id, status="error",
+                                      detail=str(getattr(cause, "message", None) or cause)))
         return out

@@ -55,12 +55,44 @@ class PreconditionSpec:
     script: str | None = None
 
 
+# --- RunCase 契约（平台 ↔ 评估程序 worker）----------------------------------
+# 评估程序仓实现一个 workflow：名字 = task queue = EvalProgram.code，
+# 入参 RunCaseInput，出参 CaseResultOut。平台逐 case 以 child workflow 分派。
+@dataclass
+class CaseSpec:
+    case_id: str
+    name: str = ""
+    inputs: str = ""                   # JSON 串或原文（turns 等）
+    expected: str | None = None
+    metadata: dict = field(default_factory=dict)
+
+
+@dataclass
+class RunCaseInput:
+    run_id: str
+    namespace: str
+    case: CaseSpec
+
+
+@dataclass
+class CaseResultOut:
+    case_id: str
+    status: str = "passed"             # passed | failed | error
+    scores: dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, float] = field(default_factory=dict)
+    detail: str = ""
+    trace_url: str | None = None
+
+
 @dataclass
 class RunTaskInput:
     preconditions: list[PreconditionSpec]
     namespace: str
     eval_deploy: str | None = None     # 评估观测：发起方服务
     eval_target: str | None = None     # 评估观测：被测服务
+    run_id: str = ""                   # 平台侧 RunRecord id
+    eval_code: str | None = None       # 评估程序 code（RunCase workflow 名/队列）
+    cases: list[CaseSpec] = field(default_factory=list)
 
 
 @dataclass
@@ -81,6 +113,7 @@ class RunTaskOutput:
     outcomes: list[OutcomeOut] = field(default_factory=list)
     releases: list[str] = field(default_factory=list)
     result: dict = field(default_factory=dict)               # 评估观测结果
+    case_results: list[CaseResultOut] = field(default_factory=list)
 
 
 def to_spec(pc: Precondition) -> PreconditionSpec:
