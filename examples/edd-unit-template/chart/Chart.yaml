@@ -1,0 +1,4 @@
+apiVersion: v2
+name: edd-unit
+description: EDD 单元示例 chart（一个 demo 服务）
+version: 0.1.0

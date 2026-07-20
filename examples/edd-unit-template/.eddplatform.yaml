@@ -1,0 +1,9 @@
+# EDD 单元声明：平台按它找到构建脚本与 helm chart。字段说明见 README.md。
+apiVersion: eddplatform/v1
+name: demo                   # 本单元的部署名（helm release 名）：小写字母/数字/中划线。
+                             # 例：mainagent / sessionstore / toolexecutor / eval-chatagent
+kind: system                 # system（被评系统）| eval（评估程序）
+build: ./build.sh
+chart: ./chart
+services:
+  - demo

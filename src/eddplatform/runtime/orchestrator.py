@@ -92,10 +92,10 @@ class Orchestrator:
             res = self.deployer.deploy(
                 git_url=pc.git_url, ref=ref, release=name, namespace=namespace, path=pc.path or "."
             )
-            env.releases.append(name)
-            env.versions[name] = res.ref
+            env.releases.append(res.release)
+            env.versions[res.release] = res.ref
             env.outcomes.append(
-                PreconditionOutcome(pc.kind.value, name, "ok", ref=res.ref, images=res.images)
+                PreconditionOutcome(pc.kind.value, res.release, "ok", ref=res.ref, images=res.images)
             )
         elif pc.kind == PreconditionKind.CUSTOM_SCRIPT:
             if not pc.script:

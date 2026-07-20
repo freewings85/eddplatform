@@ -66,7 +66,6 @@ export interface Task {
   system_id: string;
   dataset_name?: string | null;
   preconditions: Precondition[];
-  eval_program_id?: string | null;
   case_ids?: string[] | null; // 用例清单：null/缺省 = 全部用例（动态跟随用例库）
   eval_target?: string | null;
 }

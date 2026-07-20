@@ -1,0 +1,30 @@
+{{- range $name, $svc := .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: { edd-unit: {{ $.Release.Name }} }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: {{ $name }} }
+  template:
+    metadata:
+      labels: { app: {{ $name }}, edd-unit: {{ $.Release.Name }} }
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ $svc.image }}
+          imagePullPolicy: Never
+          ports: [{ containerPort: {{ $svc.port }} }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: { edd-unit: {{ $.Release.Name }} }
+spec:
+  selector: { app: {{ $name }} }
+  ports: [{ port: {{ $svc.port }}, targetPort: {{ $svc.port }} }]
+---
+{{- end }}

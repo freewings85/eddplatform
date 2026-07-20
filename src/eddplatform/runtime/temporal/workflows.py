@@ -40,6 +40,7 @@ class RunTaskWorkflow:
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
 
+        seen_services: set[str] = set()
         for i, pc in enumerate(inp.preconditions):
             name = pc.name or f"{pc.kind}-{i}"
             try:
@@ -52,10 +53,22 @@ class RunTaskWorkflow:
                         DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role, pc.path or "."),
                         **opts,
                     )
+                    # release 名以单元 .eddplatform.yaml 的 name 为准（部署器解析后回传）
+                    if d.release in out.releases:
+                        raise ValueError(
+                            f"release 名重复: {d.release} —— 两个单元的 .eddplatform.yaml "
+                            "声明了相同的 name，请改成互不相同（如 mainagent / sessionstore）")
+                    # 服务名 = 集群内 DNS 名，须在本任务所有单元间唯一
+                    overlap = seen_services & set(d.images.keys())
+                    if overlap:
+                        raise ValueError(
+                            f"服务名撞名: {', '.join(sorted(overlap))} —— 服务名是集群内调用的 "
+                            "DNS 名，必须在本任务的所有单元之间唯一")
+                    seen_services.update(d.images.keys())
                     out.releases.append(d.release)
-                    # 版本标签按前置条件名记（一个任务可拉多个系统单元，如 3 进程 3 条）
-                    out.versions[name] = d.ref
-                    out.outcomes.append(OutcomeOut(pc.kind, name, "ok", ref=d.ref, images=d.images))
+                    out.versions[d.release] = d.ref
+                    out.outcomes.append(
+                        OutcomeOut(pc.kind, d.release, "ok", ref=d.ref, images=d.images))
                 elif pc.kind == "custom_script":
                     if not pc.script:
                         raise ValueError("custom_script 需要 script")

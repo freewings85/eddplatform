@@ -4,6 +4,7 @@
 ``.eddplatform.yaml``，``build``/``chart`` 路径相对该目录：
 
     apiVersion: eddplatform/v1
+    name: mainagent         # 本单元的部署名（helm release 名；小写字母/数字/中划线）
     kind: system            # system | eval
     build: ./build.sh       # 构建脚本：产出镜像 tar + images.json 到 $EDD_OUT_DIR
     chart: ./deploy/chart   # helm chart 路径
@@ -17,6 +18,7 @@ helm 部署，全程不用把版本埋进自由脚本。完整规范见
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -30,6 +32,7 @@ class RepoSpec:
     kind: str                          # system | eval
     build: str                         # 构建脚本相对路径（相对单元目录）
     chart: str                         # helm chart 相对路径（相对单元目录）
+    name: str | None = None            # 部署名（helm release 名）；旧仓库可缺省
     services: list[str] = field(default_factory=list)
     api_version: str = "eddplatform/v1"
 
@@ -46,10 +49,14 @@ def read_repo_spec(repo_dir: str | Path, path: str = ".") -> RepoSpec:
         raise ValueError(f"{CONVENTION_FILE} 缺少必填字段: {', '.join(missing)}")
     if data["kind"] not in ("system", "eval"):
         raise ValueError(f"kind 必须是 system 或 eval，得到 {data['kind']!r}")
+    name = data.get("name")
+    if name is not None and not re.fullmatch(r"[a-z0-9][a-z0-9-]*", str(name)):
+        raise ValueError(f"name 必须是小写字母/数字/中划线，得到 {name!r}")
     return RepoSpec(
         kind=data["kind"],
         build=data["build"],
         chart=data["chart"],
+        name=name,
         services=list(data.get("services", [])),
         api_version=data.get("apiVersion", "eddplatform/v1"),
     )

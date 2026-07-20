@@ -77,7 +77,10 @@ class ConventionDeployer:
 
             unit = repo / path
             spec = read_repo_spec(repo, path)
-            self._log(f"[2/5] 约定: kind={spec.kind} build={spec.build} chart={spec.chart}")
+            # release 名：单元自己声明的 name 优先（规范里填），缺省用调用方传入的
+            release = spec.name or release
+            self._log(f"[2/5] 约定: name={spec.name} kind={spec.kind} "
+                      f"build={spec.build} chart={spec.chart} → release={release}")
 
             self._log(f"[3/5] 跑构建脚本 {spec.build} (EDD_IMAGE_TAG={image_tag})")
             self._run_build(unit, spec.build, image_tag, out_dir)

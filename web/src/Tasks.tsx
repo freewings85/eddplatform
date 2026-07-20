@@ -23,7 +23,10 @@ type Row = {
   branch?: string; // 固化的分支
   commit?: string; // 固化的 commit（部署用它）
   branchesHint?: string; // 输入 commit 反查到的分支列表（展示）
-  name?: string; // helm release 名
+  path?: string; // 规范文件夹路径（默认取注册项的目录，可改，随任务固化）
+  validationMsg?: string; // 规范校验结果（展示）
+  validationOk?: boolean;
+  name?: string; // 内部标签（真正的 helm release 名来自单元 .eddplatform.yaml 的 name）
   script?: string; // 旧任务里的自定义脚本（仅保留展示）
 };
 
@@ -110,8 +113,10 @@ export default function Tasks({ sysId }: { sysId: string }) {
                   ))}
                 </td>
                 <td className="mono">
-                  {evalPrograms.find((p) => p.id === t.eval_program_id)?.code ??
-                    (t.eval_program_id || "—")}
+                  {(() => {
+                    const pc = t.preconditions.find((p) => p.kind === "start_eval_program");
+                    return evalPrograms.find((p) => p.id === pc?.program_id)?.code ?? "—";
+                  })()}
                 </td>
                 <td>{t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}</td>
                 <td>
@@ -159,6 +164,7 @@ function toRows(task: Task): Row[] {
     programId: p.program_id ?? undefined,
     branch: p.branch ?? undefined,
     commit: p.commit ?? undefined,
+    path: p.path ?? undefined,
     name: p.name ?? undefined,
     script: p.script ?? undefined,
   }));
@@ -188,9 +194,6 @@ function TaskForm({
           { kind: "start_eval_program", programId: evalPrograms[0]?.id },
         ],
   );
-  const [evalProgramId, setEvalProgramId] = useState<string>(
-    initial?.eval_program_id ?? evalPrograms[0]?.id ?? "",
-  );
   const [cases, setCases] = useState<Case[]>([]);
   const [allCases, setAllCases] = useState<boolean>(initial ? initial.case_ids == null : true);
   const [selected, setSelected] = useState<Set<string>>(new Set(initial?.case_ids ?? []));
@@ -205,12 +208,11 @@ function TaskForm({
   useEffect(() => {
     setRows((rs) => rs.map((r) => {
       if (r.kind === "start_system" && !r.programId && sysPrograms.length)
-        return { ...r, programId: sysPrograms[0].id };
+        return { ...r, programId: sysPrograms[0].id, path: r.path ?? sysPrograms[0].path };
       if (r.kind === "start_eval_program" && !r.programId && evalPrograms.length)
-        return { ...r, programId: evalPrograms[0].id };
+        return { ...r, programId: evalPrograms[0].id, path: r.path ?? evalPrograms[0].path };
       return r;
     }));
-    if (!initial && evalPrograms.length) setEvalProgramId((v) => v || evalPrograms[0].id);
     // eslint-disable-next-line
   }, [sysPrograms, evalPrograms]);
 
@@ -283,6 +285,26 @@ function TaskForm({
     }
   }
 
+  async function validateUnit(i: number) {
+    const row = rows[i];
+    const reg = regOf(row);
+    setError(null);
+    if (!reg) return setError("先选择程序");
+    const ref = row.commit?.trim() || row.branch?.trim();
+    if (!ref) return setError("先固化 分支/commit，再校验规范文件夹");
+    try {
+      const r = await api.validateUnit(reg.git_url, ref, row.path?.trim() || ".");
+      patch(i, {
+        validationOk: r.ok,
+        validationMsg: r.ok
+          ? `✓ 规范校验通过：name=${r.name} · kind=${r.kind} · services=[${r.services.join(", ")}]`
+          : `✗ ${r.errors.join("；")}`,
+      });
+    } catch (e) {
+      patch(i, { validationOk: false, validationMsg: String(e) });
+    }
+  }
+
   function toggleCase(id: string) {
     setSelected((cur) => {
       const next = new Set(cur);
@@ -296,13 +318,14 @@ function TaskForm({
     const reg = regOf(row);
     if (row.kind === "custom_script")
       return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
+    // name 只是内部回退标签；真正的 helm release 名来自单元 .eddplatform.yaml 的 name
     const fallback = row.kind === "start_system" ? "system" : `eval-${reg?.code ?? "program"}`;
     return {
       kind: row.kind,
       name: (row.name ?? "").trim() || fallback,
       program_id: row.programId ?? null,
       git_url: reg?.git_url ?? null,
-      path: reg?.path ?? ".",
+      path: row.path?.trim() || reg?.path || ".",
       branch: row.branch?.trim() || null,
       commit: row.commit?.trim() || null,
     };
@@ -312,7 +335,6 @@ function TaskForm({
     setError(null);
     if (!name.trim()) return setError("任务名不能为空");
     if (rows.length === 0) return setError("至少保留一条前置条件");
-    const releaseNames: string[] = [];
     for (const row of rows) {
       if (row.kind === "custom_script") continue;
       if (!row.programId || !regOf(row))
@@ -320,20 +342,13 @@ function TaskForm({
       if (!row.branch?.trim() || !row.commit?.trim())
         return setError(`「${KIND_LABEL[row.kind]} · ${regOf(row)?.label}」需要固化 分支+commit：`
           + "填分支点「获取最新 commit」，或填 commit 点「校验」");
-      const rel = toPrecondition(row).name ?? "";
-      if (!/^[a-z0-9][a-z0-9-]*$/.test(rel))
-        return setError(`名称「${rel}」不合法：小写字母/数字/中划线（作 helm release 名）`);
-      releaseNames.push(rel);
     }
-    const dup = releaseNames.find((n, i) => releaseNames.indexOf(n) !== i);
-    if (dup) return setError(`多条启动条件的名称必须唯一（「${dup}」重复了）——每条各是一个 helm release`);
     if (!allCases && selected.size === 0)
       return setError("勾选模式下至少选择一条用例（或切回「全部用例」）");
     const payload: TaskInput = {
       name: name.trim(),
       system_id: sysId,
       preconditions: rows.map(toPrecondition),
-      eval_program_id: evalProgramId || null,
       case_ids: allCases ? null : [...selected],
     };
     setBusy(true);
@@ -359,22 +374,11 @@ function TaskForm({
         </div>
 
         <div className="modal-body">
-          <div className="fld-row">
-            <label className="fld">
-              <span>任务名 *</span>
-              <input value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="chatagent 2.3-eval guide 冒烟" />
-            </label>
-            <label className="fld">
-              <span>评估程序（逐用例评估；空 = 只拉环境不评估）</span>
-              <select value={evalProgramId} onChange={(e) => setEvalProgramId(e.target.value)}>
-                <option value="">（不评估）</option>
-                {evalPrograms.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} · code={p.code}</option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <label className="fld">
+            <span>任务名 *</span>
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="chatagent 2.3-eval guide 冒烟" />
+          </label>
 
           <div className="fld">
             <span>前置条件（按顺序执行；默认 = 启动系统 → 启动评估程序）</span>
@@ -456,16 +460,29 @@ function TaskForm({
                         )}
                       </div>
 
-                      {/* 区块 2：名称（helm release 名） */}
+                      {/* 区块 2：部署设置 —— 规范文件夹路径 + 校验 + 下载示例 */}
                       <div className="pc-block">
-                        <div className="pc-block-title">部署设置</div>
+                        <div className="pc-block-title">
+                          部署设置
+                          <a className="btn sm" style={{ marginLeft: 8 }}
+                            href="/api/edd-unit-template" download>
+                            ⬇ 下载规范示例（edd_helm 文件夹）
+                          </a>
+                        </div>
                         <label className="fld">
-                          <span>名称 *（helm release 名；多条启动条件时各取一个）</span>
-                          <input className="mono"
-                            value={row.name ?? (row.kind === "start_system" ? "system" : `eval-${reg?.code ?? ""}`)}
-                            onChange={(e) => patch(i, { name: e.target.value })}
-                            placeholder="system / mainagent / eval-chatagent…" />
+                          <span>规范文件夹路径（仓库内含 .eddplatform.yaml/build.sh/chart 的目录）</span>
+                          <div className="inline-btn">
+                            <input className="mono" value={row.path ?? reg?.path ?? "."}
+                              onChange={(e) => patch(i, { path: e.target.value,
+                                validationMsg: undefined, validationOk: undefined })}
+                              placeholder="edd_helm（默认 . = 仓库根）" />
+                            <button className="btn sm" onClick={() => validateUnit(i)}>校验规范</button>
+                          </div>
                         </label>
+                        {row.validationMsg && (
+                          <p className={row.validationOk ? "note" : "err"}
+                            style={{ margin: 0 }}>{row.validationMsg}</p>
+                        )}
                       </div>
                     </>
                   )}

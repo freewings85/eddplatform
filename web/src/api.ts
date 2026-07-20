@@ -58,6 +58,10 @@ export const api = {
   resolveCommit: (gitUrl: string, commit: string) =>
     send<{ commit: string; branches: string[] }>("POST", "/git/resolve-commit",
       { git_url: gitUrl, commit }),
+  validateUnit: (gitUrl: string, ref: string, path: string) =>
+    send<{ ok: boolean; errors: string[]; name?: string | null; kind?: string | null;
+           services: string[] }>("POST", "/git/validate-unit",
+      { git_url: gitUrl, ref, path }),
 
   // 评估程序注册
   evalPrograms: (sysId: string) => get<EvalProgram[]>(`/systems/${sysId}/eval-programs`),

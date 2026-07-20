@@ -13,8 +13,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 from pydantic import BaseModel
 
 from eddplatform.api import case_yaml, git_resolve, run_service
-from eddplatform.domain.models import (Case, Dataset, EvalProgram, RunRecord, System,
-                                       SystemProgram, TagNode, Task)
+from eddplatform.domain.models import (Case, Dataset, EvalProgram, PreconditionKind,
+                                       RunRecord, System, SystemProgram, TagNode, Task)
 from eddplatform.store import (CaseStore, EvalProgramStore, RunStore, SystemProgramStore,
                                SystemStore, TagStore, TaskStore)
 
@@ -174,6 +174,41 @@ def resolve_commit(body: GitCommitQuery):
         raise HTTPException(400, str(e))
 
 
+class UnitQuery(BaseModel):
+    git_url: str
+    ref: str                              # commit（或分支）
+    path: str = "."
+
+
+@app.post("/api/git/validate-unit")
+def validate_unit(body: UnitQuery):
+    """在 仓库@ref 里校验单元文件夹是否满足 EDD 接入规范。"""
+    try:
+        return git_resolve.validate_unit(body.git_url, body.ref, body.path)
+    except git_resolve.GitResolveError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/edd-unit-template")
+def download_unit_template():
+    """下载单元规范示例文件夹（edd_helm/，含 README 说明书）。"""
+    import io
+    import zipfile
+
+    from fastapi.responses import Response
+
+    root = Path(__file__).resolve().parents[3] / "examples" / "edd-unit-template"
+    if not root.exists():
+        raise HTTPException(404, "模板目录缺失")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for f in sorted(root.rglob("*")):
+            if f.is_file():
+                z.write(f, f"edd_helm/{f.relative_to(root)}")
+    return Response(buf.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": 'attachment; filename="edd_helm.zip"'})
+
+
 # --- 评估程序注册 ----------------------------------------------------------
 @app.get("/api/systems/{system_id}/eval-programs")
 def list_eval_programs(system_id: str) -> list[EvalProgram]:
@@ -248,11 +283,14 @@ async def run_task_endpoint(system_id: str, task_id: str) -> RunRecord:
     task = task_store.get(system_id, task_id)
     if task is None:
         raise HTTPException(404, "task not found")
+    # 逐用例分派的 code 来自「启动评估程序」前置条件引用的注册项
     eval_program = None
-    if task.eval_program_id:
-        eval_program = eval_program_store.get(system_id, task.eval_program_id)
-        if eval_program is None:
-            raise HTTPException(409, f"评估程序 {task.eval_program_id} 不存在")
+    for pc in task.preconditions:
+        if pc.kind == PreconditionKind.START_EVAL_PROGRAM and pc.program_id:
+            eval_program = eval_program_store.get(system_id, pc.program_id)
+            if eval_program is None:
+                raise HTTPException(409, f"评估程序 {pc.program_id} 不存在（已被删除？）")
+            break
     all_cases = [c for c in store.list_cases(system_id) if c.enabled]
     if task.case_ids is not None:
         picked = set(task.case_ids)
