@@ -1,27 +1,24 @@
-"""领域模型：System / Module / SystemVersion / Sandbox / Run / Evaluation / Comparison。"""
+"""领域模型：System / EvalProgram / Dataset·Case / Task / RunRecord·CaseRunResult。"""
 
 from eddplatform.domain.models import (  # noqa: F401
     Case,
+    CaseRunResult,
     CaseResult,
     Comparison,
     ContextField,
     Dataset,
-    Environment,
+    EvalProgram,
     EvalResult,
-    EvalStatus,
-    Evaluation,
     EvaluatorDef,
     EvaluatorKind,
     EvaluatorScope,
-    IsolationLevel,
     MetricDelta,
     Module,
     OutputType,
+    Precondition,
+    PreconditionKind,
     RunRecord,
     RunStatus,
-    RunType,
-    SandboxConfig,
     System,
-    SystemVersion,
-    VersionStatus,
+    Task,
 )

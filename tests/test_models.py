@@ -1,7 +1,13 @@
 """领域模型的核心不变量测试。"""
 
-from eddplatform.api import sample_data as sd
-from eddplatform.domain.models import Case, Comparison, MetricDelta
+from eddplatform.domain.models import (
+    Case,
+    Dataset,
+    EvalProgram,
+    MetricDelta,
+    RunRecord,
+    RunStatus,
+)
 
 
 def test_case_applies_to_specific_version():
@@ -17,11 +23,14 @@ def test_case_empty_applicable_means_all_versions():
 
 
 def test_comparison_only_counts_cases_applicable_to_both():
-    """对比只统计两版本都适用的用例——#102(仅 v2) 必须被排除。"""
-    shared = sd.DATASET.cases_for_comparison("v1", "v2")
-    ids = {c.id for c in shared}
-    assert "102" not in ids            # v2 专属，v1 不适用
-    assert {"17", "63", "88", "91"} <= ids
+    """对比只统计两版本都适用的用例——仅 v2 适用的必须被排除。"""
+    ds = Dataset(name="d", system_id="s", cases=[
+        Case(id="1", name="通用", inputs="x"),
+        Case(id="2", name="v2 专属", inputs="x", applicable_versions=["v2"]),
+        Case(id="3", name="禁用", inputs="x", enabled=False),
+    ])
+    ids = {c.id for c in ds.cases_for_comparison("v1", "v2")}
+    assert ids == {"1"}
 
 
 def test_metric_delta():
@@ -29,14 +38,11 @@ def test_metric_delta():
     assert round(d.delta, 2) == 0.04
 
 
-def test_evaluation_always_has_a_run():
-    """评估任务一定带一条运行记录。"""
-    for e in sd.EVALUATIONS:
-        assert e.run_id is not None
+def test_eval_program_has_code_and_ref():
+    ep = EvalProgram(id="ep1", system_id="s", name="评估程序", git_url="/repo", code="chatagent-eval")
+    assert ep.ref == "main" and ep.code == "chatagent-eval"
 
 
-def test_comparison_model_roundtrip():
-    c = sd.COMPARISON
-    assert isinstance(c, Comparison)
-    assert c.applicable_cases == 178
-    assert c.improved + c.regressed + c.unchanged == 178
+def test_run_record_shape():
+    r = RunRecord(system_id="s", task_id="t")
+    assert r.status == RunStatus.RUNNING and r.outcomes == []

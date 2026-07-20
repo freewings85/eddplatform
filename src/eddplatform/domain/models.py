@@ -2,13 +2,11 @@
 
 对象关系（与 prototype/ 和 docs/ 一致）::
 
-    System ─< Module(含 Git)
-           ─< SystemVersion(钉住各模块 tag 的快照)
-    SandboxConfig ── Environment(某版本的一次性实例)
-    Dataset ─< Case(有自身版本 + 适用系统版本) ── EvaluatorDef
-    RunRecord   一次执行: 日志/轨迹; 可单独运行或由评估产生
-    Evaluation  = SystemVersion × Dataset × Environment → RunRecord + EvalResult
-    Comparison  = 两个 EvalResult 的对比(只算两版本都适用的用例)
+    System        被评系统（注册表；约定式部署直接用 git 仓库）
+    EvalProgram   评估程序（独立 git 仓；code = RunCase workflow 名/队列）
+    Dataset ─< Case（有自身版本 + 适用系统版本）
+    Task          评估任务 = 数据集 + 有序前置条件 + 评估程序
+    RunRecord     一次 task 执行（Temporal workflow 的平台侧记录）─< CaseRunResult
 """
 
 from __future__ import annotations
@@ -20,37 +18,9 @@ from pydantic import BaseModel, Field
 
 
 # --------------------------------------------------------------------------- 枚举
-class IsolationLevel(str, Enum):
-    NAMESPACE_NETPOL = "namespace+NetworkPolicy"  # 默认，最轻
-    VCLUSTER = "vCluster"                          # 强隔离
-    KATA_GVISOR = "Kata/gVisor"                    # 跑高危工具
-
-
-class VersionStatus(str, Enum):
-    DRAFT = "draft"
-    PRODUCTION = "production"
-    ARCHIVED = "archived"
-
-
-class RunType(str, Enum):
-    STANDALONE = "standalone"    # 单独运行：拉起环境自测，不评分
-    EVALUATION = "evaluation"    # 由评估产生
-
-
 class RunStatus(str, Enum):
-    PENDING = "pending"
-    BUILDING = "building"
     RUNNING = "running"
-    SCORING = "scoring"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    DESTROYED = "destroyed"
-
-
-class EvalStatus(str, Enum):
-    DRAFT = "draft"
-    RUNNING = "running"
-    COMPLETED = "completed"
+    SUCCEEDED = "succeeded"
     FAILED = "failed"
 
 
@@ -103,63 +73,26 @@ class System(BaseModel):
     id: str
     name: str
     owner: str | None = None
+    description: str | None = None
     modules: list[Module] = []
     prod_version: str | None = None
-
-
-class SystemVersion(BaseModel):
-    """一组模块钉住 tag/commit 的快照，如 v2 = 2 新 + 3 旧。"""
-
-    id: str
-    system_id: str
-    label: str                        # v1 / v2
-    module_pins: dict[str, str]       # module name -> tag/commit
-    status: VersionStatus = VersionStatus.DRAFT
-    note: str | None = None
 
 
 class EvalProgram(BaseModel):
     """评估程序（评估代码库）——**独立于系统代码**的另一套 git 仓库。
 
-    实现评估逻辑（怎么算分），按 ``.eddplatform.yaml`` 约定被拉起来评估系统。
-    与被测系统的 Module/SystemVersion 对称：各自版本化。用例的 ``evaluator_names``
-    声明用哪个评估器，由某个版本的评估程序提供其实现。
+    实现评估逻辑（怎么算分），按 ``.eddplatform.yaml`` 约定被拉起来当 worker。
+    ``code`` 是它认领的 Temporal RunCase workflow 名 = task queue：平台逐用例
+    分派 child workflow 时按 ``code`` 找到它。
     """
 
-    id: str
-    system_id: str                    # 评估哪个系统
+    id: str = ""                      # 空 = store 落库时生成（EP-0001）
+    system_id: str = ""
     name: str
     git_url: str
-    branch: str = "main"
-    image: str
-    dockerfile: str = "./Dockerfile"
+    ref: str = "main"                 # 部署用的 git ref（分支/tag/sha）
+    code: str                         # RunCase workflow 名 + task queue
     owner: str | None = None
-    versions: list[str] = []          # 该评估仓库的 tag/版本
-    prod_tag: str | None = None
-
-
-# --------------------------------------------------------------------------- 环境 / 沙箱
-class SandboxConfig(BaseModel):
-    """可复用可选择的沙箱配置；运行/评估时选一套拉起。"""
-
-    name: str
-    isolation: IsolationLevel = IsolationLevel.NAMESPACE_NETPOL
-    cpu: int = 2
-    mem_gb: int = 4
-    ttl_hours: float = 2.0
-    traffic_split: bool = False       # Istio v1/v2 流量切分
-
-
-class Environment(BaseModel):
-    """某系统版本的一次性(ephemeral)实例；跑完/到期销毁。"""
-
-    id: str
-    name: str
-    config_name: str
-    version_label: str
-    status: RunStatus = RunStatus.PENDING
-    ttl_hours_left: float | None = None
-    purpose: str | None = None        # "评估 #R-1042" / "单独运行"
 
 
 # --------------------------------------------------------------------------- 用例 / 用例集
@@ -242,24 +175,38 @@ class EvaluatorDef(BaseModel):
     case_refs: list[str] = []             # 挂到哪些用例
 
 
-# --------------------------------------------------------------------------- 运行 / 结果 / 评估
+# --------------------------------------------------------------------------- 运行 / 结果
 class RunRecord(BaseModel):
-    """一次运行：拉起环境 → 跑，产出日志 + 轨迹。可脱离评估独立存在。"""
+    """一次 task 执行（experiment）：Temporal workflow 的平台侧记录。"""
 
-    id: str
-    type: RunType
+    id: str = ""                           # 空 = store 落库时生成（R-xxxxxxxx）
     system_id: str
-    version_label: str
-    environment_id: str | None = None
-    status: RunStatus = RunStatus.PENDING
-    started_at: datetime | None = None
-    duration_s: float | None = None
-    eval_id: str | None = None            # 关联评估；单独运行为 None
-    trace_ref: str | None = None          # Langfuse trace 链接
-    log: list[str] = []
+    task_id: str
+    task_name: str = ""
+    status: RunStatus = RunStatus.RUNNING
+    workflow_id: str = ""
+    namespace: str = ""
+    versions: dict[str, str] = {}          # {system: sha, eval: sha}
+    outcomes: list[dict] = []              # 每条前置条件的 OutcomeOut dict
+    detail: str = ""                       # 失败原因等
+    created_at: datetime | None = None
+    finished_at: datetime | None = None
+
+
+class CaseRunResult(BaseModel):
+    """单用例评估结果（由评估程序 worker 经 RunCase workflow 返回）。"""
+
+    case_id: str
+    status: str = "passed"                 # passed | failed | error
+    scores: dict[str, float] = {}
+    metrics: dict[str, float] = {}
+    detail: str = ""
+    trace_url: str | None = None
 
 
 class CaseResult(BaseModel):
+    """（本地兜底评分器 engine.py 专用）单用例断言/分数汇总。"""
+
     case_id: str
     passed: bool
     assertions: dict[str, bool] = {}
@@ -271,20 +218,6 @@ class EvalResult(BaseModel):
     pass_rate: float
     metrics: dict[str, float] = {}
     case_results: list[CaseResult] = []
-
-
-class Evaluation(BaseModel):
-    """一个评估任务 = 系统版本 × 用例集 × 环境；一定带一条运行记录。"""
-
-    id: str
-    name: str
-    system_id: str
-    version_label: str
-    dataset_name: str
-    sandbox_config: str
-    run_id: str | None = None             # 必带一条运行记录
-    status: EvalStatus = EvalStatus.DRAFT
-    result: EvalResult | None = None
 
 
 # --------------------------------------------------------------------------- 对比
@@ -344,4 +277,5 @@ class Task(BaseModel):
     system_id: str
     dataset_name: str | None = None
     preconditions: list[Precondition] = []
+    eval_program_id: str | None = None       # 选定的评估程序（其 code 决定 RunCase 分派队列）
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）
