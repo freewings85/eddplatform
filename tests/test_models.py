@@ -38,9 +38,9 @@ def test_metric_delta():
     assert round(d.delta, 2) == 0.04
 
 
-def test_eval_program_has_code_and_ref():
+def test_eval_program_has_code_and_path():
     ep = EvalProgram(id="ep1", system_id="s", name="评估程序", git_url="/repo", code="chatagent-eval")
-    assert ep.ref == "main" and ep.code == "chatagent-eval"
+    assert ep.path == "." and ep.code == "chatagent-eval"
 
 
 def test_run_record_shape():
