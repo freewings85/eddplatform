@@ -7,8 +7,8 @@ from eddplatform.store import CaseStore
 
 
 @pytest.fixture
-def store(tmp_path):
-    return CaseStore(db_path=str(tmp_path / "test.db"))
+def store(test_db):
+    return CaseStore(db=test_db)
 
 
 def _case(name="用例", **kw):
@@ -115,14 +115,6 @@ def test_import_rejects_bad_mode(store):
         store.import_cases("insurance", [], mode="merge")
 
 
-def test_seed_if_empty_is_idempotent(store):
-    seeds = [_case(id="17"), _case(id="88")]
-    store.seed_if_empty("insurance", seeds)
-    store.seed_if_empty("insurance", seeds)      # 第二次不重复灌
-    assert len(store.list_cases("insurance")) == 2
-
-
-def test_persists_across_instances(tmp_path):
-    path = str(tmp_path / "p.db")
-    CaseStore(db_path=path).add_case("insurance", _case(id="17"))
-    assert CaseStore(db_path=path).get_case("insurance", "17") is not None
+def test_persists_across_instances(test_db):
+    CaseStore(db=test_db).add_case("insurance", _case(id="17"))
+    assert CaseStore(db=test_db).get_case("insurance", "17") is not None

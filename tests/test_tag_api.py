@@ -10,9 +10,9 @@ SYS = "insurance"
 
 
 @pytest.fixture
-def client(tmp_path):
-    app_module.store = CaseStore(db_path=str(tmp_path / "c.db"))
-    app_module.tag_store = TagStore(db_path=str(tmp_path / "t.db"))
+def client(test_db):
+    app_module.store = CaseStore(db=test_db)
+    app_module.tag_store = TagStore(db=test_db)
     return TestClient(app_module.app)
 
 

@@ -26,11 +26,9 @@ app = FastAPI(
 # 仓库根：src/eddplatform/api/app.py -> parents[3]
 PROTOTYPE = Path(__file__).resolve().parents[3] / "prototype" / "index.html"
 
-# 用例 + 标签持久化（sqlite）。首次用示例数据播种，保证 UI 不空。
+# 用例 + 标签持久化（MySQL）。零假数据：不播种。
 store = CaseStore()
-store.seed_if_empty(sd.DATASET.system_id, sd.DATASET.cases)
 tag_store = TagStore()
-tag_store.seed_if_empty(sd.DATASET.system_id, sd.SEED_TAGS)
 
 
 def _dataset_meta(system_id: str) -> tuple[str, list[str]]:

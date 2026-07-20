@@ -10,9 +10,8 @@ SYS = "insurance"
 
 
 @pytest.fixture
-def client(tmp_path):
-    # 把 store 换成临时库，避免污染真实 data/ 且逐测隔离
-    app_module.store = CaseStore(db_path=str(tmp_path / "api.db"))
+def client(test_db):
+    app_module.store = CaseStore(db=test_db)
     return TestClient(app_module.app)
 
 

@@ -7,8 +7,8 @@ from eddplatform.store import CaseStore, TagStore
 
 
 @pytest.fixture
-def tags(tmp_path):
-    return TagStore(db_path=str(tmp_path / "t.db"))
+def tags(test_db):
+    return TagStore(db=test_db)
 
 
 def test_add_root_and_child_paths(tags):
@@ -73,16 +73,8 @@ def test_delete_cascades_children(tags):
     assert tags.list_tags("insurance") == []
 
 
-def test_seed_if_empty_is_idempotent(tags):
-    tree = [("业务", ["报价", "对话"]), ("质量", ["回归"])]
-    tags.seed_if_empty("insurance", tree)
-    tags.seed_if_empty("insurance", tree)
-    paths = set(tags.paths("insurance"))
-    assert paths == {"业务", "业务/报价", "业务/对话", "质量", "质量/回归"}
-
-
-def test_rewrite_tag_prefix_updates_matching_cases(tmp_path):
-    cases = CaseStore(db_path=str(tmp_path / "c.db"))
+def test_rewrite_tag_prefix_updates_matching_cases(test_db):
+    cases = CaseStore(db=test_db)
     cases.add_case("insurance", Case(id="1", name="a", inputs="x", tags=["业务/报价"]))
     cases.add_case("insurance", Case(id="2", name="b", inputs="x", tags=["业务", "质量/回归"]))
     cases.add_case("insurance", Case(id="3", name="c", inputs="x", tags=["安全/注入"]))

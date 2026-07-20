@@ -1,4 +1,4 @@
-"""标签树持久化：每系统一棵标签树，节点存 ``(id, name, parent_id)``。
+"""标签树持久化：每系统一棵标签树，节点存 ``(id, name, parent_id)``（MySQL）。
 
 case 用**完整路径**（``业务/报价``）引用标签；路径由 parent 链计算得到。
 重命名会改变子树路径，调用方（API）负责把 case 上的旧路径前缀重写成新路径。
@@ -6,47 +6,19 @@ case 用**完整路径**（``业务/报价``）引用标签；路径由 parent �
 
 from __future__ import annotations
 
-import os
-import sqlite3
 import threading
-from pathlib import Path
 
 from eddplatform.domain.models import TagNode
-
-DEFAULT_DB = "data/eddplatform.db"
+from eddplatform.store.db import Db
 
 
 class TagStore:
-    def __init__(self, db_path: str | None = None) -> None:
-        self.db_path = db_path or os.environ.get("EDDPLATFORM_DB", DEFAULT_DB)
+    def __init__(self, db: Db | None = None) -> None:
+        self.db = db or Db()
         self._lock = threading.Lock()
-        parent = Path(self.db_path).parent
-        if str(parent):
-            parent.mkdir(parents=True, exist_ok=True)
-        self._init_schema()
 
-    # --- 连接 / 建表 ------------------------------------------------------
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_schema(self) -> None:
-        conn = self._connect()
-        try:
-            conn.execute(
-                """CREATE TABLE IF NOT EXISTS tags (
-                    system_id TEXT NOT NULL,
-                    id        TEXT NOT NULL,
-                    name      TEXT NOT NULL,
-                    parent_id TEXT,
-                    position  INTEGER NOT NULL,
-                    PRIMARY KEY (system_id, id)
-                )"""
-            )
-            conn.commit()
-        finally:
-            conn.close()
+    def _connect(self):
+        return self.db.connect()
 
     # --- 读 --------------------------------------------------------------
     def list_tags(self, system_id: str) -> list[TagNode]:
@@ -74,18 +46,18 @@ class TagStore:
         with self._lock:
             conn = self._connect()
             try:
-                by_id = {r["id"]: r for r in conn.execute(
-                    "SELECT id, name, parent_id FROM tags WHERE system_id=?", (system_id,)
-                ).fetchall()}
+                by_id = self._by_id(conn, system_id)
                 if parent_id is not None and parent_id not in by_id:
                     raise ValueError(f"父标签 {parent_id} 不存在")
                 self._reject_dup_sibling(by_id, parent_id, name)
                 tag_id = self._next_id(conn, system_id)
                 pos = self._next_position(conn, system_id)
-                conn.execute(
-                    "INSERT INTO tags(system_id, id, name, parent_id, position) VALUES(?,?,?,?,?)",
-                    (system_id, tag_id, name, parent_id, pos),
-                )
+                with conn.cursor() as c:
+                    c.execute(
+                        "INSERT INTO tags(system_id, id, name, parent_id, position) "
+                        "VALUES(%s,%s,%s,%s,%s)",
+                        (system_id, tag_id, name, parent_id, pos),
+                    )
                 conn.commit()
                 by_id[tag_id] = {"id": tag_id, "name": name, "parent_id": parent_id}
                 path = self._path_of(tag_id, by_id)
@@ -99,18 +71,17 @@ class TagStore:
         with self._lock:
             conn = self._connect()
             try:
-                by_id = {r["id"]: dict(r) for r in conn.execute(
-                    "SELECT id, name, parent_id FROM tags WHERE system_id=?", (system_id,)
-                ).fetchall()}
+                by_id = self._by_id(conn, system_id)
                 if tag_id not in by_id:
                     raise KeyError(tag_id)
                 node = by_id[tag_id]
                 old_path = self._path_of(tag_id, by_id)
                 self._reject_dup_sibling(by_id, node["parent_id"], new_name, exclude=tag_id)
-                conn.execute(
-                    "UPDATE tags SET name=? WHERE system_id=? AND id=?",
-                    (new_name, system_id, tag_id),
-                )
+                with conn.cursor() as c:
+                    c.execute(
+                        "UPDATE tags SET name=%s WHERE system_id=%s AND id=%s",
+                        (new_name, system_id, tag_id),
+                    )
                 conn.commit()
                 node["name"] = new_name
                 new_path = self._path_of(tag_id, by_id)
@@ -127,42 +98,42 @@ class TagStore:
         with self._lock:
             conn = self._connect()
             try:
-                by_id = {r["id"]: dict(r) for r in conn.execute(
-                    "SELECT id, name, parent_id FROM tags WHERE system_id=?", (system_id,)
-                ).fetchall()}
+                by_id = self._by_id(conn, system_id)
                 if tag_id not in by_id:
                     raise KeyError(tag_id)
                 doomed = self._subtree_ids(tag_id, by_id)
                 deleted_paths = [self._path_of(i, by_id) for i in doomed]
-                conn.executemany(
-                    "DELETE FROM tags WHERE system_id=? AND id=?",
-                    [(system_id, i) for i in doomed],
-                )
+                with conn.cursor() as c:
+                    c.executemany(
+                        "DELETE FROM tags WHERE system_id=%s AND id=%s",
+                        [(system_id, i) for i in doomed],
+                    )
                 conn.commit()
             finally:
                 conn.close()
         return deleted_paths
 
-    def seed_if_empty(self, system_id: str, tree: list[tuple[str, list[str]]]) -> None:
-        """空时播种。tree = [(父名, [子名...]), ...]，只做两层，够示例用。"""
-        if self.list_tags(system_id):
-            return
-        for parent_name, children in tree:
-            parent = self.add_tag(system_id, parent_name)
-            for child in children:
-                self.add_tag(system_id, child, parent_id=parent.id)
-
     # --- 内部 ------------------------------------------------------------
-    def _rows(self, system_id: str) -> list[sqlite3.Row]:
+    def _rows(self, system_id: str) -> list[dict]:
         conn = self._connect()
         try:
-            return conn.execute(
-                "SELECT id, name, parent_id, position FROM tags WHERE system_id=? "
-                "ORDER BY position",
-                (system_id,),
-            ).fetchall()
+            with conn.cursor() as c:
+                c.execute(
+                    "SELECT id, name, parent_id, position FROM tags WHERE system_id=%s "
+                    "ORDER BY position",
+                    (system_id,),
+                )
+                return c.fetchall()
         finally:
             conn.close()
+
+    @staticmethod
+    def _by_id(conn, system_id: str) -> dict[str, dict]:
+        with conn.cursor() as c:
+            c.execute(
+                "SELECT id, name, parent_id FROM tags WHERE system_id=%s", (system_id,)
+            )
+            return {r["id"]: dict(r) for r in c.fetchall()}
 
     @staticmethod
     def _path_of(tag_id: str, by_id: dict) -> str:
@@ -197,13 +168,15 @@ class TagStore:
             if i != exclude and r["parent_id"] == parent_id and r["name"] == name:
                 raise ValueError(f"同级已存在标签「{name}」")
 
-    def _next_id(self, conn: sqlite3.Connection, system_id: str) -> str:
-        rows = conn.execute("SELECT id FROM tags WHERE system_id=?", (system_id,)).fetchall()
+    def _next_id(self, conn, system_id: str) -> str:
+        with conn.cursor() as c:
+            c.execute("SELECT id FROM tags WHERE system_id=%s", (system_id,))
+            rows = c.fetchall()
         nums = [int(r["id"]) for r in rows if str(r["id"]).isdigit()]
         return str(max(nums) + 1) if nums else "1"
 
-    def _next_position(self, conn: sqlite3.Connection, system_id: str) -> int:
-        row = conn.execute(
-            "SELECT MAX(position) AS m FROM tags WHERE system_id=?", (system_id,)
-        ).fetchone()
+    def _next_position(self, conn, system_id: str) -> int:
+        with conn.cursor() as c:
+            c.execute("SELECT MAX(position) AS m FROM tags WHERE system_id=%s", (system_id,))
+            row = c.fetchone()
         return 0 if row["m"] is None else int(row["m"]) + 1
