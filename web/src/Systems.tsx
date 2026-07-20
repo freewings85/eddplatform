@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useEscape } from "./useEscape";
 import { api } from "./api";
 import type { System } from "./types";
 
@@ -107,6 +108,7 @@ function SystemForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEscape(onCancel);
 
   async function submit() {
     setError(null);
@@ -131,7 +133,7 @@ function SystemForm({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{initial ? "编辑系统" : "新建系统"}</b>

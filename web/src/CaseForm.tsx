@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useEscape } from "./useEscape";
 import type { Case, CaseInput } from "./types";
 
 type Props = {
@@ -25,6 +26,7 @@ export default function CaseForm({
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEscape(onCancel);
 
   function toggleTag(t: string) {
     setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
@@ -65,7 +67,7 @@ export default function CaseForm({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{initial ? `编辑用例 #${initial.id}` : "新增用例"}</b>

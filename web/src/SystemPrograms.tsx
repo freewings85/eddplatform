@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useEscape } from "./useEscape";
 import { api } from "./api";
 import type { SystemProgram } from "./types";
 
@@ -112,6 +113,7 @@ function ProgramForm({
   const [owner, setOwner] = useState(initial?.owner ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEscape(onCancel);
 
   async function submit() {
     setError(null);
@@ -138,7 +140,7 @@ function ProgramForm({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{initial ? "编辑系统程序" : "新建系统程序"}</b>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useEscape } from "./useEscape";
 import { api } from "./api";
 import type {
   Case,
@@ -213,6 +214,7 @@ function TaskForm({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  useEscape(onCancel);
 
   useEffect(() => {
     api.datasets(sysId).then((ls) => {
@@ -417,7 +419,7 @@ function TaskForm({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop">
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useEscape } from "./useEscape";
 import { api } from "./api";
 import CaseForm from "./CaseForm";
 import type { Case, CaseInput, DatasetInfo } from "./types";
@@ -313,6 +314,7 @@ function LibraryForm({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEscape(onCancel);
 
   async function submit() {
     setError(null);
@@ -332,7 +334,7 @@ function LibraryForm({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>{initial ? "编辑用例库" : "新建用例库"}</b>
@@ -379,6 +381,7 @@ function ImportDialog({
   const [format, setFormat] = useState<"json" | "yaml">("json");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  useEscape(onClose);
 
   async function run() {
     setError(null);
@@ -409,7 +412,7 @@ function ImportDialog({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <b>导入用例</b>
