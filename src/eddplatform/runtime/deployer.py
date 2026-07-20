@@ -63,6 +63,7 @@ class ConventionDeployer:
         ref: str,
         release: str,
         namespace: str,
+        path: str = ".",
         timeout: str = "120s",
     ) -> DeployResult:
         with tempfile.TemporaryDirectory(prefix="edd-deploy-") as tmp:
@@ -70,15 +71,16 @@ class ConventionDeployer:
             out_dir = Path(tmp) / "out"
             out_dir.mkdir()
 
-            self._log(f"[1/5] clone {git_url} @ {ref}")
+            self._log(f"[1/5] clone {git_url} @ {ref} (单元目录: {path})")
             sha = self._checkout(git_url, ref, repo)
             image_tag = sha[:12]
 
-            spec = read_repo_spec(repo)
+            unit = repo / path
+            spec = read_repo_spec(repo, path)
             self._log(f"[2/5] 约定: kind={spec.kind} build={spec.build} chart={spec.chart}")
 
             self._log(f"[3/5] 跑构建脚本 {spec.build} (EDD_IMAGE_TAG={image_tag})")
-            self._run_build(repo, spec.build, image_tag, out_dir)
+            self._run_build(unit, spec.build, image_tag, out_dir)
             images = json.loads((out_dir / "images.json").read_text())
 
             self._log(f"[4/5] 送镜像进集群: {list(images.values())}")
@@ -86,7 +88,7 @@ class ConventionDeployer:
                 self._run([*self.image_import_cmd, str(tar)])
 
             self._log(f"[5/5] helm 部署 {release} -> ns/{namespace}")
-            self._helm_install(repo / spec.chart, release, namespace, images, timeout)
+            self._helm_install(unit / spec.chart, release, namespace, images, timeout)
 
             pods = self._pods(namespace)
             self._log(f"✓ 部署完成，{len(pods)} 个 pod: {', '.join(pods)}")
@@ -118,12 +120,12 @@ class ConventionDeployer:
         self._run([self.git_bin, "-C", str(repo), "checkout", "--quiet", ref])
         return self._run([self.git_bin, "-C", str(repo), "rev-parse", "HEAD"]).strip()
 
-    def _run_build(self, repo: Path, build: str, image_tag: str, out_dir: Path) -> None:
-        script = (repo / build).resolve()
+    def _run_build(self, unit: Path, build: str, image_tag: str, out_dir: Path) -> None:
+        script = (unit / build).resolve()
         if not script.exists():
             raise FileNotFoundError(f"构建脚本不存在: {script}")
         env = {**os.environ, "EDD_IMAGE_TAG": image_tag, "EDD_OUT_DIR": str(out_dir)}
-        self._run(["bash", str(script)], cwd=repo, env=env)
+        self._run(["bash", str(script)], cwd=unit, env=env)
         if not (out_dir / "images.json").exists():
             raise RuntimeError("构建脚本没有产出 images.json（约定：写到 $EDD_OUT_DIR/images.json）")
 

@@ -53,3 +53,22 @@ def test_real_demo_system_repo_parses():
     assert spec.services == ["quote", "gateway"]
     assert (DEMO / spec.build).exists()
     assert (DEMO / spec.chart / "Chart.yaml").exists()
+
+
+def test_unit_folder_convention(tmp_path):
+    """一个仓库可含多个可部署单元：约定文件在单元目录里，路径相对单元目录。"""
+    unit = tmp_path / "edd" / "eval"
+    unit.mkdir(parents=True)
+    (unit / ".eddplatform.yaml").write_text("""
+apiVersion: eddplatform/v1
+kind: eval
+build: ./build.sh
+chart: ./chart
+""")
+    spec = read_repo_spec(tmp_path, path="edd/eval")
+    assert spec.kind == "eval" and spec.build == "./build.sh"
+
+
+def test_unit_folder_missing_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        read_repo_spec(tmp_path, path="edd/nope")

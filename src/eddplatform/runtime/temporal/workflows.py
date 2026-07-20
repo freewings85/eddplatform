@@ -49,7 +49,7 @@ class RunTaskWorkflow:
                     role = _ROLE[pc.kind]
                     d = await workflow.execute_activity_method(
                         TaskActivities.deploy_repo,
-                        DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role),
+                        DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role, pc.path or "."),
                         **opts,
                     )
                     out.releases.append(d.release)

@@ -46,6 +46,7 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
               <th>评估程序</th>
               <th>Git 仓库</th>
               <th>ref</th>
+              <th>目录</th>
               <th>code（workflow 名/队列）</th>
               <th>负责人</th>
               <th></th>
@@ -57,6 +58,7 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
                 <td><b>{p.name}</b> <span className="mono muted">{p.id}</span></td>
                 <td className="mono">{p.git_url}</td>
                 <td><span className="tag">{p.ref}</span></td>
+                <td className="mono">{p.path}</td>
                 <td className="mono">{p.code}</td>
                 <td>{p.owner ?? "—"}</td>
                 <td>
@@ -67,7 +69,7 @@ export default function EvalPrograms({ sysId }: { sysId: string }) {
             ))}
             {programs && programs.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   暂无评估程序 — 点击「新建评估程序」登记评估代码仓（git 仓库 + code）。
                 </td>
               </tr>
@@ -109,6 +111,7 @@ function ProgramForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [gitUrl, setGitUrl] = useState(initial?.git_url ?? "");
   const [ref, setRef] = useState(initial?.ref ?? "main");
+  const [path, setPath] = useState(initial?.path ?? ".");
   const [code, setCode] = useState(initial?.code ?? "");
   const [owner, setOwner] = useState(initial?.owner ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +126,7 @@ function ProgramForm({
       name: name.trim(),
       git_url: gitUrl.trim(),
       ref: ref.trim() || "main",
+      path: path.trim() || ".",
       code: code.trim(),
       owner: owner.trim() || null,
     };
@@ -161,6 +165,11 @@ function ProgramForm({
               <span>ref（分支/tag/sha）</span>
               <input value={ref} onChange={(e) => setRef(e.target.value)} className="mono"
                 placeholder="main" />
+            </label>
+            <label className="fld">
+              <span>目录（仓库内单元目录，默认 . = 根）</span>
+              <input value={path} onChange={(e) => setPath(e.target.value)} className="mono"
+                placeholder="edd/eval" />
             </label>
             <label className="fld">
               <span>code *（workflow 名/队列）</span>

@@ -20,10 +20,15 @@ type Row = {
   kind: PreconditionKind;
   name?: string;
   gitUrl?: string; // start_system：被评系统仓库
-  ref?: string; // start_system / start_eval_program：git ref
+  path?: string; // 仓库内单元目录（默认 . = 根）
+  branch?: string; // start_system：分支
+  commit?: string; // start_system：可选，填了就钉死该 commit
+  ref?: string; // start_eval_program：git ref（覆盖评估程序登记的 ref）
   programId?: string; // start_eval_program：选中的评估程序
   script?: string; // 旧任务里的自定义脚本（仅展示/保留，不再新建）
 };
+
+const SHA_RE = /^[0-9a-f]{7,40}$/i;
 
 export default function Tasks({ sysId }: { sysId: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -148,13 +153,19 @@ export default function Tasks({ sysId }: { sysId: string }) {
 }
 
 function toRows(task: Task): Row[] {
-  return task.preconditions.map((p) => ({
-    kind: p.kind,
-    name: p.name ?? undefined,
-    gitUrl: p.git_url ?? undefined,
-    ref: p.ref ?? undefined,
-    script: p.script ?? undefined,
-  }));
+  return task.preconditions.map((p) => {
+    const isSha = p.ref != null && SHA_RE.test(p.ref);
+    return {
+      kind: p.kind,
+      name: p.name ?? undefined,
+      gitUrl: p.git_url ?? undefined,
+      path: p.path ?? ".",
+      branch: p.kind === "start_system" && !isSha ? p.ref ?? undefined : undefined,
+      commit: p.kind === "start_system" && isSha ? p.ref ?? undefined : undefined,
+      ref: p.kind === "start_system" ? undefined : p.ref ?? undefined,
+      script: p.script ?? undefined,
+    };
+  });
 }
 
 function TaskForm({
@@ -176,8 +187,9 @@ function TaskForm({
     initial
       ? toRows(initial)
       : [
-          { kind: "start_system", gitUrl: "", ref: "" },
-          { kind: "start_eval_program", programId: prog0?.id, gitUrl: prog0?.git_url, ref: prog0?.ref },
+          { kind: "start_system", gitUrl: "", path: ".", branch: "" },
+          { kind: "start_eval_program", programId: prog0?.id, gitUrl: prog0?.git_url,
+            path: prog0?.path, ref: prog0?.ref },
         ],
   );
   const [evalProgramId, setEvalProgramId] = useState<string>(
@@ -201,7 +213,7 @@ function TaskForm({
     const prog = programs[0];
     setRows((rs) => rs.map((r) =>
       r.kind === "start_eval_program" && !r.programId
-        ? { ...r, programId: prog.id, gitUrl: prog.git_url, ref: r.ref || prog.ref }
+        ? { ...r, programId: prog.id, gitUrl: prog.git_url, path: prog.path, ref: r.ref || prog.ref }
         : r));
     if (!initial) setEvalProgramId((v) => v || prog.id);
     // eslint-disable-next-line
@@ -211,8 +223,8 @@ function TaskForm({
     const prog = programs[0];
     const seed: Row =
       kind === "start_system"
-        ? { kind, gitUrl: "", ref: "" }
-        : { kind, programId: prog?.id, gitUrl: prog?.git_url, ref: prog?.ref };
+        ? { kind, gitUrl: "", path: ".", branch: "" }
+        : { kind, programId: prog?.id, gitUrl: prog?.git_url, path: prog?.path, ref: prog?.ref };
     setRows((r) => [...r, seed]);
   }
 
@@ -247,7 +259,9 @@ function TaskForm({
         kind: row.kind,
         name: row.name || "system",
         git_url: row.gitUrl?.trim() || null,
-        ref: row.ref?.trim() || null,
+        // commit 优先钉死；不填则用分支最新（部署器会 resolve 成 sha 记进运行记录）
+        ref: row.commit?.trim() || row.branch?.trim() || null,
+        path: row.path?.trim() || ".",
       };
     }
     if (row.kind === "start_eval_program") {
@@ -257,6 +271,7 @@ function TaskForm({
         name: row.name || (prog ? `eval-${prog.code}` : "eval"),
         git_url: prog?.git_url ?? row.gitUrl ?? null,
         ref: row.ref?.trim() || prog?.ref || null,
+        path: prog?.path ?? row.path ?? ".",
       };
     }
     return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
@@ -267,8 +282,8 @@ function TaskForm({
     if (!name.trim()) return setError("任务名不能为空");
     if (rows.length === 0) return setError("至少保留一条前置条件");
     for (const row of rows) {
-      if (row.kind === "start_system" && (!row.gitUrl?.trim() || !row.ref?.trim()))
-        return setError("「启动系统」需要 Git 仓库和 ref");
+      if (row.kind === "start_system" && (!row.gitUrl?.trim() || !row.branch?.trim()))
+        return setError("「启动系统」需要 Git 仓库和分支");
       if (row.kind === "start_eval_program" && !row.programId)
         return setError("「启动评估程序」需要选择评估程序（先去「评估程序」页登记）");
     }
@@ -344,20 +359,36 @@ function TaskForm({
                 </div>
 
                 {row.kind === "start_system" && (
-                  <div className="fld-row">
-                    <label className="fld">
-                      <span>Git 仓库 *（含 .eddplatform.yaml 部署约定）</span>
-                      <input className="mono" value={row.gitUrl ?? ""}
-                        onChange={(e) => patch(i, { gitUrl: e.target.value })}
-                        placeholder="ssh://git@…/chatagent.git 或本地路径" />
-                    </label>
-                    <label className="fld">
-                      <span>ref *（分支/tag/sha）</span>
-                      <input className="mono" value={row.ref ?? ""}
-                        onChange={(e) => patch(i, { ref: e.target.value })}
-                        placeholder="2.3-eval" />
-                    </label>
-                  </div>
+                  <>
+                    <div className="fld-row">
+                      <label className="fld">
+                        <span>Git 仓库 *</span>
+                        <input className="mono" value={row.gitUrl ?? ""}
+                          onChange={(e) => patch(i, { gitUrl: e.target.value })}
+                          placeholder="ssh://git@…/chatagent.git 或本地路径" />
+                      </label>
+                      <label className="fld">
+                        <span>单元目录（含 .eddplatform.yaml/构建脚本/helm chart）</span>
+                        <input className="mono" value={row.path ?? "."}
+                          onChange={(e) => patch(i, { path: e.target.value })}
+                          placeholder="edd/system（默认 . = 仓库根）" />
+                      </label>
+                    </div>
+                    <div className="fld-row">
+                      <label className="fld">
+                        <span>分支 *</span>
+                        <input className="mono" value={row.branch ?? ""}
+                          onChange={(e) => patch(i, { branch: e.target.value })}
+                          placeholder="2.3-eval" />
+                      </label>
+                      <label className="fld">
+                        <span>commit id（可选；填了钉死该提交，不填用分支最新）</span>
+                        <input className="mono" value={row.commit ?? ""}
+                          onChange={(e) => patch(i, { commit: e.target.value })}
+                          placeholder="留空 = 分支最新（执行时记录实际 sha）" />
+                      </label>
+                    </div>
+                  </>
                 )}
 
                 {row.kind === "start_eval_program" && (

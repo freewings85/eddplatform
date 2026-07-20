@@ -20,6 +20,7 @@ class DeployArgs:
     release: str
     namespace: str
     role: str                          # system | eval
+    path: str = "."                    # 仓库内单元目录（一个仓库可含多个可部署单元）
 
 
 @dataclass
@@ -53,6 +54,7 @@ class PreconditionSpec:
     git_url: str | None = None
     ref: str | None = None
     script: str | None = None
+    path: str = "."                    # 仓库内单元目录
 
 
 # --- RunCase 契约（平台 ↔ 评估程序 worker）----------------------------------
@@ -121,4 +123,5 @@ def to_spec(pc: Precondition) -> PreconditionSpec:
     return PreconditionSpec(
         kind=pc.kind.value, name=pc.name or pc.kind.value,
         git_url=pc.git_url, ref=pc.ref, script=pc.script,
+        path=pc.path or ".",
     )

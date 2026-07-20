@@ -24,6 +24,7 @@ export interface EvalProgram {
   name: string;
   git_url: string;
   ref: string; // 部署用的 git ref（分支/tag/sha）
+  path: string; // 仓库内单元目录（可与被评系统同仓不同目录）
   code: string; // RunCase workflow 名 = task queue
   owner?: string | null;
 }
@@ -39,7 +40,8 @@ export interface Precondition {
   kind: PreconditionKind;
   name?: string | null;
   git_url?: string | null;
-  ref?: string | null; // 选定的版本
+  ref?: string | null; // 选定的版本（分支或 commit；commit 优先钉死）
+  path?: string | null; // 仓库内单元目录（null = 根）
   script?: string | null;
 }
 

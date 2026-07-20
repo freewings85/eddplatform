@@ -24,7 +24,8 @@ class TaskActivities:
     def deploy_repo(self, args: DeployArgs) -> DeployOut:
         """拉起一份具体版本的 git 代码（系统或评估程序）到 namespace。"""
         res = self.deployer.deploy(
-            git_url=args.git_url, ref=args.ref, release=args.release, namespace=args.namespace
+            git_url=args.git_url, ref=args.ref, release=args.release,
+            namespace=args.namespace, path=args.path,
         )
         return DeployOut(
             role=args.role, release=res.release, ref=res.ref, images=res.images, pods=res.pods

@@ -91,6 +91,7 @@ class EvalProgram(BaseModel):
     name: str
     git_url: str
     ref: str = "main"                 # 部署用的 git ref（分支/tag/sha）
+    path: str = "."                   # 仓库内单元目录（评估程序可与被评系统同仓不同目录）
     code: str                         # RunCase workflow 名 + task queue
     owner: str | None = None
 
@@ -261,7 +262,8 @@ class Precondition(BaseModel):
     kind: PreconditionKind
     name: str | None = None                  # 人读标签 / helm release 名
     git_url: str | None = None               # start_system / start_eval_program 的仓库
-    ref: str | None = None                   # 选定的 git ref（版本）
+    ref: str | None = None                   # 选定的 git ref（分支/commit；commit 优先钉死）
+    path: str | None = None                  # 仓库内单元目录（None = 根）
     script: str | None = None                # custom_script 的脚本内容
 
 
