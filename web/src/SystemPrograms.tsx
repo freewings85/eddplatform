@@ -54,7 +54,7 @@ export default function SystemPrograms({ sysId }: { sysId: string }) {
           <tbody>
             {(programs ?? []).map((p) => (
               <tr key={p.id}>
-                <td><b>{p.name}</b> <span className="mono muted">{p.id}</span></td>
+                <td><b>{p.name}</b></td>
                 <td className="mono">{p.git_url}</td>
                 <td className="mono">{p.path}</td>
                 <td>{p.owner ?? "—"}</td>
