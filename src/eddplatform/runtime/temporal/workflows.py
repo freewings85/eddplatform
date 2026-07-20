@@ -53,7 +53,8 @@ class RunTaskWorkflow:
                         **opts,
                     )
                     out.releases.append(d.release)
-                    out.versions[role] = d.ref
+                    # 版本标签按前置条件名记（一个任务可拉多个系统单元，如 3 进程 3 条）
+                    out.versions[name] = d.ref
                     out.outcomes.append(OutcomeOut(pc.kind, name, "ok", ref=d.ref, images=d.images))
                 elif pc.kind == "custom_script":
                     if not pc.script:

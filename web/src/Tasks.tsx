@@ -281,12 +281,25 @@ function TaskForm({
     setError(null);
     if (!name.trim()) return setError("任务名不能为空");
     if (rows.length === 0) return setError("至少保留一条前置条件");
+    const releaseNames: string[] = [];
     for (const row of rows) {
-      if (row.kind === "start_system" && (!row.gitUrl?.trim() || !row.branch?.trim()))
-        return setError("「启动系统」需要 Git 仓库和分支");
-      if (row.kind === "start_eval_program" && !row.programId)
-        return setError("「启动评估程序」需要选择评估程序（先去「评估程序」页登记）");
+      if (row.kind === "start_system") {
+        if (!row.gitUrl?.trim() || !row.branch?.trim())
+          return setError("「启动系统」需要 Git 仓库和分支");
+        const rel = (row.name ?? "system").trim() || "system";
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(rel))
+          return setError(`名称「${rel}」不合法：小写字母/数字/中划线（作 helm release 名）`);
+        releaseNames.push(rel);
+      }
+      if (row.kind === "start_eval_program") {
+        if (!row.programId)
+          return setError("「启动评估程序」需要选择评估程序（先去「评估程序」页登记）");
+        const prog = programs.find((p) => p.id === row.programId);
+        releaseNames.push(row.name || (prog ? `eval-${prog.code}` : "eval"));
+      }
     }
+    const dup = releaseNames.find((n, i) => releaseNames.indexOf(n) !== i);
+    if (dup) return setError(`多条启动条件的名称必须唯一（「${dup}」重复了）——每条各是一个 helm release`);
     if (!allCases && selected.size === 0)
       return setError("勾选模式下至少选择一条用例（或切回「全部用例」）");
     const payload: TaskInput = {
@@ -361,6 +374,12 @@ function TaskForm({
                 {row.kind === "start_system" && (
                   <>
                     <div className="fld-row">
+                      <label className="fld">
+                        <span>名称 *（helm release 名；多条系统时各取一个，如 mainagent）</span>
+                        <input className="mono" value={row.name ?? "system"}
+                          onChange={(e) => patch(i, { name: e.target.value })}
+                          placeholder="system / mainagent / sessionstore…" />
+                      </label>
                       <label className="fld">
                         <span>Git 仓库 *</span>
                         <input className="mono" value={row.gitUrl ?? ""}

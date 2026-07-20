@@ -58,3 +58,47 @@ async def test_dispatch_cases_to_eval_code_queue():
     by_id = {c.case_id: c for c in out.case_results}
     assert by_id["c1"].status == "passed" and by_id["c1"].scores == {"judge": 1.0}
     assert by_id["bad"].status == "error" and "判定失败" in by_id["bad"].detail
+
+
+class FakeDeployer:
+    """假部署器：不碰 k8s，按 release 名回不同 sha——验证多单元版本标签不互相覆盖。"""
+
+    kubeconfig = "/dev/null"
+
+    def deploy(self, *, git_url, ref, release, namespace, path="."):
+        from eddplatform.runtime.deployer import DeployResult
+        return DeployResult(release=release, namespace=namespace,
+                            ref=f"sha-{release}", image_tag="t", images={})
+
+
+@pytest.mark.asyncio
+async def test_multiple_system_units_get_distinct_version_labels():
+    """一个任务拉多个系统单元（如 3 进程 3 条启动系统）+ 1 评估程序：
+    每条前置条件的版本标签按名字分别记录，helm release 不撞名。"""
+    if not _temporal_up():
+        pytest.skip("Temporal dev server 不可达（localhost:7233）")
+    import concurrent.futures
+
+    from eddplatform.runtime.temporal.activities import TaskActivities
+    from eddplatform.runtime.temporal.shared import PreconditionSpec
+
+    client = await Client.connect(TEMPORAL)
+    acts = TaskActivities(deployer=FakeDeployer())
+    inp = RunTaskInput(
+        preconditions=[
+            PreconditionSpec("start_system", "mainagent", git_url="/r", ref="b", path="edd/mainagent"),
+            PreconditionSpec("start_system", "sessionstore", git_url="/r", ref="b", path="edd/sessionstore"),
+            PreconditionSpec("start_system", "toolexecutor", git_url="/r", ref="b", path="edd/toolexecutor"),
+            PreconditionSpec("start_eval_program", "eval-chatagent", git_url="/r", ref="b", path="edd/eval"),
+        ],
+        namespace="ns", run_id="R-multi")
+    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow],
+                      activities=[acts.deploy_repo, acts.run_script, acts.run_eval],
+                      activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
+        out = await client.execute_workflow(
+            RunTaskWorkflow.run, inp,
+            id=f"test-multi-{uuid.uuid4().hex[:8]}", task_queue=TASK_QUEUE)
+    assert out.status == "up"
+    assert out.versions == {"mainagent": "sha-mainagent", "sessionstore": "sha-sessionstore",
+                            "toolexecutor": "sha-toolexecutor", "eval-chatagent": "sha-eval-chatagent"}
+    assert sorted(out.releases) == ["eval-chatagent", "mainagent", "sessionstore", "toolexecutor"]
