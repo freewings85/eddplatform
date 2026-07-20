@@ -1,33 +1,9 @@
 import { useState } from "react";
 import type { Case, CaseInput } from "./types";
 
-/** 把 JSON 文本域解析成值：空→undefined；能解析成 JSON 就用 JSON；否则当纯字符串。 */
-function parseLoose(text: string): unknown {
-  const t = text.trim();
-  if (!t) return undefined;
-  try {
-    return JSON.parse(t);
-  } catch {
-    return text; // 允许纯字符串输入（inputs 支持 dict | str）
-  }
-}
-
-function toText(v: unknown): string {
-  if (v === undefined || v === null) return "";
-  if (typeof v === "string") return v;
-  return JSON.stringify(v, null, 2);
-}
-
-function splitList(text: string): string[] {
-  return text
-    .split(/[,，\n]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
 type Props = {
   initial?: Case | null; // 有 = 编辑，无 = 新增
-  availableTags: string[]; // 标签树的完整路径
+  availableTags: string[]; // 标签树的完整路径（父在子前）
   onCancel: () => void;
   onSubmit: (payload: CaseInput) => Promise<void>;
 };
@@ -40,17 +16,12 @@ export default function CaseForm({
 }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [inputs, setInputs] = useState(toText(initial?.inputs ?? ""));
-  const [expected, setExpected] = useState(toText(initial?.expected_output));
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
-  const [extraTags, setExtraTags] = useState("");
+  const [tagOpen, setTagOpen] = useState(false);
   const [caseVersion, setCaseVersion] = useState(initial?.case_version ?? "v1");
-  const [applicable, setApplicable] = useState((initial?.applicable_versions ?? []).join(", "));
   const [traceRef, setTraceRef] = useState(initial?.trace?.ref ?? "");
   const [traceUrl, setTraceUrl] = useState(initial?.trace?.url ?? "");
   const [traceNote, setTraceNote] = useState(initial?.trace?.note ?? "");
-  const [metadata, setMetadata] = useState(toText(initial?.metadata));
-  const [author, setAuthor] = useState(initial?.author ?? "");
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,32 +30,27 @@ export default function CaseForm({
     setTags((cur) => (cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]));
   }
 
-  // 标签树 ∪ 当前用例已用的标签（保留不在树里的历史标签）
+  // 标签树 ∪ 当前用例已用的标签（保留不在树里的历史标签），父在子前
   const knownTags = [...new Set([...availableTags, ...tags])].sort();
 
   async function submit() {
     setError(null);
     if (!name.trim()) return setError("用例名不能为空");
 
-    // metadata 必须是对象（或空）
-    const meta = parseLoose(metadata);
-    if (meta !== undefined && (typeof meta !== "object" || Array.isArray(meta))) {
-      return setError("metadata 必须是 JSON 对象");
-    }
-
     const payload: CaseInput = {
       name: name.trim(),
       description: description.trim() || null,
-      inputs: (parseLoose(inputs) as Case["inputs"]) ?? "",
-      expected_output: (parseLoose(expected) as Case["expected_output"]) ?? null,
-      tags: [...new Set([...tags, ...splitList(extraTags)])],
-      metadata: (meta as Record<string, unknown>) ?? {},
+      // 表单不编辑的字段原样保留（YAML 导入/轨迹导入填充的内容不被清掉）
+      inputs: initial?.inputs ?? "",
+      expected_output: initial?.expected_output ?? null,
+      metadata: initial?.metadata ?? {},
+      applicable_versions: initial?.applicable_versions ?? [],
+      author: initial?.author ?? null,
+      tags,
       case_version: caseVersion.trim() || "v1",
-      applicable_versions: splitList(applicable),
       trace: traceRef.trim()
         ? { ref: traceRef.trim(), url: traceUrl.trim() || null, note: traceNote.trim() || null }
         : null,
-      author: author.trim() || null,
       enabled,
     };
 
@@ -111,59 +77,75 @@ export default function CaseForm({
         <div className="modal-body">
           <label className="fld">
             <span>用例名 *</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="新能源车型报价" />
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="guide 场景 · 平台介绍" />
           </label>
 
           <label className="fld">
             <span>描述</span>
-            <input
+            <textarea
+              rows={4}
               value={description ?? ""}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="这条用例在测什么"
+              placeholder="这条用例在测什么、判定关注点是什么"
             />
           </label>
 
-          <div className="fld-row">
-            <label className="fld">
-              <span>inputs（JSON 或文本）</span>
-              <textarea value={inputs} onChange={(e) => setInputs(e.target.value)} rows={4}
-                placeholder={'{"car": "ev"}'} className="mono" />
-            </label>
-            <label className="fld">
-              <span>expected_output（可空）</span>
-              <textarea value={expected} onChange={(e) => setExpected(e.target.value)} rows={4}
-                placeholder={'{"premium": 4260}'} className="mono" />
-            </label>
-          </div>
-
           <div className="fld">
-            <span>标签（分层，来自「标签」管理页）</span>
-            <div className="chips">
-              {knownTags.length === 0 && (
-                <i className="muted">该系统暂无标签，去「标签」页新建，或在下方补充</i>
+            <span>标签（标签树多选；树在「标签」页维护）</span>
+            <div className="tagselect">
+              <div className="tagselect-box" onClick={() => setTagOpen((o) => !o)}>
+                {tags.length === 0 && <span className="muted">点击选择标签…</span>}
+                {tags.map((t) => (
+                  <span key={t} className="tag">
+                    {t}
+                    <a
+                      className="tag-x"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleTag(t);
+                      }}
+                    >
+                      ×
+                    </a>
+                  </span>
+                ))}
+                <span className="tagselect-caret">{tagOpen ? "▴" : "▾"}</span>
+              </div>
+              {tagOpen && (
+                <div className="tagselect-panel">
+                  {knownTags.length === 0 && (
+                    <i className="muted" style={{ padding: 8, display: "block" }}>
+                      该系统暂无标签 — 去「标签」页新建标签树。
+                    </i>
+                  )}
+                  {knownTags.map((t) => {
+                    const depth = t.split("/").length - 1;
+                    const leaf = t.split("/").pop();
+                    return (
+                      <label
+                        key={t}
+                        className={`tagselect-item ${tags.includes(t) ? "on" : ""}`}
+                        style={{ paddingLeft: 10 + depth * 18 }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={tags.includes(t)}
+                          onChange={() => toggleTag(t)}
+                        />
+                        {leaf}
+                        {depth > 0 && <span className="muted sm"> {t}</span>}
+                      </label>
+                    );
+                  })}
+                </div>
               )}
-              {knownTags.map((t) => (
-                <label key={t} className={`chip ${tags.includes(t) ? "on" : ""}`}>
-                  <input type="checkbox" checked={tags.includes(t)} onChange={() => toggleTag(t)} />
-                  {t}
-                </label>
-              ))}
             </div>
-            <input
-              value={extraTags}
-              onChange={(e) => setExtraTags(e.target.value)}
-              placeholder="补充其它标签（逗号分隔，用完整路径如 业务/报价）"
-            />
           </div>
 
           <label className="fld">
             <span>用例版本</span>
             <input value={caseVersion} onChange={(e) => setCaseVersion(e.target.value)} placeholder="v1" />
-          </label>
-
-          <label className="fld">
-            <span>适用系统版本（逗号分隔，空 = 全部通用）</span>
-            <input value={applicable} onChange={(e) => setApplicable(e.target.value)} placeholder="v1, v2" />
           </label>
 
           <fieldset className="fld trace-box">
@@ -182,21 +164,9 @@ export default function CaseForm({
             <label className="fld">
               <span>轨迹问题简述</span>
               <input value={traceNote ?? ""} onChange={(e) => setTraceNote(e.target.value)}
-                placeholder="新能源报价算错，quote-engine 少算补贴" />
+                placeholder="该轨迹暴露了什么问题" />
             </label>
           </fieldset>
-
-          <div className="fld-row">
-            <label className="fld">
-              <span>metadata（JSON 对象，可空）</span>
-              <textarea value={metadata} onChange={(e) => setMetadata(e.target.value)} rows={2}
-                className="mono" placeholder={'{"source": "prod"}'} />
-            </label>
-            <label className="fld">
-              <span>负责人</span>
-              <input value={author ?? ""} onChange={(e) => setAuthor(e.target.value)} placeholder="张三" />
-            </label>
-          </div>
 
           <label className="fld chk">
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />

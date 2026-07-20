@@ -160,3 +160,14 @@ td.empty { text-align: center; color: var(--muted); padding: 28px; }
 .inline-btn { display: flex; gap: 6px; align-items: center; }
 .inline-btn input { flex: 1; }
 .inline-btn .btn { white-space: nowrap; }
+
+/* 用例表单：标签树下拉多选 */
+.tagselect { position: relative; }
+.tagselect-box { border: 1px solid var(--line); border-radius: 8px; padding: 6px 26px 6px 8px; min-height: 34px; background: #fff; cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.tagselect-caret { position: absolute; right: 9px; top: 8px; color: var(--muted); font-size: 12px; }
+.tagselect-panel { position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: var(--shadow); }
+.tagselect-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.tagselect-item:last-child { border-bottom: none; }
+.tagselect-item.on { background: #eef2ff; }
+.tag-x { margin-left: 4px; cursor: pointer; color: var(--muted); font-weight: 700; }
+.tag-x:hover { color: var(--bad, #dc2626); }
