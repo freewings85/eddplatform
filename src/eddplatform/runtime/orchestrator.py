@@ -86,13 +86,14 @@ class Orchestrator:
         self, pc: Precondition, name: str, namespace: str, env: EnvironmentResult
     ) -> None:
         if pc.kind in (PreconditionKind.START_SYSTEM, PreconditionKind.START_EVAL_PROGRAM):
-            if not pc.git_url or not pc.ref:
+            ref = pc.commit or pc.branch
+            if not pc.git_url or not ref:
                 raise ValueError(f"{pc.kind.value} 需要 git_url 和 ref（运行时选定的版本）")
             res = self.deployer.deploy(
-                git_url=pc.git_url, ref=pc.ref, release=name, namespace=namespace
+                git_url=pc.git_url, ref=ref, release=name, namespace=namespace, path=pc.path or "."
             )
             env.releases.append(name)
-            env.versions[_ROLE[pc.kind]] = res.ref
+            env.versions[name] = res.ref
             env.outcomes.append(
                 PreconditionOutcome(pc.kind.value, name, "ok", ref=res.ref, images=res.images)
             )

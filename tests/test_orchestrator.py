@@ -15,7 +15,7 @@ class FakeDeployer:
     def __init__(self):
         self.deployed = []
 
-    def deploy(self, *, git_url, ref, release, namespace):
+    def deploy(self, *, git_url, ref, release, namespace, path="."):
         self.deployed.append((release, ref))
         return DeployResult(
             release=release, namespace=namespace, ref=ref, image_tag=ref[:12],
@@ -36,13 +36,13 @@ def _orch():
 def test_brings_up_both_subjects_with_version_labels():
     pcs = [
         Precondition(kind=PreconditionKind.START_SYSTEM, name="sys",
-                     git_url="file://sys", ref="aaaa1111"),
+                     git_url="file://sys", commit="aaaa1111"),
         Precondition(kind=PreconditionKind.START_EVAL_PROGRAM, name="eval",
-                     git_url="file://eval", ref="bbbb2222"),
+                     git_url="file://eval", commit="bbbb2222"),
     ]
     env = _orch().bring_up(pcs, "ns1")
     assert env.status == "up"
-    assert env.versions == {"system": "aaaa1111", "eval": "bbbb2222"}
+    assert env.versions == {"sys": "aaaa1111", "eval": "bbbb2222"}
     assert env.releases == ["sys", "eval"]
     assert [o.status for o in env.outcomes] == ["ok", "ok"]
 
@@ -50,7 +50,7 @@ def test_brings_up_both_subjects_with_version_labels():
 def test_custom_script_runs_in_order():
     pcs = [
         Precondition(kind=PreconditionKind.START_SYSTEM, name="sys",
-                     git_url="file://sys", ref="aaaa"),
+                     git_url="file://sys", commit="aaaa"),
         Precondition(kind=PreconditionKind.CUSTOM_SCRIPT, name="seed", script="true"),
     ]
     env = _orch().bring_up(pcs, "ns2")
@@ -61,10 +61,10 @@ def test_custom_script_runs_in_order():
 def test_failure_aborts_subsequent_preconditions():
     pcs = [
         Precondition(kind=PreconditionKind.START_SYSTEM, name="sys",
-                     git_url="file://sys", ref="aaaa"),
+                     git_url="file://sys", commit="aaaa"),
         Precondition(kind=PreconditionKind.CUSTOM_SCRIPT, name="bad", script="exit 3"),
         Precondition(kind=PreconditionKind.START_EVAL_PROGRAM, name="eval",
-                     git_url="file://eval", ref="bbbb"),
+                     git_url="file://eval", commit="bbbb"),
     ]
     env = _orch().bring_up(pcs, "ns3")
     assert env.status == "failed"
