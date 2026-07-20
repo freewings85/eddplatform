@@ -22,7 +22,8 @@ class FakeClient:
         self.out = out
         self.started = []
 
-    async def start_workflow(self, wf, arg, *, id, task_queue, execution_timeout=None):
+    async def start_workflow(self, wf, arg, *, id, task_queue, execution_timeout=None,
+                             result_type=None):
         self.started.append((id, task_queue, arg))
         return FakeHandle(self.out)
 

@@ -12,7 +12,7 @@ from temporalio.client import Client
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Worker
 
-from eddplatform.runtime.temporal.shared import (TASK_QUEUE, CaseResultOut, CaseSpec,
+from eddplatform.runtime.temporal.shared import (CaseResultOut, CaseSpec,
                                                  RunCaseInput, RunTaskInput)
 from eddplatform.runtime.temporal.workflows import RunTaskWorkflow
 
@@ -53,19 +53,20 @@ async def test_dispatch_cases_to_eval_code_queue():
     from eddplatform.runtime.temporal.activities import TaskActivities
     client = await Client.connect(TEMPORAL)
     acts = TaskActivities(deployer=FakeDeployer())
+    q = f"test-q-{uuid.uuid4().hex[:8]}"
     inp = RunTaskInput(preconditions=[], namespace="ns", run_id="R-1",
                        eval_code="demo-eval", eval_worker_wait_s=15,
                        cases=[CaseSpec(case_id="c1", name="用例1", inputs="你好"),
                               CaseSpec(case_id="bad", name="坏用例"),
                               CaseSpec(case_id="na", name="不适用")])
-    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow],
+    async with Worker(client, task_queue=q, workflows=[RunTaskWorkflow],
                       activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
                                   acts.wait_eval_worker],
                       activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         async with Worker(client, task_queue="demo-eval", workflows=[FakeEvalWorkflow]):
             out = await client.execute_workflow(
                 RunTaskWorkflow.run, inp,
-                id=f"test-dispatch-{uuid.uuid4().hex[:8]}", task_queue=TASK_QUEUE)
+                id=f"test-dispatch-{uuid.uuid4().hex[:8]}", task_queue=q)
     assert out.status == "up"
     by_id = {c.case_id: c for c in out.case_results}
     assert by_id["c1"].status == "passed" and by_id["c1"].scores == {"judge": 1.0}
@@ -83,17 +84,18 @@ async def test_no_worker_on_queue_fails_fast():
     from eddplatform.runtime.temporal.activities import TaskActivities
     client = await Client.connect(TEMPORAL)
     acts = TaskActivities(deployer=FakeDeployer())
+    q = f"test-q-{uuid.uuid4().hex[:8]}"
     inp = RunTaskInput(preconditions=[], namespace="ns", run_id="R-nf",
                        eval_code=f"nobody-home-{uuid.uuid4().hex[:6]}",
                        eval_worker_wait_s=5,
                        cases=[CaseSpec(case_id="c1")])
-    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow],
+    async with Worker(client, task_queue=q, workflows=[RunTaskWorkflow],
                       activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
                                   acts.wait_eval_worker],
                       activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         out = await client.execute_workflow(
             RunTaskWorkflow.run, inp,
-            id=f"test-noworker-{uuid.uuid4().hex[:8]}", task_queue=TASK_QUEUE)
+            id=f"test-noworker-{uuid.uuid4().hex[:8]}", task_queue=q)
     assert out.status == "failed"
     assert out.case_results == []                 # 一条用例都没白等
     assert any(o.kind == "eval_dispatch" and "没有 worker 认领" in o.detail
@@ -124,6 +126,7 @@ async def test_multiple_system_units_get_distinct_version_labels():
 
     client = await Client.connect(TEMPORAL)
     acts = TaskActivities(deployer=FakeDeployer())
+    q = f"test-q-{uuid.uuid4().hex[:8]}"
     inp = RunTaskInput(
         preconditions=[
             PreconditionSpec("start_system", "mainagent", git_url="/r", ref="b", path="edd/mainagent"),
@@ -132,12 +135,12 @@ async def test_multiple_system_units_get_distinct_version_labels():
             PreconditionSpec("start_eval_program", "eval-chatagent", git_url="/r", ref="b", path="edd/eval"),
         ],
         namespace="ns", run_id="R-multi")
-    async with Worker(client, task_queue=TASK_QUEUE, workflows=[RunTaskWorkflow],
+    async with Worker(client, task_queue=q, workflows=[RunTaskWorkflow],
                       activities=[acts.deploy_repo, acts.run_script, acts.run_eval],
                       activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         out = await client.execute_workflow(
             RunTaskWorkflow.run, inp,
-            id=f"test-multi-{uuid.uuid4().hex[:8]}", task_queue=TASK_QUEUE)
+            id=f"test-multi-{uuid.uuid4().hex[:8]}", task_queue=q)
     assert out.status == "up"
     assert out.versions == {"mainagent": "sha-mainagent", "sessionstore": "sha-sessionstore",
                             "toolexecutor": "sha-toolexecutor", "eval-chatagent": "sha-eval-chatagent"}
