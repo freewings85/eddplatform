@@ -37,7 +37,7 @@ class RunTaskWorkflow:
         out = RunTaskOutput(namespace=inp.namespace, status="up")
         # 部署类活动不做盲重试（避免重复部署）；给足超时（构建+helm --wait）
         opts = dict(
-            start_to_close_timeout=timedelta(minutes=10),
+            start_to_close_timeout=timedelta(minutes=20),
             retry_policy=RetryPolicy(maximum_attempts=1),
         )
 

@@ -11,7 +11,8 @@ from datetime import timedelta
 from temporalio.client import Client
 
 from eddplatform.domain.models import Case, CaseRunResult, RunRecord, RunStatus, Task
-from eddplatform.runtime.temporal.shared import TASK_QUEUE, CaseSpec, RunTaskInput, to_spec
+from eddplatform.runtime.temporal.shared import (TASK_QUEUE, CaseSpec, RunTaskInput,
+                                                 RunTaskOutput, to_spec)
 from eddplatform.store.run_store import RunStore
 
 TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
@@ -58,6 +59,7 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
     handle = await client.start_workflow(
         "RunTaskWorkflow", inp, id=f"edd-run-{run.id}", task_queue=TASK_QUEUE,
         execution_timeout=timedelta(minutes=30),
+        result_type=RunTaskOutput,     # 按名字启动时不给类型会拿到裸 dict
     )
     run.workflow_id = f"edd-run-{run.id}"
     run.namespace = inp.namespace

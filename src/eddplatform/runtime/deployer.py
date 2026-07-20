@@ -49,6 +49,11 @@ class ConventionDeployer:
         log: Callable[[str], None] | None = None,
     ) -> None:
         self.kubeconfig = kubeconfig or os.environ.get("KUBECONFIG", DEFAULT_KUBECONFIG)
+        # 镜像导入命令可用环境变量覆盖（k3d: EDD_IMAGE_IMPORT="k3d image import -c edd"）
+        env_import = os.environ.get("EDD_IMAGE_IMPORT")
+        if image_import_cmd is None and env_import:
+            import shlex
+            image_import_cmd = shlex.split(env_import)
         self.image_import_cmd = list(image_import_cmd or DEFAULT_IMAGE_IMPORT)
         self.helm_bin = helm_bin
         self.kubectl_bin = kubectl_bin
@@ -64,7 +69,7 @@ class ConventionDeployer:
         release: str,
         namespace: str,
         path: str = ".",
-        timeout: str = "120s",
+        timeout: str = "300s",
     ) -> DeployResult:
         with tempfile.TemporaryDirectory(prefix="edd-deploy-") as tmp:
             repo = Path(tmp) / "repo"

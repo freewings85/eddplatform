@@ -29,7 +29,8 @@ async def main() -> None:
             client,
             task_queue=TASK_QUEUE,
             workflows=[RunTaskWorkflow],
-            activities=[acts.deploy_repo, acts.run_script, acts.run_eval],
+            activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
+                        acts.wait_eval_worker],
             activity_executor=executor,
         )
         print(f"worker 已连接 {TEMPORAL_ADDRESS}，task_queue={TASK_QUEUE}，等待任务…")
