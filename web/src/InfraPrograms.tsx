@@ -28,7 +28,7 @@ export default function InfraPrograms({ sysId }: { sysId: string }) {
     <>
       <h2 className="page">基础组件（独立部署的 kafka / postgres / temporal…）</h2>
       <p className="sub">
-        登记基础组件库：一个<b>独立 git 仓库 + 目录</b>，目录下每个子文件夹 = 一个
+        登记基础组件库：<b>git 仓库 + 组件目录</b>（可以就是项目仓库里的一个目录，如 build/infra；也可以是单独的共享组件仓库），目录下每个子文件夹 = 一个
         可独立部署进运行 namespace 的组件（<b>纯 chart 单元</b>：只有 chart/，无
         build.sh，平台跳过构建直接 helm 部署）。建任务时在「基础组件」区块从这里
         选库、扫描、勾选组件——多任务并发需要隔离共享组件时用。
@@ -142,13 +142,13 @@ function InfraForm({ sysId, initial, onCancel, onDone }: {
               placeholder="通用基础组件" />
           </label>
           <label className="fld">
-            <span>Git 仓库 *（独立的组件仓库）</span>
+            <span>Git 仓库 *（项目仓库或共享组件仓库均可）</span>
             <input value={gitUrl} onChange={(e) => setGitUrl(e.target.value)} className="mono"
-              placeholder="ssh://git@…/edd_infra_components.git" />
+              placeholder="ssh://git@…/chatagent.git（组件在其 build/infra 目录）" />
           </label>
           <div className="fld-row">
             <label className="fld">
-              <span>组件目录（子文件夹=组件，默认 . = 仓库根）</span>
+              <span>组件目录（子文件夹=组件，如 build/infra；默认 . = 仓库根）</span>
               <input value={path} onChange={(e) => setPath(e.target.value)} className="mono"
                 placeholder="." />
             </label>

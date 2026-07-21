@@ -73,9 +73,11 @@ class SystemProgram(BaseModel):
 
 
 class InfraProgram(BaseModel):
-    """基础组件库注册项：一个**独立 git 仓库 + 目录**，目录下每个子文件夹 =
-    一个可独立部署进运行 namespace 的基础组件（纯 chart 单元：只有 chart/，
-    无 build.sh）。建任务时从「基础组件」区块扫描该目录、勾选组件。
+    """基础组件库注册项：**git 仓库 + 组件目录**（配置独立于系统程序/评估程序；
+    git 上可以就是项目仓库的一个目录，如 chatagent 的 build/infra，也可以是
+    单独的共享组件仓库）。目录下每个子文件夹 = 一个可独立部署进运行 namespace
+    的基础组件（纯 chart 单元：只有 chart/，无 build.sh）。建任务时从
+    「基础组件」区块扫描该目录、勾选组件。
     """
 
     id: str = ""                      # 空 = store 落库时生成（IC-0001）
