@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import Datasets from "./Datasets";
 import EvalPrograms from "./EvalPrograms";
+import InfraPrograms from "./InfraPrograms";
 import Runs from "./Runs";
 import SystemPrograms from "./SystemPrograms";
 import Settings from "./Settings";
@@ -39,6 +40,7 @@ const GLOBAL_NAV: Nav[] = [
 const SYSTEM_NAV: Nav[] = [
   { view: "system-code", label: "系统程序", icon: "🧩" }, // 被评系统的 git 单元注册
   { view: "eval-programs", label: "评估程序", icon: "🧪" }, // 评估代码 git/版本
+  { view: "infra-programs", label: "基础组件", icon: "🧱" }, // 独立部署的 kafka/pg/temporal…
   { view: "datasets", label: "用例库", icon: "📁" }, // 评估数据
   { view: "tags", label: "标签", icon: "🏷️" },
   { view: "tasks", label: "评估任务", icon: "🎯" }, // task + 前置条件
@@ -126,6 +128,9 @@ export default function App() {
           )}
           {mode === "system" && sysId && view === "eval-programs" && (
             <EvalPrograms sysId={sysId} />
+          )}
+          {mode === "system" && sysId && view === "infra-programs" && (
+            <InfraPrograms sysId={sysId} />
           )}
           {mode === "system" && sysId && view === "datasets" && (
             <Datasets sysId={sysId} />

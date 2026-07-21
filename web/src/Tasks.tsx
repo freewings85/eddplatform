@@ -5,6 +5,7 @@ import type {
   Case,
   DatasetInfo,
   EvalProgram,
+  InfraProgram,
   Precondition,
   PreconditionKind,
   SystemProgram,
@@ -37,6 +38,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sysPrograms, setSysPrograms] = useState<SystemProgram[]>([]);
   const [evalPrograms, setEvalPrograms] = useState<EvalProgram[]>([]);
+  const [infraPrograms, setInfraPrograms] = useState<InfraProgram[]>([]);
   const [libs, setLibs] = useState<DatasetInfo[]>([]);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
@@ -51,6 +53,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
     api.tasks(sysId).then(setTasks).catch((e) => setError(String(e)));
     api.systemPrograms(sysId).then(setSysPrograms).catch(() => {});
     api.evalPrograms(sysId).then(setEvalPrograms).catch(() => {});
+    api.infraPrograms(sysId).then(setInfraPrograms).catch(() => {});
     api.datasets(sysId).then(setLibs).catch(() => {});
   }, [sysId]);
   useEffect(reload, [reload]);
@@ -199,6 +202,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
           sysId={sysId}
           sysPrograms={sysPrograms}
           evalPrograms={evalPrograms}
+          infraPrograms={infraPrograms}
           initial={editing}
           onCancel={() => {
             setCreating(false);
@@ -232,6 +236,7 @@ function TaskForm({
   sysId,
   sysPrograms,
   evalPrograms,
+  infraPrograms,
   initial,
   onCancel,
   onDone,
@@ -239,6 +244,7 @@ function TaskForm({
   sysId: string;
   sysPrograms: SystemProgram[];
   evalPrograms: EvalProgram[];
+  infraPrograms: InfraProgram[];
   initial: Task | null;
   onCancel: () => void;
   onDone: () => void;
@@ -268,7 +274,6 @@ function TaskForm({
   // 基础组件扫描（纯 chart 单元：build/infra/<组件>），勾选后生成前置条件行
   const [infraProgramId, setInfraProgramId] = useState<string>("");
   const [infraBranch, setInfraBranch] = useState("main");
-  const [infraPath, setInfraPath] = useState("build/infra");
   const [infraScan, setInfraScan] = useState<{ name: string; release: string;
     services: Record<string, string> }[] | null>(null);
   const [infraSel, setInfraSel] = useState<Set<string>>(new Set());
@@ -276,35 +281,35 @@ function TaskForm({
   useEscape(onCancel);
 
   async function scanInfraComponents() {
-    const p = sysPrograms.find((x) => x.id === (infraProgramId || sysPrograms[0]?.id));
-    if (!p) return setInfraMsg("先在「系统程序」页登记一个仓库");
+    const p = infraPrograms.find((x) => x.id === (infraProgramId || infraPrograms[0]?.id));
+    if (!p) return setInfraMsg("先在「基础组件」页登记一个组件库");
     setInfraMsg("扫描中…");
     setInfraScan(null);
     setInfraSel(new Set());
     try {
-      const r = await api.scanInfra(p.git_url, infraBranch.trim() || "main",
-        infraPath.trim() || "build/infra");
+      const r = await api.scanInfra(p.git_url, infraBranch.trim() || "main", p.path || ".");
       setInfraScan(r.components);
       setInfraMsg(r.components.length
         ? `发现 ${r.components.length} 个组件（勾选后添加为前置条件）`
-        : `该目录下没有组件（每个组件 = ${infraPath}/<组件名>/chart/，无需 build.sh）`);
+        : `该目录下没有组件（每个组件 = <组件名>/chart/，无需 build.sh）`);
     } catch (e) {
       setInfraMsg(String(e));
     }
   }
 
   async function addInfraRows() {
-    const p = sysPrograms.find((x) => x.id === (infraProgramId || sysPrograms[0]?.id));
+    const p = infraPrograms.find((x) => x.id === (infraProgramId || infraPrograms[0]?.id));
     if (!p || !infraScan) return;
     setBusy(true);
     try {
       const branch = infraBranch.trim() || "main";
       const { commit } = await api.resolveBranch(p.git_url, branch);  // 固化 commit
+      const base = !p.path || p.path === "." ? "" : p.path.replace(/\/+$/, "") + "/";
       const picked = infraScan.filter((c) => infraSel.has(c.name));
       const newRows: Row[] = picked.map((c) => ({
         kind: "start_system" as PreconditionKind,
         programId: p.id, name: c.name,
-        path: `${infraPath.trim() || "build/infra"}/${c.name}`,
+        path: `${base}${c.name}`,
         branch, commit,
       }));
       setRows((r) => [...newRows, ...r]);
@@ -373,6 +378,8 @@ function TaskForm({
       const p = evalPrograms.find((x) => x.id === row.programId);
       return p ? { git_url: p.git_url, path: p.path, label: p.name, env: p.env } : null;
     }
+    const infra = infraPrograms.find((x) => x.id === row.programId);
+    if (infra) return { git_url: infra.git_url, path: infra.path, label: infra.name };
     return null;
   }
 
@@ -572,13 +579,13 @@ function TaskForm({
               <div className="inline-btn">
                 <select value={infraProgramId}
                   onChange={(e) => { setInfraProgramId(e.target.value); setInfraScan(null); }}>
-                  {sysPrograms.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.git_url}）</option>)}
+                  {infraPrograms.length === 0 && <option value="">（先在「基础组件」页登记组件库）</option>}
+                  {infraPrograms.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.git_url}）</option>)}
                 </select>
                 <input style={{ maxWidth: 110 }} value={infraBranch}
                   onChange={(e) => setInfraBranch(e.target.value)} placeholder="分支" />
-                <input style={{ maxWidth: 130 }} className="mono" value={infraPath}
-                  onChange={(e) => setInfraPath(e.target.value)} placeholder="build/infra" />
-                <button className="btn sm" onClick={scanInfraComponents} disabled={busy}>扫描组件</button>
+                <button className="btn sm" onClick={scanInfraComponents}
+                  disabled={busy || infraPrograms.length === 0}>扫描组件</button>
               </div>
               {infraMsg && <p className="hint" style={{ margin: 0 }}>{infraMsg}</p>}
               {infraScan && infraScan.map((c) => (

@@ -7,6 +7,7 @@ from eddplatform.store.case_store import CaseStore, ImportResult
 from eddplatform.store.dataset_store import DatasetStore
 from eddplatform.store.db import Db
 from eddplatform.store.eval_program_store import EvalProgramStore
+from eddplatform.store.infra_program_store import InfraProgramStore
 from eddplatform.store.run_log_store import RunLogStore
 from eddplatform.store.run_store import RunStore
 from eddplatform.store.settings_store import SettingsStore
@@ -21,6 +22,7 @@ __all__ = [
     "Db",
     "EvalProgramStore",
     "ImportResult",
+    "InfraProgramStore",
     "RunLogStore",
     "RunStore",
     "SettingsStore",

@@ -72,6 +72,28 @@ class SystemProgram(BaseModel):
         return v
 
 
+class InfraProgram(BaseModel):
+    """基础组件库注册项：一个**独立 git 仓库 + 目录**，目录下每个子文件夹 =
+    一个可独立部署进运行 namespace 的基础组件（纯 chart 单元：只有 chart/，
+    无 build.sh）。建任务时从「基础组件」区块扫描该目录、勾选组件。
+    """
+
+    id: str = ""                      # 空 = store 落库时生成（IC-0001）
+    system_id: str = ""
+    name: str
+    git_url: str
+    path: str = "."                   # 组件集合目录（子文件夹=组件）
+    owner: str | None = None
+
+    @field_validator("git_url")
+    @classmethod
+    def _git_url_no_whitespace(cls, v: str) -> str:
+        v = v.strip()
+        if any(ch.isspace() for ch in v):
+            raise ValueError("git 地址不能包含空白字符（检查是否粘贴了多余内容）")
+        return v
+
+
 class EvalProgram(BaseModel):
     """评估程序（评估代码库）——**独立于系统程序**的另一套 git 单元注册项。
 

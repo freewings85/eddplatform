@@ -50,6 +50,20 @@ export type EvalProgramInput = Omit<EvalProgram, "id" | "system_id"> & {
   system_id?: string;
 };
 
+export interface InfraProgram {
+  id: string;
+  system_id: string;
+  name: string;
+  git_url: string; // 独立的组件仓库
+  path: string; // 组件集合目录（子文件夹=组件）
+  owner?: string | null;
+}
+
+export type InfraProgramInput = Omit<InfraProgram, "id" | "system_id"> & {
+  id?: string;
+  system_id?: string;
+};
+
 export type PreconditionKind = "start_system" | "start_eval_program" | "custom_script";
 
 export interface Precondition {

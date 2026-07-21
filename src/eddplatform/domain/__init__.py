@@ -7,6 +7,7 @@ from eddplatform.domain.models import (  # noqa: F401
     DatasetInfo,
     EvalProgram,
     GlobalSettings,
+    InfraProgram,
     Module,
     Precondition,
     PreconditionKind,

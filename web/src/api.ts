@@ -8,6 +8,8 @@ import type {
   SystemProgram,
   SystemProgramInput,
   ImportResult,
+  InfraProgram,
+  InfraProgramInput,
   RunDetail,
   RunLogPage,
   RunRecord,
@@ -72,6 +74,15 @@ export const api = {
     send<{ path: string; components: { name: string; release: string;
            services: Record<string, string> }[] }>(
       "POST", "/git/scan-infra", { git_url: gitUrl, ref, path }),
+
+  // 基础组件库注册
+  infraPrograms: (sysId: string) => get<InfraProgram[]>(`/systems/${sysId}/infra-programs`),
+  createInfraProgram: (sysId: string, p: InfraProgramInput) =>
+    send<InfraProgram>("POST", `/systems/${sysId}/infra-programs`, p),
+  updateInfraProgram: (sysId: string, pid: string, p: InfraProgramInput) =>
+    send<InfraProgram>("PUT", `/systems/${sysId}/infra-programs/${pid}`, p),
+  deleteInfraProgram: (sysId: string, pid: string) =>
+    send<void>("DELETE", `/systems/${sysId}/infra-programs/${pid}`),
 
   // 评估程序注册
   evalPrograms: (sysId: string) => get<EvalProgram[]>(`/systems/${sysId}/eval-programs`),

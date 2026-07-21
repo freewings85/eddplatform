@@ -14,11 +14,11 @@ from pydantic import BaseModel
 
 from eddplatform.api import case_git, case_yaml, git_resolve, langfuse_client, run_service
 from eddplatform.domain.models import (Case, DatasetInfo, EvalProgram, GlobalSettings,
-                                       PreconditionKind, RunRecord, System, SystemProgram,
-                                       TagNode, Task)
-from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunLogStore,
-                               RunStore, SettingsStore, SystemProgramStore, SystemStore,
-                               TagStore, TaskStore)
+                                       InfraProgram, PreconditionKind, RunRecord, System,
+                                       SystemProgram, TagNode, Task)
+from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore,
+                               InfraProgramStore, RunLogStore, RunStore, SettingsStore,
+                               SystemProgramStore, SystemStore, TagStore, TaskStore)
 
 app = FastAPI(
     title="EddPlatform",
@@ -34,6 +34,7 @@ dataset_store = DatasetStore()
 tag_store = TagStore()
 system_store = SystemStore()
 system_program_store = SystemProgramStore()
+infra_program_store = InfraProgramStore()
 task_store = TaskStore()
 eval_program_store = EvalProgramStore()
 run_store = RunStore()
@@ -209,6 +210,40 @@ def delete_system_program(system_id: str, program_id: str) -> None:
         system_program_store.delete(system_id, program_id)
     except KeyError:
         raise HTTPException(404, "system program not found")
+
+
+# --- 基础组件库注册（独立 git 仓库 + 目录，子文件夹 = 纯 chart 组件）---------
+@app.get("/api/systems/{system_id}/infra-programs")
+def list_infra_programs(system_id: str) -> list[InfraProgram]:
+    _require_system(system_id)
+    return infra_program_store.list(system_id)
+
+
+@app.post("/api/systems/{system_id}/infra-programs", status_code=201)
+def create_infra_program(system_id: str, program: InfraProgram) -> InfraProgram:
+    _require_system(system_id)
+    try:
+        return infra_program_store.create(system_id, program)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.put("/api/systems/{system_id}/infra-programs/{program_id}")
+def update_infra_program(system_id: str, program_id: str, program: InfraProgram) -> InfraProgram:
+    _require_system(system_id)
+    try:
+        return infra_program_store.update(system_id, program_id, program)
+    except KeyError:
+        raise HTTPException(404, "infra program not found")
+
+
+@app.delete("/api/systems/{system_id}/infra-programs/{program_id}", status_code=204)
+def delete_infra_program(system_id: str, program_id: str) -> None:
+    _require_system(system_id)
+    try:
+        infra_program_store.delete(system_id, program_id)
+    except KeyError:
+        raise HTTPException(404, "infra program not found")
 
 
 # --- git 解析（建任务时把 分支/commit 固化成双字段）-------------------------

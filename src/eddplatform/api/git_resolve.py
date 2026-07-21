@@ -136,9 +136,12 @@ def scan_infra(git_url: str, ref: str, path: str = "build/infra") -> dict:
     except GitResolveError:
         raise GitResolveError(f"仓库里找不到 ref {ref!r}")
     prefix = path.strip("/")
-    proc = subprocess.run(
-        ["git", "-C", str(d), "ls-tree", "-z", full, f"{prefix}/"],
-        capture_output=True, text=True, timeout=60)
+    if prefix == ".":
+        prefix = ""                    # 仓库根：ls-tree 不带 pathspec
+    cmd = ["git", "-C", str(d), "ls-tree", "-z", full]
+    if prefix:
+        cmd.append(f"{prefix}/")
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
     components: list[dict] = []
     for entry in (proc.stdout or "").split("\0"):
         # 条目格式: "<mode> <type> <sha>\t<路径>"，只取 tree（子文件夹）
@@ -149,15 +152,16 @@ def scan_infra(git_url: str, ref: str, path: str = "build/infra") -> dict:
         if len(fields) < 2 or fields[1] != "tree":
             continue
         folder = p.rsplit("/", 1)[-1]
-        chart_p = f"{prefix}/{folder}/chart/Chart.yaml"
+        base = f"{prefix}/{folder}" if prefix else folder
         try:
-            chart = yaml.safe_load(_run(["git", "-C", str(d), "show", f"{full}:{chart_p}"])) or {}
+            chart = yaml.safe_load(_run(
+                ["git", "-C", str(d), "show", f"{full}:{base}/chart/Chart.yaml"])) or {}
         except GitResolveError:
             continue                       # 没有 chart 的文件夹不是组件
         services: dict[str, str] = {}
         try:
             values = yaml.safe_load(_run(
-                ["git", "-C", str(d), "show", f"{full}:{prefix}/{folder}/chart/values.yaml"])) or {}
+                ["git", "-C", str(d), "show", f"{full}:{base}/chart/values.yaml"])) or {}
             for svc, cfg in (values.get("services") or {}).items():
                 port = (cfg or {}).get("port") if isinstance(cfg, dict) else None
                 services[svc] = f"{svc}:{port}" if port else svc
