@@ -108,10 +108,20 @@ class TraceDataBody(BaseModel):
 @app.post("/api/langfuse/fetch-trace")
 def langfuse_fetch_trace(body: TraceUrlBody):
     """按轨迹链接把完整 trace JSON 拉回来（trace id 从 URL 解析）。"""
+    settings = settings_store.get()
     try:
         ref = langfuse_client.trace_id_from_url(body.url)
-        data = langfuse_client.fetch_trace(settings_store.get(), ref)
+        data = langfuse_client.fetch_trace(settings, ref)
     except langfuse_client.LangfuseError as e:
+        # 常见坑：链接的项目 ≠ key 的项目（Langfuse key 按项目签发）——把话说明白
+        url_proj = langfuse_client.project_id_from_url(body.url)
+        if url_proj:
+            key_projs = langfuse_client.key_project_ids(settings)
+            if key_projs and url_proj not in key_projs:
+                raise HTTPException(400, (
+                    f"这条轨迹属于 Langfuse 项目 {url_proj!r}，而「基础设置」里配的 "
+                    f"API key 只能访问项目 {sorted(key_projs)}。Langfuse 的 key 按项目"
+                    "签发——去该项目的 Settings → API Keys 生成 pk/sk，填到基础设置后再导入。"))
         raise HTTPException(400, str(e))
     return {"ref": ref, "data": data,
             "observations": len(data.get("observations", []) or [])}

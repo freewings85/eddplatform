@@ -36,17 +36,49 @@ def test_connection(settings: GlobalSettings) -> dict:
     return {"ok": True, "projects": [p.get("name") for p in projects]}
 
 
-def trace_id_from_url(url: str) -> str:
-    """Langfuse 轨迹链接 → trace id（``…/traces/<id>`` 或旧式 ``…/trace/<id>``）。"""
+def key_project_ids(settings: GlobalSettings) -> set[str]:
+    """当前 API key 能访问的项目 id 集合（Langfuse key 按项目签发）。"""
+    auth = _auth(settings)
+    try:
+        r = httpx.get(f"{settings.langfuse_host.rstrip('/')}/api/public/projects",
+                      auth=auth, timeout=10)
+    except httpx.HTTPError:
+        return set()
+    if r.status_code != 200:
+        return set()
+    return {p.get("id") for p in r.json().get("data", []) if p.get("id")}
+
+
+def project_id_from_url(url: str) -> str | None:
+    """轨迹链接里的项目 id（``…/project/<id>/…``），没有则 None。"""
     from urllib.parse import urlparse
     parts = [p for p in urlparse(url.strip()).path.split("/") if p]
+    if "project" in parts:
+        i = parts.index("project")
+        if i + 1 < len(parts):
+            return parts[i + 1]
+    return None
+
+
+def trace_id_from_url(url: str) -> str:
+    """Langfuse 轨迹链接 → trace id。
+
+    支持两种形态：详情页 ``…/traces/<id>``（旧式 ``…/trace/<id>``），
+    以及列表页的预览链接 ``…/traces?peek=<id>``。
+    """
+    from urllib.parse import parse_qs, urlparse
+    parsed = urlparse(url.strip())
+    parts = [p for p in parsed.path.split("/") if p]
     for marker in ("traces", "trace"):
         if marker in parts:
             i = parts.index(marker)
             if i + 1 < len(parts) and parts[i + 1]:
                 return parts[i + 1]
+    peek = parse_qs(parsed.query).get("peek", [])
+    if peek and peek[0]:
+        return peek[0]
     raise LangfuseError(
-        f"链接里找不到 trace id（应形如 …/traces/<id>）: {url.strip()!r}")
+        f"链接里找不到 trace id（应形如 …/traces/<id> 或 …/traces?peek=<id>）: {url.strip()!r}")
 
 
 def fetch_trace(settings: GlobalSettings, trace_id: str) -> dict:
