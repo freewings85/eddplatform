@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import re
 from datetime import timedelta
 
 from temporalio.client import Client
 
-from eddplatform.domain.models import Case, CaseRunResult, RunRecord, RunStatus, Task
-from eddplatform.runtime.temporal.shared import (TASK_QUEUE, CaseSpec, RunTaskInput,
+from eddplatform.domain.models import CaseRunResult, RunRecord, RunStatus, Task
+from eddplatform.runtime.temporal.shared import (TASK_QUEUE, RunTaskInput,
                                                  RunTaskOutput, to_spec)
 from eddplatform.store.run_log_store import RunLogStore
 from eddplatform.store.run_store import RunStore
@@ -27,20 +26,9 @@ def _namespace(system_id: str, run_id: str) -> str:
     return re.sub(r"[^a-z0-9-]", "-", f"edd-{system_id}-{run_id}".lower()).strip("-")
 
 
-def case_to_spec(case: Case) -> CaseSpec:
-    return CaseSpec(
-        case_id=case.id, name=case.name, code=case.code,
-        inputs=case.inputs if isinstance(case.inputs, str)
-        else json.dumps(case.inputs, ensure_ascii=False),
-        expected=(case.expected_output
-                  if isinstance(case.expected_output, str) or case.expected_output is None
-                  else json.dumps(case.expected_output, ensure_ascii=False)),
-        metadata=dict(case.metadata),
-    )
-
-
 async def start_run(system_id: str, task: Task, *, eval_code: str | None,
-                    cases: list[CaseSpec], run_store: RunStore) -> RunRecord:
+                    dataset_name: str = "", cases: list[str] | None = None,
+                    run_store: RunStore) -> RunRecord:
     """提交执行。Temporal 连不上抛 ConnectionError（API 层转 503），不留运行记录。"""
     try:
         client = await _connect(TEMPORAL_ADDRESS)
@@ -55,7 +43,8 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
         eval_target=None,
         run_id=run.id,
         eval_code=eval_code,
-        cases=cases,
+        dataset_name=dataset_name,
+        cases=list(cases or []),
     )
     handle = await client.start_workflow(
         "RunTaskWorkflow", inp, id=f"edd-run-{run.id}", task_queue=TASK_QUEUE,

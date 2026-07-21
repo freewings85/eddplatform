@@ -4,8 +4,8 @@
 
     System        被评系统（注册表；约定式部署直接用 git 仓库）
     EvalProgram   评估程序（独立 git 仓；workflow 名在其自身代码里）
-    Dataset ─< Case（有自身版本 + 适用系统版本）
-    Task          评估任务 = 数据集 + 有序前置条件 + 评估程序
+    DatasetInfo ─< Case（纯注册记录：name 与评估代码里的 dataset/case 一一对应）
+    Task          评估任务 = 用例清单 + 有序前置条件（评估内容全在评估代码仓）
     RunRecord     一次 task 执行（Temporal workflow 的平台侧记录）─< CaseRunResult
 """
 
@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, field_validator
 
 
 # --------------------------------------------------------------------------- 枚举
@@ -22,37 +22,6 @@ class RunStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
     FAILED = "failed"
-
-
-class EvaluatorKind(str, Enum):
-    BUILTIN = "builtin"          # pydantic-evals 内置(EqualsExpected/HasMatchingSpan/...)
-    CUSTOM_CODE = "custom_code"  # 自定义 Evaluator 子类
-    LLM_JUDGE = "llm_judge"      # LLMJudge
-
-
-class OutputType(str, Enum):
-    """对应 pydantic-evals 返回值自动归类：bool→assertion, number→score, str→label。"""
-
-    ASSERTION = "assertion"
-    SCORE = "score"
-    LABEL = "label"
-
-
-class ContextField(str, Enum):
-    """评估器可读的 EvaluatorContext 字段（"看输出的哪部分"）。"""
-
-    OUTPUT = "output"
-    EXPECTED_OUTPUT = "expected_output"
-    INPUTS = "inputs"
-    METADATA = "metadata"
-    DURATION = "duration"
-    SPAN_TREE = "span_tree"
-
-
-class EvaluatorScope(str, Enum):
-    DATASET = "dataset"
-    CASE = "case"
-    REPORT = "report"
 
 
 # --------------------------------------------------------------------------- 系统 / 模块 / 版本
@@ -151,74 +120,46 @@ class TagNode(BaseModel):
 
 
 class Case(BaseModel):
-    """用例：有自身版本(编辑历史) + 适用系统版本(多版本通用/某版本专属)。"""
+    """用例：**纯注册记录**——身份 + 元信息 + 轨迹关联。
 
-    id: str = ""                          # 空 = 由 store 落库时生成
-    name: str
-    description: str | None = None        # 用例意图/在测什么
-    code: str | None = None               # 评估入口名：评估程序按它分派内部判定逻辑（随入参传递）
-    inputs: dict | str = ""
-    expected_output: dict | str | None = None
+    EDD 不携带、不理解任何评估内容（输入/期望/判定都定义在评估代码仓里）；
+    执行时平台只把「用例集 name + 用例 name」传给评估 workflow，由评估代码
+    按 name 找到自己定义的 case 跑一次评估。``name`` 是与评估代码对应的机器
+    友好名（如 guide_platform_intro），``id`` 仅内部使用（= name）。
+    """
+
+    id: str = ""                          # 内部 id（落库时 = name）
+    name: str                             # 与评估代码里 case 一一对应的名字
+    description: str | None = None        # 用例意图/在测什么（人看的）
     tags: list[str] = []                  # 数据集内分组/筛选
-    metadata: dict = {}
-    case_version: str = "v1"              # 用例自身编辑版本
-    applicable_versions: list[str] = []   # 适用的系统版本；空 = 全部通用
-    evaluator_names: list[str] = []
-    trace: CaseTrace | None = None        # 一条 case 对应一条轨迹（轻引用）
-    author: str | None = None
+    trace: CaseTrace | None = None        # 一条 case 对应一条轨迹（轻引用+归档）
     enabled: bool = True
     created_at: datetime | None = None    # store 自动维护
     updated_at: datetime | None = None    # store 自动维护
 
-    def applies_to(self, version_label: str) -> bool:
-        return not self.applicable_versions or version_label in self.applicable_versions
+    @field_validator("name")
+    @classmethod
+    def _name_no_whitespace(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("用例 name 不能为空")
+        if any(ch.isspace() for ch in v):
+            raise ValueError("用例 name 不能包含空白字符（它是传给评估代码的标识）")
+        return v
 
 
 class DatasetInfo(BaseModel):
-    """用例库注册项：一个系统可有多个用例库，用例按库分区。"""
+    """用例库注册项：一个系统可有多个用例库，用例按库分区。
 
-    id: str = ""                          # 空 = store 落库时生成（DS-0001）
+    ``name`` 与评估代码里的 dataset 对应（执行时随用例 name 一起传入 workflow）。
+    """
+
+    id: str = ""                          # 内部 id（store 落库时生成，DS-0001）
     system_id: str = ""
     name: str
     description: str | None = None
-    workflow: str | None = None           # 评这批用例的 RunCase workflow 名（=评估程序的 code）
+    workflow: str | None = None           # 评这批用例的 RunCase workflow 名（=评估程序认领的队列）
     path: str | None = None               # 用例仓里对应的文件夹（git 导入/导出的锚点）
-
-
-class Dataset(BaseModel):
-    name: str
-    system_id: str
-    cases: list[Case] = []
-    evaluator_names: list[str] = []
-
-    def cases_for_comparison(self, version_a: str, version_b: str) -> list[Case]:
-        """只保留对两个版本都适用的用例——对比才公平。"""
-        return [
-            c for c in self.cases
-            if c.enabled and c.applies_to(version_a) and c.applies_to(version_b)
-        ]
-
-
-# --------------------------------------------------------------------------- 评估器
-class EvaluatorDef(BaseModel):
-    """可管理的评估器定义。字段对齐 Pydantic Evals(执行) + Langfuse(管理)。
-
-    见 docs/ 与项目记忆「评估器定义模型」。运行时由 evals.runner 映射为
-    pydantic-evals 的 Evaluator / LLMJudge 执行。
-    """
-
-    name: str
-    kind: EvaluatorKind
-    builtin_type: str | None = None       # kind=builtin 时: EqualsExpected / HasMatchingSpan / ...
-    input_field: ContextField = ContextField.OUTPUT
-    json_path: str | None = None          # 读嵌套字段, 如 $.premium
-    rule: str | None = None               # code 描述/表达式
-    rubric: str | None = None             # LLMJudge 打分标准
-    model: str | None = None              # 评委模型(仅 llm_judge)
-    output_type: OutputType = OutputType.ASSERTION
-    threshold: float | None = None        # 通过阈值(UI 层; pydantic-evals 原生无)
-    scope: EvaluatorScope = EvaluatorScope.DATASET
-    case_refs: list[str] = []             # 挂到哪些用例
 
 
 class GlobalSettings(BaseModel):
@@ -257,45 +198,6 @@ class CaseRunResult(BaseModel):
     metrics: dict[str, float] = {}
     detail: str = ""
     trace_url: str | None = None
-
-
-class CaseResult(BaseModel):
-    """（本地兜底评分器 engine.py 专用）单用例断言/分数汇总。"""
-
-    case_id: str
-    passed: bool
-    assertions: dict[str, bool] = {}
-    scores: dict[str, float] = {}
-    labels: dict[str, str] = {}
-
-
-class EvalResult(BaseModel):
-    pass_rate: float
-    metrics: dict[str, float] = {}
-    case_results: list[CaseResult] = []
-
-
-# --------------------------------------------------------------------------- 对比
-class MetricDelta(BaseModel):
-    metric: str
-    baseline: float
-    candidate: float
-
-    @property
-    def delta(self) -> float:
-        return self.candidate - self.baseline
-
-
-class Comparison(BaseModel):
-    """两个评估结果的对比（先各自评估、再对比）。"""
-
-    baseline_eval_id: str
-    candidate_eval_id: str
-    applicable_cases: int = 0             # 两版本都适用的用例数
-    improved: int = 0
-    regressed: int = 0
-    unchanged: int = 0
-    metrics: list[MetricDelta] = Field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- 任务前置条件

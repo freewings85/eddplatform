@@ -134,15 +134,16 @@ class RunTaskWorkflow:
                     detail=str(getattr(cause, "message", None) or cause)))
                 return out
             total = len(inp.cases)
-            for i, case in enumerate(inp.cases, 1):
+            for i, case_name in enumerate(inp.cases, 1):
                 await _log(inp.run_id,
-                           f"▶ [{i}/{total}] 用例 {case.case_id} ({case.name}) → "
-                           f"child workflow {inp.eval_code} (code={case.code})")
+                           f"▶ [{i}/{total}] 用例 {case_name} → child workflow "
+                           f"{inp.eval_code} (dataset={inp.dataset_name})")
                 try:
                     r = await workflow.execute_child_workflow(
                         inp.eval_code,
-                        RunCaseInput(run_id=inp.run_id, namespace=inp.namespace, case=case),
-                        id=f"{workflow.info().workflow_id}-case-{case.case_id}",
+                        RunCaseInput(run_id=inp.run_id, namespace=inp.namespace,
+                                     dataset=inp.dataset_name, case=case_name),
+                        id=f"{workflow.info().workflow_id}-case-{case_name}",
                         task_queue=inp.eval_code,
                         result_type=CaseResultOut,
                         execution_timeout=timedelta(minutes=5),
@@ -150,7 +151,7 @@ class RunTaskWorkflow:
                     out.case_results.append(r)
                     mark = "✓" if r.status == "passed" else "✗"
                     await _log(inp.run_id,
-                               f"{mark} [{i}/{total}] 用例 {case.case_id} {r.status}"
+                               f"{mark} [{i}/{total}] 用例 {case_name} {r.status}"
                                f"{' · ' + str(r.scores) if r.scores else ''}"
                                f"{' · ' + r.detail if r.detail else ''}")
                 except Exception as e:  # noqa: BLE001 —— 单用例失败不拖垮整场
@@ -159,7 +160,7 @@ class RunTaskWorkflow:
                         cause = cause.cause
                     detail = str(getattr(cause, "message", None) or cause)
                     out.case_results.append(
-                        CaseResultOut(case_id=case.case_id, status="error", detail=detail))
+                        CaseResultOut(case_id=case_name, status="error", detail=detail))
                     await _log(inp.run_id,
-                               f"! [{i}/{total}] 用例 {case.case_id} error · {detail}")
+                               f"! [{i}/{total}] 用例 {case_name} error · {detail}")
         return out

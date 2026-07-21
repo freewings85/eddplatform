@@ -1,27 +1,19 @@
-"""领域模型：System / EvalProgram / Dataset·Case / Task / RunRecord·CaseRunResult。"""
+"""领域模型：System / EvalProgram / DatasetInfo·Case / Task / RunRecord·CaseRunResult。"""
 
 from eddplatform.domain.models import (  # noqa: F401
     Case,
     CaseRunResult,
-    CaseResult,
-    Comparison,
-    ContextField,
-    Dataset,
+    CaseTrace,
     DatasetInfo,
     EvalProgram,
-    EvalResult,
-    EvaluatorDef,
-    EvaluatorKind,
-    EvaluatorScope,
     GlobalSettings,
-    MetricDelta,
     Module,
-    OutputType,
     Precondition,
     PreconditionKind,
     RunRecord,
     RunStatus,
     System,
     SystemProgram,
+    TagNode,
     Task,
 )

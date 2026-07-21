@@ -63,8 +63,8 @@ def test_export_writes_one_file_per_case_and_pushes(test_db, cases_repo, tmp_pat
     import_from_git(system, ds, cs)
     guide = next(d for d in ds.list("sys1") if d.path == "guide")
     # 库里改一条 + 加一条
-    cs.update_case("sys1", guide.id, "g1", Case(id="g1", name="改过的g1", inputs='[{"user": "你好"}]'))
-    cs.add_case("sys1", guide.id, Case(id="g3", name="新增", inputs='[{"user": "新"}]'))
+    cs.update_case("sys1", guide.id, "g1", Case(id="g1", name="g1", description="改过的"))
+    cs.add_case("sys1", guide.id, Case(name="g3", description="新增"))
     out = export_to_git(system, guide, cs.list_cases("sys1", guide.id))
     assert out["files"] == 3
     # 远端应有 逐用例文件；再导入回来内容一致（回环）
@@ -72,7 +72,7 @@ def test_export_writes_one_file_per_case_and_pushes(test_db, cases_repo, tmp_pat
     guide2 = next(d for d in ds.list("sys1") if d.path == "guide")
     ids = [c.id for c in cs.list_cases("sys1", guide2.id)]
     assert sorted(ids) == ["g1", "g2", "g3"]
-    assert cs.get_case("sys1", guide2.id, "g1").name == "改过的g1"
+    assert cs.get_case("sys1", guide2.id, "g1").description == "改过的"
     assert report["commit"] == out["commit"]
 
 

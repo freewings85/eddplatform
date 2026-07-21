@@ -165,7 +165,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
   return (
     <>
       <h2 className="page">用例库</h2>
-      <p className="sub">用例有自身版本 + 适用系统版本；一条用例可对应一条线上轨迹（Langfuse）</p>
+      <p className="sub">用例是纯注册记录——name 与评估代码里的 case 一一对应；评估内容（输入/期望/判定）都在评估代码仓里。一条用例可对应一条线上轨迹（Langfuse）</p>
       {error && <p className="err">{error}</p>}
 
       <div className="toolbar">
@@ -243,10 +243,8 @@ export default function Datasets({ sysId }: { sysId: string }) {
         <table>
           <thead>
             <tr>
-              <th>#</th>
-              <th>用例名</th>
+              <th>名称</th>
               <th>标签</th>
-              <th>适用系统版本</th>
               <th>轨迹</th>
               <th>启用</th>
               <th></th>
@@ -255,9 +253,8 @@ export default function Datasets({ sysId }: { sysId: string }) {
           <tbody>
             {visible.map((c) => (
               <tr key={c.id} className={c.enabled ? "" : "off"}>
-                <td>{c.id}</td>
                 <td>
-                  <b>{c.name}</b>
+                  <b className="mono">{c.name}</b>
                   {c.description && <div className="muted sm">{c.description}</div>}
                 </td>
                 <td>
@@ -266,19 +263,6 @@ export default function Datasets({ sysId }: { sysId: string }) {
                       {t}
                     </span>
                   ))}
-                </td>
-                <td>
-                  {c.applicable_versions.length === 0 ? (
-                    <span className="tag">全部版本</span>
-                  ) : c.applicable_versions.length === 1 ? (
-                    <span className="tag only">仅 {c.applicable_versions[0]} 专属</span>
-                  ) : (
-                    c.applicable_versions.map((v) => (
-                      <span key={v} className="tag">
-                        {v}
-                      </span>
-                    ))
-                  )}
                 </td>
                 <td>
                   {c.trace ? (
@@ -323,14 +307,14 @@ export default function Datasets({ sysId }: { sysId: string }) {
             ))}
             {dsId && cases.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">
+                <td colSpan={5} className="empty">
                   还没有用例，点「新增用例」或「导入」开始。
                 </td>
               </tr>
             )}
             {dsId && cases.length > 0 && visible.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">
+                <td colSpan={5} className="empty">
                   没有同时含全部所选标签的用例。
                   <a className="filter-clear" onClick={() => setActiveTags([])}>
                     清除筛选
@@ -520,7 +504,7 @@ function ImportDialog({
               </label>
               <label className={`chip ${format === "yaml" ? "on" : ""}`}>
                 <input type="radio" checked={format === "yaml"} onChange={() => setFormat("yaml")} />
-                评估 YAML（group/role/turns/expect）
+                注册 YAML（name/描述/标签）
               </label>
             </div>
           </div>
@@ -532,8 +516,8 @@ function ImportDialog({
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={format === "json"
-                ? '[{"name": "...", "inputs": {...}}]'
-                : "group: guide\nrole: guide\ncases:\n  - id: guide_intro\n    turns: [{user: \"介绍一下平台\"}]\n    expect: {judge: {rubric: \"介绍准确\"}}"}
+                ? '[{"name": "guide_platform_intro", "description": "..."}]'
+                : "cases:\n  - name: guide_platform_intro\n    description: 平台介绍准确\n    tags: [group/guide]"}
             />
           </label>
           <div className="fld">

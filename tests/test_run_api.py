@@ -88,8 +88,8 @@ def test_run_starts_workflow_and_watch_writes_back(client, monkeypatch):
 def test_run_uses_selected_cases_only(client, monkeypatch):
     """task.case_ids 勾选清单 → 只把选中的（且 enabled）用例交给 workflow。"""
     import eddplatform.api.run_service as rs
-    for cid, name in [("c1", "用例1"), ("c2", "用例2"), ("c3", "用例3")]:
-        client.post("/api/systems/sys1/datasets/DS-0001/cases", json={"id": cid, "name": name, "inputs": "x"})
+    for name in ("c1", "c2", "c3"):
+        client.post("/api/systems/sys1/datasets/DS-0001/cases", json={"name": name})
     client.post("/api/systems/sys1/tasks", json={
         "name": "选例", "system_id": "sys1", "dataset_id": "DS-0001", "case_ids": ["c1", "c3"],
         "preconditions": [{"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"}]})
@@ -102,7 +102,8 @@ def test_run_uses_selected_cases_only(client, monkeypatch):
     r = client.post("/api/systems/sys1/tasks/T-0002/run")
     assert r.status_code == 202
     inp = fake.started[0][2]
-    assert [c.case_id for c in inp.cases] == ["c1", "c3"]
+    assert inp.cases == ["c1", "c3"]           # 契约：只传用例 name
+    assert inp.dataset_name == "默认用例库"
 
 
 def test_run_failure_writes_failed(client, monkeypatch):
@@ -126,8 +127,7 @@ def test_run_failure_writes_failed(client, monkeypatch):
 def test_run_derives_eval_code_from_dataset_workflow(client, monkeypatch):
     """逐用例分派的 workflow 名来自任务选定的用例库（dataset.workflow）。"""
     import eddplatform.api.run_service as rs
-    client.post("/api/systems/sys1/datasets/DS-0001/cases",
-                json={"id": "c1", "name": "用例", "inputs": "x"})
+    client.post("/api/systems/sys1/datasets/DS-0001/cases", json={"name": "c1"})
     client.post("/api/systems/sys1/tasks", json={
         "name": "评估任务", "system_id": "sys1", "dataset_id": "DS-0001",
         "preconditions": [
@@ -141,15 +141,14 @@ def test_run_derives_eval_code_from_dataset_workflow(client, monkeypatch):
     assert r.status_code == 202
     inp = fake.started[0][2]
     assert inp.eval_code == "demo-eval"
-    assert inp.cases[0].case_id == "c1"
+    assert inp.cases == ["c1"]
 
 
 def test_run_rejects_dataset_without_workflow(client, monkeypatch):
     """有用例但库没配 workflow → 409 明确提示，而不是悄悄不评。"""
     import eddplatform.api.run_service as rs
     client.post("/api/systems/sys1/datasets", json={"name": "无workflow库"})   # DS-0002
-    client.post("/api/systems/sys1/datasets/DS-0002/cases",
-                json={"id": "c1", "name": "用例", "inputs": "x"})
+    client.post("/api/systems/sys1/datasets/DS-0002/cases", json={"name": "c1"})
     client.post("/api/systems/sys1/tasks", json={
         "name": "t2", "system_id": "sys1", "dataset_id": "DS-0002",
         "preconditions": [

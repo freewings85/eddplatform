@@ -12,8 +12,8 @@ from temporalio.client import Client
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Worker
 
-from eddplatform.runtime.temporal.shared import (CaseResultOut, CaseSpec,
-                                                 RunCaseInput, RunTaskInput)
+from eddplatform.runtime.temporal.shared import (CaseResultOut, RunCaseInput,
+                                                 RunTaskInput)
 from eddplatform.runtime.temporal.workflows import RunTaskWorkflow
 
 TEMPORAL = "localhost:7233"
@@ -30,16 +30,19 @@ def _temporal_up() -> bool:
 
 @workflow.defn(name="demo-eval", sandboxed=False)
 class FakeEvalWorkflow:
+    """契约：入参只有 用例集 name + 用例 name；评估内容由评估代码自己定义。"""
+
     @workflow.run
     async def run(self, inp: RunCaseInput) -> CaseResultOut:
-        if inp.case.case_id == "bad":
+        assert inp.dataset == "ds1"          # 用例集 name 随每条用例传入
+        if inp.case == "bad":
             # 评估程序契约：判定/执行失败抛 ApplicationError（普通异常只会让
             # workflow task 无限重试，不会把失败传回平台）
             raise ApplicationError("判定失败", non_retryable=True)
-        if inp.case.case_id == "na":
-            return CaseResultOut(case_id=inp.case.case_id, status="skipped",
+        if inp.case == "na":
+            return CaseResultOut(case_id=inp.case, status="skipped",
                                  detail="该版本不适用")
-        return CaseResultOut(case_id=inp.case.case_id, status="passed",
+        return CaseResultOut(case_id=inp.case, status="passed",
                              scores={"judge": 1.0}, metrics={"latency_s": 0.1})
 
 
@@ -56,12 +59,10 @@ async def test_dispatch_cases_to_eval_code_queue():
     q = f"test-q-{uuid.uuid4().hex[:8]}"
     inp = RunTaskInput(preconditions=[], namespace="ns", run_id="R-1",
                        eval_code="demo-eval", eval_worker_wait_s=15,
-                       cases=[CaseSpec(case_id="c1", name="用例1", inputs="你好"),
-                              CaseSpec(case_id="bad", name="坏用例"),
-                              CaseSpec(case_id="na", name="不适用")])
+                       dataset_name="ds1", cases=["c1", "bad", "na"])
     async with Worker(client, task_queue=q, workflows=[RunTaskWorkflow],
                       activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
-                                  acts.wait_eval_worker],
+                                  acts.wait_eval_worker, acts.append_run_log],
                       activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         async with Worker(client, task_queue="demo-eval", workflows=[FakeEvalWorkflow]):
             out = await client.execute_workflow(
@@ -88,10 +89,10 @@ async def test_no_worker_on_queue_fails_fast():
     inp = RunTaskInput(preconditions=[], namespace="ns", run_id="R-nf",
                        eval_code=f"nobody-home-{uuid.uuid4().hex[:6]}",
                        eval_worker_wait_s=5,
-                       cases=[CaseSpec(case_id="c1")])
+                       dataset_name="ds1", cases=["c1"])
     async with Worker(client, task_queue=q, workflows=[RunTaskWorkflow],
                       activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
-                                  acts.wait_eval_worker],
+                                  acts.wait_eval_worker, acts.append_run_log],
                       activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         out = await client.execute_workflow(
             RunTaskWorkflow.run, inp,
@@ -136,7 +137,8 @@ async def test_multiple_system_units_get_distinct_version_labels():
         ],
         namespace="ns", run_id="R-multi")
     async with Worker(client, task_queue=q, workflows=[RunTaskWorkflow],
-                      activities=[acts.deploy_repo, acts.run_script, acts.run_eval],
+                      activities=[acts.deploy_repo, acts.run_script, acts.run_eval,
+                                  acts.append_run_log],
                       activity_executor=concurrent.futures.ThreadPoolExecutor(4)):
         out = await client.execute_workflow(
             RunTaskWorkflow.run, inp,

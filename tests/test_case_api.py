@@ -24,8 +24,8 @@ def client(test_db):
     return c
 
 
-def _payload(name="报价用例", **kw):
-    return {"name": name, "inputs": {"car": "ev"}, **kw}
+def _payload(name="quote_basic", **kw):
+    return {"name": name, **kw}
 
 
 def test_dataset_starts_empty(client):
@@ -38,11 +38,11 @@ def test_create_generates_id_and_persists(client):
     r = client.post(f"/api/systems/{SYS}/datasets/{DS}/cases", json=_payload())
     assert r.status_code == 201
     created = r.json()
-    assert created["id"] == "1"
+    assert created["id"] == "quote_basic"       # 内部 id = name
     assert created["created_at"] is not None
     # 出现在 dataset 里
     cases = client.get(f"/api/systems/{SYS}/datasets/{DS}/cases").json()
-    assert [c["id"] for c in cases] == ["1"]
+    assert [c["id"] for c in cases] == ["quote_basic"]
 
 
 def test_create_with_trace(client):
@@ -91,11 +91,11 @@ def test_export_import_roundtrip(client):
 
 
 def test_import_append_upserts(client):
-    client.post(f"/api/systems/{SYS}/datasets/{DS}/cases", json=_payload(name="旧"))  # id=1
+    client.post(f"/api/systems/{SYS}/datasets/{DS}/cases", json=_payload(name="c1"))
     r = client.post(
         f"/api/systems/{SYS}/datasets/{DS}/cases/import",
-        json={"cases": [{"id": "1", "name": "改", "inputs": "x"},
-                        {"name": "新", "inputs": "y"}], "mode": "append"},
+        json={"cases": [{"id": "c1", "name": "c1", "description": "改"},
+                        {"name": "c2"}], "mode": "append"},
     )
     body = r.json()
     assert body == {"added": 1, "updated": 1, "total": 2}

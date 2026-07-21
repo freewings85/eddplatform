@@ -22,7 +22,6 @@ export default function CaseForm({
 }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
-  const [code, setCode] = useState(initial?.code ?? "");
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagOpen, setTagOpen] = useState(false);
   const [traceRef, setTraceRef] = useState(initial?.trace?.ref ?? "");
@@ -82,20 +81,13 @@ export default function CaseForm({
 
   async function submit() {
     setError(null);
-    if (!name.trim()) return setError("用例名不能为空");
+    if (!name.trim()) return setError("用例 name 不能为空");
+    if (/\s/.test(name.trim())) return setError("用例 name 不能含空白字符（它是传给评估代码的标识）");
 
     const payload: CaseInput = {
       name: name.trim(),
       description: description.trim() || null,
-      code: code.trim() || null,
-      // 表单不编辑的字段原样保留（YAML 导入/轨迹导入填充的内容不被清掉）
-      inputs: initial?.inputs ?? "",
-      expected_output: initial?.expected_output ?? null,
-      metadata: initial?.metadata ?? {},
-      applicable_versions: initial?.applicable_versions ?? [],
-      author: initial?.author ?? null,
       tags,
-      case_version: initial?.case_version ?? "v1",
       trace: traceUrl.trim() || traceNote.trim() || traceData
         ? {
             ref: traceRef.trim() || null,
@@ -130,9 +122,9 @@ export default function CaseForm({
 
         <div className="modal-body">
           <label className="fld">
-            <span>用例名 *</span>
-            <input value={name} onChange={(e) => setName(e.target.value)}
-              placeholder="guide 场景 · 平台介绍" />
+            <span>名称 *（与评估代码里的 case 一一对应，执行时作为参数传入）</span>
+            <input className="mono" value={name} onChange={(e) => setName(e.target.value)}
+              placeholder="guide_platform_intro" />
           </label>
 
           <label className="fld">
@@ -143,12 +135,6 @@ export default function CaseForm({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="这条用例在测什么、判定关注点是什么"
             />
-          </label>
-
-          <label className="fld">
-            <span>评估入口 code（可空；评估程序按它分派判定逻辑，如 judge_guide）</span>
-            <input className="mono" value={code} onChange={(e) => setCode(e.target.value)}
-              placeholder="judge_guide" />
           </label>
 
           <div className="fld">

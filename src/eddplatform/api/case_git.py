@@ -110,7 +110,7 @@ def export_to_git(system: System, dataset: DatasetInfo, cases: list[Case]) -> di
             old.unlink()
         for c in cases:
             doc = case_yaml.case_to_yaml_doc(c)
-            (target / f"{c.id}.yaml").write_text(
+            (target / f"{c.name}.yaml").write_text(
                 yaml.safe_dump(doc, allow_unicode=True, sort_keys=False), encoding="utf-8")
         _run(["git", "-C", str(work), "add", "-A"])
         status = _run(["git", "-C", str(work), "status", "--porcelain"]).strip()

@@ -1,32 +1,44 @@
-"""chatagent evals YAML → Case 转换。"""
+"""用例注册 YAML ↔ Case 转换（纯注册记录：name/描述/标签/轨迹/启用）。"""
 import pytest
 
-from eddplatform.api.case_yaml import parse_eval_yaml
+from eddplatform.api.case_yaml import case_to_yaml_doc, parse_eval_yaml
 
 YAML = """
+cases:
+  - name: guide_platform_intro
+    description: 平台介绍准确
+    tags: [group/guide]
+  - name: guide_saving
+    enabled: false
+"""
+
+LEGACY_YAML = """
 group: guide
 role: guide
 cases:
   - id: guide_platform_intro
+    name: 平台介绍准确
     turns: [{user: "介绍一下平台"}]
-    expect:
-      no_tools: [execute_shop_search]
-      judge: {rubric: "介绍准确"}
-  - id: guide_saving
-    turns: [{user: "省钱办法"}]
-    expect:
-      tools: [Skill]
+    expect: {judge: {rubric: "介绍准确"}}
 """
 
 
-def test_parse_eval_yaml_maps_fields():
+def test_parse_registry_yaml():
     cases = parse_eval_yaml(YAML)
-    assert [c.id for c in cases] == ["guide_platform_intro", "guide_saving"]
+    assert [c.name for c in cases] == ["guide_platform_intro", "guide_saving"]
+    assert cases[0].id == "guide_platform_intro"        # 内部 id = name
+    assert cases[0].description == "平台介绍准确"
+    assert cases[0].tags == ["group/guide"]
+    assert cases[1].enabled is False
+
+
+def test_parse_legacy_yaml_uses_id_as_name_and_drops_eval_content():
+    """旧格式：机器名在 id；turns/expect 是评估内容——导入时直接丢弃。"""
+    cases = parse_eval_yaml(LEGACY_YAML)
     c = cases[0]
     assert c.name == "guide_platform_intro"
     assert "group/guide" in c.tags and "role/guide" in c.tags
-    assert "介绍一下平台" in c.inputs
-    assert c.expected_output["no_tools"] == ["execute_shop_search"]
+    assert not hasattr(c, "inputs") and not hasattr(c, "expected_output")
 
 
 def test_parse_eval_yaml_rejects_missing_cases():
@@ -34,9 +46,20 @@ def test_parse_eval_yaml_rejects_missing_cases():
         parse_eval_yaml("group: guide")
 
 
-def test_parse_eval_yaml_rejects_case_without_id():
+def test_parse_eval_yaml_rejects_case_without_name():
     with pytest.raises(ValueError):
-        parse_eval_yaml("cases:\n  - turns: []")
+        parse_eval_yaml("cases:\n  - description: 没名字")
+
+
+def test_registry_roundtrips_through_yaml():
+    import yaml as _yaml
+
+    from eddplatform.domain.models import Case
+    c = Case(name="guide_x", description="测 X", tags=["group/guide"], enabled=False)
+    doc = case_to_yaml_doc(c)
+    back = parse_eval_yaml(_yaml.safe_dump(doc, allow_unicode=True))[0]
+    assert (back.name, back.description, back.tags, back.enabled) == \
+        ("guide_x", "测 X", ["group/guide"], False)
 
 
 def test_events_from_archive_maps_trace_and_observations():
@@ -52,24 +75,3 @@ def test_events_from_archive_maps_trace_and_observations():
     assert events[1]["body"]["traceId"] == "t1"      # 补挂 traceId
     assert events[3]["body"]["traceId"] == "t1"
     assert "endTime" not in events[2]["body"]        # None 字段剔除
-
-
-def test_case_code_roundtrips_through_yaml():
-    from eddplatform.api.case_yaml import case_to_yaml_doc
-    from eddplatform.domain.models import Case
-    import yaml as _yaml
-    c = Case(id="g1", name="n", code="judge_guide", inputs='[{"user": "hi"}]')
-    doc = case_to_yaml_doc(c)
-    back = parse_eval_yaml(_yaml.safe_dump(doc, allow_unicode=True))
-    assert back[0].code == "judge_guide"
-
-
-def test_case_code_roundtrips_through_yaml():
-    import yaml as _yaml
-
-    from eddplatform.api.case_yaml import case_to_yaml_doc
-    from eddplatform.domain.models import Case
-    c = Case(id="g1", name="n", code="judge_guide", inputs='[{"user": "hi"}]')
-    doc = case_to_yaml_doc(c)
-    back = parse_eval_yaml(_yaml.safe_dump(doc, allow_unicode=True))
-    assert back[0].code == "judge_guide"

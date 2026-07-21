@@ -68,14 +68,15 @@ class CaseStore:
 
     # --- 写 --------------------------------------------------------------
     def add_case(self, system_id: str, dataset_id: str, case: Case) -> Case:
-        """新增用例。``id`` 为空则生成（现有数字 id 最大值 + 1）。"""
+        """新增用例。内部 ``id`` = ``name``；name 在库内必须唯一（评估代码按它找 case）。"""
         with self._lock:
             conn = self._connect()
             try:
                 if not case.id:
-                    case.id = self._next_id(conn, system_id, dataset_id)
-                elif self._exists(conn, system_id, dataset_id, case.id):
+                    case.id = case.name
+                if self._exists(conn, system_id, dataset_id, case.id):
                     raise ValueError(f"用例 {case.id} 已存在")
+                self._check_name_unique(conn, system_id, dataset_id, case.name, exclude=case.id)
                 now = _now()
                 case.created_at = now
                 case.updated_at = now
@@ -108,6 +109,7 @@ class CaseStore:
                 case.id = case_id
                 case.created_at = existing.created_at
                 case.updated_at = _now()
+                self._check_name_unique(conn, system_id, dataset_id, case.name, exclude=case_id)
                 with conn.cursor() as c:
                     c.execute(
                         "UPDATE cases SET data=%s WHERE system_id=%s AND dataset_id=%s AND case_id=%s",
@@ -157,7 +159,7 @@ class CaseStore:
                                   (system_id, dataset_id))
                     for case in cases:
                         if not case.id:
-                            case.id = self._next_id(conn, system_id, dataset_id)
+                            case.id = case.name
                         now = _now()
                         case.created_at = now
                         case.updated_at = now
@@ -194,7 +196,7 @@ class CaseStore:
                             updated += 1
                         else:
                             if not case.id:
-                                case.id = self._next_id(conn, system_id, dataset_id)
+                                case.id = case.name
                             case.created_at = now
                             case.updated_at = now
                             pos = self._next_position(conn, system_id, dataset_id)
@@ -261,6 +263,19 @@ class CaseStore:
         return tag
 
     # --- 内部 ------------------------------------------------------------
+    def _check_name_unique(
+        self, conn, system_id: str, dataset_id: str, name: str, *, exclude: str
+    ) -> None:
+        """name 是传给评估代码的标识，库内必须唯一（改名/新增都查重）。"""
+        with conn.cursor() as c:
+            c.execute("SELECT case_id, data FROM cases WHERE system_id=%s AND dataset_id=%s",
+                      (system_id, dataset_id))
+            for r in c.fetchall():
+                if r["case_id"] == exclude:
+                    continue
+                if Case.model_validate_json(r["data"]).name == name:
+                    raise ValueError(f"用例 name 重复: {name}（评估代码按 name 找用例，须唯一）")
+
     def _exists(self, conn, system_id: str, dataset_id: str, case_id: str) -> bool:
         with conn.cursor() as c:
             c.execute(
@@ -268,14 +283,6 @@ class CaseStore:
                 (system_id, dataset_id, case_id),
             )
             return c.fetchone() is not None
-
-    def _next_id(self, conn, system_id: str, dataset_id: str) -> str:
-        with conn.cursor() as c:
-            c.execute("SELECT case_id FROM cases WHERE system_id=%s AND dataset_id=%s",
-                      (system_id, dataset_id))
-            rows = c.fetchall()
-        nums = [int(r["case_id"]) for r in rows if str(r["case_id"]).isdigit()]
-        return str(max(nums) + 1) if nums else "1"
 
     def _next_position(self, conn, system_id: str, dataset_id: str) -> int:
         with conn.cursor() as c:

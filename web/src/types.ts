@@ -96,18 +96,11 @@ export interface TagNode {
 }
 
 export interface Case {
-  id: string;
-  name: string;
+  id: string; // 内部 id（= 创建时的 name），用户不直接管理
+  name: string; // 与评估代码里 case 一一对应的机器名（如 guide_platform_intro）
   description?: string | null;
-  code?: string | null; // 评估入口：评估程序按它分派内部判定逻辑
-  inputs: Record<string, unknown> | string;
-  expected_output?: Record<string, unknown> | string | null;
   tags: string[];
-  metadata: Record<string, unknown>;
-  case_version: string;
-  applicable_versions: string[];
   trace?: CaseTrace | null;
-  author?: string | null;
   enabled: boolean;
   created_at?: string | null;
   updated_at?: string | null;

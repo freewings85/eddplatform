@@ -239,7 +239,8 @@ function TaskForm({
   const filtered = cases.filter((c) => {
     const q = filter.trim().toLowerCase();
     if (!q) return true;
-    return c.id.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+    return c.name.toLowerCase().includes(q)
+      || (c.description ?? "").toLowerCase().includes(q)
       || c.tags.some((t) => t.toLowerCase().includes(q));
   });
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -609,7 +610,8 @@ function TaskForm({
                     checked={selected.has(c.id)}
                     onChange={() => toggleCase(c.id)}
                   />
-                  <span className="mono">{c.id}</span> {c.name}
+                  <span className="mono">{c.name}</span>
+                  {c.description && <span className="muted sm">{c.description}</span>}
                   {c.tags.map((t) => <span key={t} className="tag">{t}</span>)}
                   {!c.enabled && <span className="tag">已禁用</span>}
                 </label>

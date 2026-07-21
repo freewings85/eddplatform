@@ -74,28 +74,20 @@ class PreconditionSpec:
 
 
 # --- RunCase 契约（平台 ↔ 评估程序 worker）----------------------------------
-# 评估程序仓实现一个 workflow：名字 = task queue = EvalProgram.code，
-# 入参 RunCaseInput，出参 CaseResultOut。平台逐 case 以 child workflow 分派。
-@dataclass
-class CaseSpec:
-    case_id: str
-    name: str = ""
-    code: str | None = None            # 用例级评估入口：worker 按它分派内部判定逻辑
-    inputs: str = ""                   # JSON 串或原文（turns 等）
-    expected: str | None = None
-    metadata: dict = field(default_factory=dict)
-
-
+# 评估程序仓实现一个 workflow：名字 = task queue = 用例库配置的 workflow 名，
+# 入参 RunCaseInput（**只传用例集 name + 用例 name**——用例的实际定义/输入/期望/
+# 判定逻辑全部在评估代码仓里，平台只管映射），出参 CaseResultOut。
 @dataclass
 class RunCaseInput:
     run_id: str
     namespace: str
-    case: CaseSpec
+    dataset: str                       # 用例集 name（与评估代码里的 dataset 对应）
+    case: str                          # 用例 name（评估代码按它找到自己定义的 case）
 
 
 @dataclass
 class CaseResultOut:
-    case_id: str
+    case_id: str                       # = 用例 name（回传对齐用）
     # passed=通过 | failed=没通过(被评系统的问题,计回归) |
     # error=评估过程失败(评估链路的问题,对比时剔除) | skipped=该版本不适用(剔除)
     status: str = "passed"
@@ -114,7 +106,8 @@ class RunTaskInput:
     run_id: str = ""                   # 平台侧 RunRecord id
     eval_code: str | None = None       # 评估 workflow 名（来自用例库配置）
     eval_worker_wait_s: int = 90       # 队列预检：等评估 worker 上线的宽限期
-    cases: list[CaseSpec] = field(default_factory=list)
+    dataset_name: str = ""             # 用例集 name（随每条用例传给评估 workflow）
+    cases: list[str] = field(default_factory=list)   # 用例 name 清单
 
 
 @dataclass
