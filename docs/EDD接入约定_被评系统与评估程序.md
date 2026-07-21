@@ -93,9 +93,21 @@ helm values 传入 chart：
 项目按自己应用的配置方式二选一（或都用）。不配置时两值为空，chart 不渲染。
 
 ⚠️ **优先级约定**：k8s 里容器的显式 `env:` 条目会**压过** `envFrom`——因此
-chart 里凡是希望能被平台注入覆盖的配置，**不要写显式 env**，用「代码默认值 +
-envFrom 注入」的组合（评估程序尤其如此：TEMPORAL/被评系统地址/模型等全部
-留给注入）。
+chart 里凡是希望能被平台注入覆盖的配置，**不要写显式 env**。推荐形态是
+**两级 ConfigMap**（envFrom 同名 key 后者覆盖前者）：
+
+```yaml
+envFrom:
+  - configMapRef: { name: {{ .Release.Name }}-defaults }   # chart 自带默认值
+  {{- if .Values.eddEnvVars }}
+  - configMapRef: { name: {{ .Release.Name }}-edd-env }    # EDD 注入，可覆盖
+  {{- end }}
+```
+
+**默认值按 `build/infra` 自带组件的集群内地址配**（`kafka:9092`、
+`postgres:5432`、`temporal:7233`）——任务勾选了基础组件时**部署配置零修改**
+（只剩密钥类必填项）；用共享/外部实例时才注入覆盖这些地址。显式 env 只留
+结构性配置（端口、ACTIVE 档位、同 ns 服务地址等不需要被覆盖的）。
 
 **场景：评估已有环境**（被评系统已在别处跑着，不由 EDD 拉起）：任务的前置
 条件只放一条「启动评估程序」，在其部署配置里注入被评系统地址即可，如
