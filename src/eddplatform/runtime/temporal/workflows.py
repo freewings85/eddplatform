@@ -18,6 +18,7 @@ with workflow.unsafe.imports_passed_through():
     from eddplatform.runtime.temporal.shared import (
         CaseResultOut,
         DeployArgs,
+        DestroyArgs,
         EvalArgs,
         LogArgs,
         OutcomeOut,
@@ -29,6 +30,20 @@ with workflow.unsafe.imports_passed_through():
     )
 
 _ROLE = {"start_system": "system", "start_eval_program": "eval"}
+
+
+async def _maybe_destroy(inp) -> None:
+    """任务选了「运行后销毁资源」：终态统一销毁一次性 namespace（尽力而为）。"""
+    if not inp.destroy:
+        return
+    try:
+        await workflow.execute_activity_method(
+            TaskActivities.destroy_namespace, DestroyArgs(inp.namespace, inp.run_id),
+            start_to_close_timeout=timedelta(minutes=3),
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+    except Exception:  # noqa: BLE001 —— 销毁失败不改变运行结果
+        await _log(inp.run_id, f"! 资源销毁失败——namespace {inp.namespace} 可能残留，需手动清理")
 
 
 async def _log(run_id: str, line: str) -> None:
@@ -132,6 +147,7 @@ class RunTaskWorkflow:
                 out.outcomes.append(OutcomeOut(
                     "eval_dispatch", inp.eval_code, "failed",
                     detail=str(getattr(cause, "message", None) or cause)))
+                await _maybe_destroy(inp)
                 return out
             total = len(inp.cases)
             for i, case_name in enumerate(inp.cases, 1):
@@ -163,4 +179,5 @@ class RunTaskWorkflow:
                         CaseResultOut(case_id=case_name, status="error", detail=detail))
                     await _log(inp.run_id,
                                f"! [{i}/{total}] 用例 {case_name} error · {detail}")
+        await _maybe_destroy(inp)
         return out

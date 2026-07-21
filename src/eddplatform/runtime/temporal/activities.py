@@ -14,8 +14,9 @@ import time
 from temporalio import activity
 
 from eddplatform.runtime.deployer import ConventionDeployer
-from eddplatform.runtime.temporal.shared import (DeployArgs, DeployOut, EvalArgs,
-                                                 LogArgs, ScriptArgs, WaitWorkerArgs)
+from eddplatform.runtime.temporal.shared import (DeployArgs, DeployOut, DestroyArgs,
+                                                 EvalArgs, LogArgs, ScriptArgs,
+                                                 WaitWorkerArgs)
 
 
 class _RunLogWriter:
@@ -96,6 +97,15 @@ class TaskActivities:
         log.flush()
         if proc.returncode != 0:
             raise RuntimeError(f"脚本失败({proc.returncode}): {proc.stderr or proc.stdout}")
+
+    @activity.defn
+    def destroy_namespace(self, args: DestroyArgs) -> None:
+        """任务选了「运行后销毁资源」：删掉本次运行的一次性 namespace（异步删除）。"""
+        log = _RunLogWriter(args.run_id)
+        log(f"$ kubectl delete ns {args.namespace} --wait=false")
+        self.deployer.delete_namespace(args.namespace)
+        log(f"✓ 已发起销毁 namespace {args.namespace}（k8s 后台完成清理）")
+        log.flush()
 
     @activity.defn
     def append_run_log(self, args: LogArgs) -> None:

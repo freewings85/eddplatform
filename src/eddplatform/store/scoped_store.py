@@ -57,6 +57,11 @@ class ScopedStore(Generic[M]):
                 elif self.get(system_id, obj.id) is not None:
                     raise ValueError(f"{obj.id} 已存在")
                 obj.system_id = system_id
+                if hasattr(obj, "created_at"):
+                    from datetime import datetime, timezone
+                    now = datetime.now(timezone.utc)
+                    obj.created_at = now
+                    obj.updated_at = now
                 with conn.cursor() as c:
                     c.execute(
                         f"INSERT INTO {self.TABLE}(system_id, {self.ID_COL}, data) VALUES(%s,%s,%s)",
@@ -68,10 +73,15 @@ class ScopedStore(Generic[M]):
 
     def update(self, system_id: str, obj_id: str, obj: M) -> M:
         with self._lock:
-            if self.get(system_id, obj_id) is None:
+            existing = self.get(system_id, obj_id)
+            if existing is None:
                 raise KeyError(obj_id)
             obj.id = obj_id
             obj.system_id = system_id
+            if hasattr(obj, "created_at"):
+                from datetime import datetime, timezone
+                obj.created_at = getattr(existing, "created_at", None)
+                obj.updated_at = datetime.now(timezone.utc)
             conn = self.db.connect()
             try:
                 with conn.cursor() as c:

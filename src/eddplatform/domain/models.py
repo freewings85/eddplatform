@@ -243,3 +243,6 @@ class Task(BaseModel):
     dataset_id: str | None = None            # 选定的用例库；None = 不跑用例
     case_ids: list[str] | None = None        # 用例清单：None = 全部用例（动态跟随用例库）
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）
+    destroy_after: bool = False              # 运行结束后销毁 k8s 资源（namespace）
+    created_at: datetime | None = None       # store 自动维护
+    updated_at: datetime | None = None       # store 自动维护

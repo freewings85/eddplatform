@@ -73,6 +73,9 @@ export interface Task {
   dataset_id?: string | null; // 选定的用例库；null = 不跑用例
   case_ids?: string[] | null; // 用例清单：null/缺省 = 全部用例（动态跟随所选库）
   eval_target?: string | null;
+  destroy_after?: boolean; // 运行结束后销毁 k8s 资源（namespace）
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export type TaskInput = Omit<Task, "id"> & { id?: string };

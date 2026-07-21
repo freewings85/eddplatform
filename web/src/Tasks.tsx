@@ -42,6 +42,10 @@ export default function Tasks({ sysId }: { sysId: string }) {
   const [editing, setEditing] = useState<Task | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"updated" | "created">("updated");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const reload = useCallback(() => {
     api.tasks(sysId).then(setTasks).catch((e) => setError(String(e)));
@@ -50,6 +54,22 @@ export default function Tasks({ sysId }: { sysId: string }) {
     api.datasets(sysId).then(setLibs).catch(() => {});
   }, [sysId]);
   useEffect(reload, [reload]);
+
+  // 过滤（任务名/id/前置条件程序名/用例库名 包含匹配）+ 按时间排序 + 分页
+  const q = filter.trim().toLowerCase();
+  const visibleTasks = tasks.filter((t) => {
+    if (!q) return true;
+    const lib = libs.find((l) => l.id === t.dataset_id)?.name ?? "";
+    const hay = [t.id, t.name, lib, ...t.preconditions.map((p) => p.name ?? "")]
+      .join(" ").toLowerCase();
+    return hay.includes(q);
+  }).sort((a, b) => {
+    const key = sortKey === "updated" ? "updated_at" : "created_at";
+    return (b[key] ?? "").localeCompare(a[key] ?? "");
+  });
+  const taskPages = Math.max(1, Math.ceil(visibleTasks.length / pageSize));
+  const pageSafe = Math.min(page, taskPages);
+  const pageTasks = visibleTasks.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
 
   async function run(t: Task) {
     setError(null);
@@ -86,7 +106,14 @@ export default function Tasks({ sysId }: { sysId: string }) {
         <button className="btn primary" onClick={() => setCreating(true)}>
           ＋ 新建评估任务
         </button>
-        <span className="muted count">{tasks.length} 个任务</span>
+        <input value={filter} style={{ width: 260 }}
+          onChange={(e) => { setFilter(e.target.value); setPage(1); }}
+          placeholder="过滤（任务名 / id / 程序名 / 用例库）" />
+        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as "updated" | "created")}>
+          <option value="updated">按更新时间 ↓</option>
+          <option value="created">按创建时间 ↓</option>
+        </select>
+        <span className="muted count">{visibleTasks.length} / {tasks.length} 个任务</span>
       </div>
 
       <div className="card">
@@ -98,15 +125,17 @@ export default function Tasks({ sysId }: { sysId: string }) {
               <th>前置条件（分支@commit）</th>
               <th>评估 workflow</th>
               <th>用例</th>
+              <th>创建 / 更新</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {tasks.map((t) => (
+            {pageTasks.map((t) => (
               <tr key={t.id}>
                 <td className="mono">{t.id}</td>
                 <td>
                   <b>{t.name}</b>
+                  {t.destroy_after && <div><span className="tag only">运行后销毁资源</span></div>}
                 </td>
                 <td>
                   {t.preconditions.map((p, i) => (
@@ -126,6 +155,10 @@ export default function Tasks({ sysId }: { sysId: string }) {
                         t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}`
                     : "—"}
                 </td>
+                <td className="muted sm">
+                  {t.created_at ? new Date(t.created_at).toLocaleString() : "—"}
+                  <div>{t.updated_at ? new Date(t.updated_at).toLocaleString() : "—"}</div>
+                </td>
                 <td>
                   <button className="btn sm primary" onClick={() => run(t)}>执行</button>{" "}
                   <button className="btn sm" onClick={() => setEditing(t)}>编辑</button>{" "}
@@ -135,13 +168,30 @@ export default function Tasks({ sysId }: { sysId: string }) {
             ))}
             {tasks.length === 0 && (
               <tr>
-                <td colSpan={6} className="empty">
+                <td colSpan={7} className="empty">
                   还没有评估任务，点「新建评估任务」开始。
                 </td>
               </tr>
             )}
+            {tasks.length > 0 && visibleTasks.length === 0 && (
+              <tr><td colSpan={7} className="empty">没有匹配过滤条件的任务。</td></tr>
+            )}
           </tbody>
         </table>
+      </div>
+
+      <div className="pc-add" style={{ marginTop: 6 }}>
+        <label className="muted count" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          每页
+          <select value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+            {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          条
+        </label>
+        <button className="btn sm" disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>◀ 上一页</button>
+        <span className="muted count">第 {pageSafe} / {taskPages} 页</span>
+        <button className="btn sm" disabled={pageSafe >= taskPages} onClick={() => setPage(pageSafe + 1)}>下一页 ▶</button>
       </div>
 
       {(creating || editing) && (
@@ -194,6 +244,7 @@ function TaskForm({
   onDone: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
+  const [destroyAfter, setDestroyAfter] = useState(initial?.destroy_after ?? false);
   const [rows, setRows] = useState<Row[]>(
     initial
       ? toRows(initial)
@@ -415,6 +466,7 @@ function TaskForm({
       preconditions: rows.map(toPrecondition),
       dataset_id: datasetId || null,
       case_ids: [...selected],
+      destroy_after: destroyAfter,
     };
     setBusy(true);
     try {
@@ -447,6 +499,13 @@ function TaskForm({
             <span>任务名 *</span>
             <input value={name} onChange={(e) => setName(e.target.value)}
               placeholder="chatagent 2.3-eval guide 冒烟" />
+          </label>
+
+          <label className="fld chk">
+            <input type="checkbox" checked={destroyAfter}
+              onChange={(e) => setDestroyAfter(e.target.checked)} />
+            <span>运行结束后销毁本次创建的 k8s 资源（整个一次性 namespace：pod/service/configmap）；
+              不勾 = 保留现场供排查，需手动清理</span>
           </label>
 
           <div className="fld">

@@ -45,6 +45,7 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
         eval_code=eval_code,
         dataset_name=dataset_name,
         cases=list(cases or []),
+        destroy=bool(getattr(task, "destroy_after", False)),
     )
     handle = await client.start_workflow(
         "RunTaskWorkflow", inp, id=f"edd-run-{run.id}", task_queue=TASK_QUEUE,

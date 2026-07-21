@@ -24,6 +24,10 @@ export default function Runs({ sysId }: { sysId: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [sortAsc, setSortAsc] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const reload = useCallback(() => {
     api.runs(sysId).then(setRuns).catch((e) => setError(String(e)));
@@ -42,11 +46,36 @@ export default function Runs({ sysId }: { sysId: string }) {
     api.run(openId).then(setDetail).catch((e) => setError(String(e)));
   }, [openId, runs]);
 
+  // 过滤（运行 id/任务名/状态/namespace 包含匹配）+ 按创建时间排序 + 分页
+  const q = filter.trim().toLowerCase();
+  const visible = (runs ?? []).filter((r) => {
+    if (!q) return true;
+    return [r.id, r.task_name, r.task_id, r.status, r.namespace]
+      .join(" ").toLowerCase().includes(q);
+  }).sort((a, b) => {
+    const cmp = (a.created_at ?? "").localeCompare(b.created_at ?? "");
+    return sortAsc ? cmp : -cmp;
+  });
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const pageSafe = Math.min(page, pageCount);
+  const pageRuns = visible.slice((pageSafe - 1) * pageSize, pageSafe * pageSize);
+
   return (
     <>
       <h2 className="page">运行记录</h2>
       <p className="sub">一次运行 = 一次 task 执行（experiment）：前置条件拉起环境 → 逐用例评估</p>
       {error && <p className="err">{error}</p>}
+
+      <div className="toolbar">
+        <input value={filter} style={{ width: 300 }}
+          onChange={(e) => { setFilter(e.target.value); setPage(1); }}
+          placeholder="过滤（运行 id / 任务名 / 状态 / namespace）" />
+        <select value={sortAsc ? "asc" : "desc"} onChange={(e) => setSortAsc(e.target.value === "asc")}>
+          <option value="desc">按创建时间 ↓</option>
+          <option value="asc">按创建时间 ↑</option>
+        </select>
+        <span className="muted count">{visible.length} / {(runs ?? []).length} 条</span>
+      </div>
 
       <div className="card">
         <table>
@@ -57,12 +86,13 @@ export default function Runs({ sysId }: { sysId: string }) {
               <th>状态</th>
               <th>用例结果</th>
               <th>版本标签</th>
+              <th>k8s namespace</th>
               <th>创建时间</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {(runs ?? []).map((r) => (
+            {pageRuns.map((r) => (
               <tr key={r.id}>
                 <td className="mono">{r.id}</td>
                 <td><b>{r.task_name || r.task_id}</b></td>
@@ -71,6 +101,7 @@ export default function Runs({ sysId }: { sysId: string }) {
                 <td className="mono">
                   {Object.entries(r.versions).map(([k, v]) => `${k}@${v.slice(0, 8)}`).join(" ") || "—"}
                 </td>
+                <td className="mono sm">{r.namespace || "—"}</td>
                 <td className="muted">{r.created_at ? new Date(r.created_at).toLocaleString() : "—"}</td>
                 <td>
                   <button className="btn sm" onClick={() => setOpenId(openId === r.id ? null : r.id)}>
@@ -81,13 +112,30 @@ export default function Runs({ sysId }: { sysId: string }) {
             ))}
             {runs && runs.length === 0 && (
               <tr>
-                <td colSpan={7} className="empty">
+                <td colSpan={8} className="empty">
                   暂无运行记录 — 在「评估任务」页对任务点「执行」。
                 </td>
               </tr>
             )}
+            {runs && runs.length > 0 && visible.length === 0 && (
+              <tr><td colSpan={8} className="empty">没有匹配过滤条件的运行。</td></tr>
+            )}
           </tbody>
         </table>
+      </div>
+
+      <div className="pc-add" style={{ marginTop: 6 }}>
+        <label className="muted count" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          每页
+          <select value={pageSize}
+            onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+            {[10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          条
+        </label>
+        <button className="btn sm" disabled={pageSafe <= 1} onClick={() => setPage(pageSafe - 1)}>◀ 上一页</button>
+        <span className="muted count">第 {pageSafe} / {pageCount} 页</span>
+        <button className="btn sm" disabled={pageSafe >= pageCount} onClick={() => setPage(pageSafe + 1)}>下一页 ▶</button>
       </div>
 
       {detail && <RunDetailView detail={detail} />}

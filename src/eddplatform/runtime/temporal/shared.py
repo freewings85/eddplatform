@@ -47,6 +47,13 @@ class LogArgs:
 
 
 @dataclass
+class DestroyArgs:
+    """运行结束后销毁本次创建的 k8s 资源（整个一次性 namespace）。"""
+    namespace: str
+    run_id: str = ""
+
+
+@dataclass
 class EvalArgs:
     namespace: str
     eval_deploy: str                   # 评估程序里发起观测的服务（如 judge）
@@ -110,6 +117,7 @@ class RunTaskInput:
     eval_worker_wait_s: int = 90       # 队列预检：等评估 worker 上线的宽限期
     dataset_name: str = ""             # 用例集 name（随每条用例传给评估 workflow）
     cases: list[str] = field(default_factory=list)   # 用例 name 清单
+    destroy: bool = False              # 运行结束后销毁 namespace（任务选项）
 
 
 @dataclass
