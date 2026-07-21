@@ -236,7 +236,8 @@ export default function CaseForm({
             </div>
             <label className="fld">
               <span>轨迹描述（该轨迹暴露了什么问题）</span>
-              <input value={traceNote ?? ""} onChange={(e) => setTraceNote(e.target.value)}
+              <textarea rows={3} value={traceNote ?? ""}
+                onChange={(e) => setTraceNote(e.target.value)}
                 placeholder="该轨迹暴露了什么问题" />
             </label>
           </fieldset>
