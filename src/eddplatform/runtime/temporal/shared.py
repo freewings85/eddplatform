@@ -22,6 +22,7 @@ class DeployArgs:
     role: str                          # system | eval
     path: str = "."                    # 仓库内单元目录（一个仓库可含多个可部署单元）
     run_id: str = ""                   # 控制台日志归属的运行（空=不落库）
+    env: str | None = None             # 部署配置（.env.eval 内容，helm 以 eddEnv/eddEnvVars 注入）
 
 
 @dataclass
@@ -71,6 +72,7 @@ class PreconditionSpec:
     ref: str | None = None
     script: str | None = None
     path: str = "."                    # 仓库内单元目录
+    env: str | None = None             # 部署配置（.env.eval 内容）
 
 
 # --- RunCase 契约（平台 ↔ 评估程序 worker）----------------------------------
@@ -139,5 +141,5 @@ def to_spec(pc: Precondition) -> PreconditionSpec:
     return PreconditionSpec(
         kind=pc.kind.value, name=pc.name or pc.kind.value,
         git_url=pc.git_url, ref=pc.commit or pc.branch, script=pc.script,
-        path=pc.path or ".",
+        path=pc.path or ".", env=pc.env,
     )

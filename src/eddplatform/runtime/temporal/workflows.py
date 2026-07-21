@@ -70,7 +70,7 @@ class RunTaskWorkflow:
                     d = await workflow.execute_activity_method(
                         TaskActivities.deploy_repo,
                         DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role,
-                                   pc.path or ".", inp.run_id),
+                                   pc.path or ".", inp.run_id, pc.env),
                         **opts,
                     )
                     # release 名以单元 chart/Chart.yaml 的 name 为准（部署器解析后回传）

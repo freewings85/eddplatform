@@ -1,5 +1,0 @@
-# EDD 部署时对每个服务注入 --set services.<服务名>.image=<镜像ref>
-services:
-  demo:
-    image: edd.local/demo:latest
-    port: 8080

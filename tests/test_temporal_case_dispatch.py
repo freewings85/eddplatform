@@ -108,7 +108,7 @@ class FakeDeployer:
 
     kubeconfig = "/dev/null"
 
-    def deploy(self, *, git_url, ref, release, namespace, path="."):
+    def deploy(self, *, git_url, ref, release, namespace, path=".", env=None):
         from eddplatform.runtime.deployer import DeployResult
         return DeployResult(release=release, namespace=namespace,
                             ref=f"sha-{release}", image_tag="t", images={})

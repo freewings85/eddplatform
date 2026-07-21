@@ -110,6 +110,7 @@ function ProgramForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [gitUrl, setGitUrl] = useState(initial?.git_url ?? "");
   const [path, setPath] = useState(initial?.path ?? ".");
+  const [env, setEnv] = useState(initial?.env ?? "");
   const [owner, setOwner] = useState(initial?.owner ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -125,6 +126,7 @@ function ProgramForm({
       name: name.trim(),
       git_url: gitUrl.trim(),
       path: path.trim() || ".",
+      env: env.trim() ? env : null,
       owner: owner.trim() || null,
     };
     setBusy(true);
@@ -168,6 +170,12 @@ function ProgramForm({
               <input value={owner ?? ""} onChange={(e) => setOwner(e.target.value)} placeholder="leo" />
             </label>
           </div>
+          <label className="fld">
+            <span>部署配置（.env.eval 内容，KEY=VALUE 每行；建任务时带出可改，部署时注入 chart）</span>
+            <textarea className="mono" rows={4} value={env ?? ""}
+              onChange={(e) => setEnv(e.target.value)}
+              placeholder={"LITELLM_BASE_URL=https://…\nLITELLM_KEY=sk-…"} />
+          </label>
           {error && <p className="err">{error}</p>}
         </div>
         <div className="modal-foot">

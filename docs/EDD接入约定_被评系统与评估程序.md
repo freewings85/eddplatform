@@ -4,30 +4,34 @@
 > 核心概念一句话：**能被 EDD 使用的项目，必须提供"helm 包"——一个自带构建脚本与
 > helm chart 的可部署单元文件夹。**
 
-## 1. 可部署单元 = 一个文件夹
+## 1. 项目仓库布局：`eval/`（评估代码）+ `build/`（部署物）
+
+接入 EDD 的项目仓库按下面的布局组织（可下载的规范示例就是这个结构）：
+
+```
+你的项目仓库/
+├── services/…                    ← 业务代码本体（原样，不动）
+├── eval/                         ← 评估代码：纯 pydantic-evals，与业务代码平级
+│   ├── <业务子目录>/cases.py      ←   Dataset/Case/task/evaluators（不碰 Temporal）
+│   ├── worker.py                 ←   Temporal 入口：import 各业务 cases + serve() 一行
+│   └── edd_bridge.py             ←   从规范示例原样复制（平台↔pydantic-evals 桥）
+└── build/                        ← 部署物（helm/构建脚本全在这）
+    ├── system/                   ←   单元①：被评系统
+    │   ├── build.sh
+    │   └── chart/                ←   标准 helm chart
+    └── eval/                     ←   单元②：评估程序（worker 镜像）
+        ├── build.sh
+        ├── Dockerfile            ←   COPY 仓库根的 eval/（context=仓库根）
+        └── chart/
+```
+
+要点：**cases 代码与 Temporal 代码分离**——业务子目录里只有原生 pydantic-evals，
+`worker.py` 只做汇总与 `serve()`；helm/构建只出现在 `build/` 下。
 
 EDD 定位一个可部署单元用三元组：**git 仓库 + ref（分支或 commit）+ 单元目录**。
-
-- 单元目录默认 `.`（仓库根）；
-- **一个仓库可以包含多个单元**。典型场景：chatagent 仓库里既有被评系统本身，又有
-  评估程序，各放一个文件夹即可：
-
-```
-com.celiang.hlsc.service.ai.chatagent3/   （2.3-eval 分支）
-├── services/…                             ← 业务代码本体
-├── edd/
-│   ├── system/                            ← 单元①：被评系统
-│   │   ├── build.sh
-│   │   └── chart/                         ← 标准 helm chart
-│   └── eval/                              ← 单元②：评估程序
-│       ├── build.sh
-│       └── chart/
-└── …
-```
-
 平台侧对应的填法：
-- 「启动系统」前置条件：仓库 + 分支/commit + 目录 `edd/system`；
-- 「评估程序」注册：同一仓库 + ref + 目录 `edd/eval`（workflow 名见 §4）。
+- 「系统程序」注册：仓库 + 目录 `build/system`；
+- 「评估程序」注册：同一仓库 + 目录 `build/eval`（workflow 名见 §4）。
 
 ## 2. 单元目录里必须有什么：标准 helm chart + 构建脚本
 
@@ -65,8 +69,20 @@ edd_helm/
 访问被评系统同理）。因此**服务名在本任务所有单元之间必须唯一**，EDD 部署时
 检查撞名。应用配置对端地址写服务名，不要写 IP。
 
-参考实现：`examples/demo-system/`、`examples/demo-eval/`、可下载的
-`edd_helm` 规范示例（平台「部署设置 → 下载规范示例」）。
+**③ 部署配置注入（.env.eval）**：环境相关的配置（LLM 地址/密钥等）**不进镜像、
+不写死在 chart**——在平台「系统程序/评估程序」注册项里填「部署配置」
+（KEY=VALUE 每行，建任务时带出、可改、随任务固化）。部署时平台动态生成并经
+helm values 传入 chart：
+
+- `.Values.eddEnv`：.env.eval **原文** → chart 渲染成 ConfigMap 挂载为
+  `/app/.env.eval` 文件，容器以 `ACTIVE=eval` 启动读它（配置文件模式的应用）；
+- `.Values.eddEnvVars`：同内容解析成的 **KEY:VALUE 字典** → chart 用 envFrom
+  直接注入环境变量（环境变量模式的应用）。
+
+两个挂点在规范示例的 chart 里都有现成模板（`{{- if .Values.eddEnvVars }}` 段），
+项目按自己应用的配置方式二选一（或都用）。不配置时两值为空，chart 不渲染。
+
+参考实现：可下载的规范示例（平台「部署设置 → 下载规范示例」，含完整仓库骨架）。
 
 ## 3. 平台怎么执行（你不用做，但要知道）
 
@@ -118,9 +134,11 @@ EDD 用例库按 `Dataset.name` / `Case.name` 与代码一一对应（用例库=
 
 ## 5. 接入检查清单
 
-- [ ] 单元目录有 `build.sh` + `chart/`（标准 helm chart）
-- [ ] `chart/Chart.yaml` 的 name 合法（= helm release 名，按进程名填）
+- [ ] 仓库布局：`eval/<业务>/cases.py`（纯 pydantic-evals）+ `eval/worker.py` + `build/system|eval/`
+- [ ] `build/*/` 有 `build.sh` + `chart/`（标准 helm chart）
+- [ ] `chart/Chart.yaml` 的 name 合法（= helm release 名，单元间互不相同）
 - [ ] `build.sh` 吃 `EDD_IMAGE_TAG`/`EDD_OUT_DIR`，产出 tar + `images.json`
 - [ ] `chart/values.yaml` 有 `services.<服务名>.image` 挂点（服务名=集群 DNS 名）
-- [ ] （评估程序）标准 pydantic-evals 写用例与评估器 + 复制 `edd_bridge.py` + `serve("名字", [(dataset, task)])`
-- [ ] 在 EDD 界面登记：系统程序/评估程序（名称+仓库+目录）；用例库配置同名 `workflow`
+- [ ] chart 保留 `eddEnv`/`eddEnvVars` 注入挂点（环境配置不进镜像不写死）
+- [ ] （评估程序）复制 `edd_bridge.py` + `serve("名字", [(dataset, task)])`
+- [ ] 在 EDD 界面登记：系统程序/评估程序（名称+仓库+目录+部署配置）；用例库配置同名 `workflow`

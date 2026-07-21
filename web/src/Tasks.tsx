@@ -30,6 +30,7 @@ type Row = {
   validationOk?: boolean;
   name?: string; // 内部标签（真正的 helm release 名来自单元 chart/Chart.yaml 的 name）
   script?: string; // 旧任务里的自定义脚本（仅保留展示）
+  env?: string; // 部署配置（.env.eval 内容；默认取注册项的 env，可改，随任务固化）
 };
 
 export default function Tasks({ sysId }: { sysId: string }) {
@@ -173,6 +174,7 @@ function toRows(task: Task): Row[] {
     path: p.path ?? undefined,
     name: p.name ?? undefined,
     script: p.script ?? undefined,
+    env: p.env ?? undefined,
   }));
 }
 
@@ -260,14 +262,15 @@ function TaskForm({
   }, [sysPrograms, evalPrograms]);
 
   /** 行对应的注册项（系统程序 或 评估程序）。 */
-  function regOf(row: Row): { git_url: string; path: string; label: string } | null {
+  function regOf(row: Row): { git_url: string; path: string; label: string;
+                              env?: string | null } | null {
     if (row.kind === "start_system") {
       const p = sysPrograms.find((x) => x.id === row.programId);
-      return p ? { git_url: p.git_url, path: p.path, label: p.name } : null;
+      return p ? { git_url: p.git_url, path: p.path, label: p.name, env: p.env } : null;
     }
     if (row.kind === "start_eval_program") {
       const p = evalPrograms.find((x) => x.id === row.programId);
-      return p ? { git_url: p.git_url, path: p.path, label: p.name } : null;
+      return p ? { git_url: p.git_url, path: p.path, label: p.name, env: p.env } : null;
     }
     return null;
   }
@@ -363,6 +366,7 @@ function TaskForm({
       return { kind: row.kind, name: row.name || "自定义脚本", script: row.script };
     // name 只是内部回退标签；真正的 helm release 名来自单元 chart/Chart.yaml 的 name
     const fallback = row.kind === "start_system" ? "system" : "eval";
+    const env = row.env ?? reg?.env ?? "";
     return {
       kind: row.kind,
       name: (row.name ?? "").trim() || fallback,
@@ -371,6 +375,7 @@ function TaskForm({
       path: row.path?.trim() || reg?.path || ".",
       branch: row.branch?.trim() || null,
       commit: row.commit?.trim() || null,
+      env: env.trim() ? env : null,
     };
   }
 
@@ -547,6 +552,18 @@ function TaskForm({
                           <p className={row.validationOk ? "note" : "err"}
                             style={{ margin: 0 }}>{row.validationMsg}</p>
                         )}
+                      </div>
+
+                      {/* 区块 3：部署配置 —— 动态生成 .env.eval 注入 chart */}
+                      <div className="pc-block">
+                        <div className="pc-block-title">部署配置（.env.eval，随任务固化）</div>
+                        <label className="fld">
+                          <span>KEY=VALUE 每行；部署时以 eddEnv/eddEnvVars 传入 chart（挂载文件或 envFrom）</span>
+                          <textarea className="mono" rows={3}
+                            value={row.env ?? reg?.env ?? ""}
+                            onChange={(e) => patch(i, { env: e.target.value })}
+                            placeholder={"LITELLM_BASE_URL=https://…\nLITELLM_KEY=sk-…"} />
+                        </label>
                       </div>
                     </>
                   )}

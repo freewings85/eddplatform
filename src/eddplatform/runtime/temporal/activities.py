@@ -71,7 +71,7 @@ class TaskActivities:
         try:
             res = deployer.deploy(
                 git_url=args.git_url, ref=args.ref, release=args.release,
-                namespace=args.namespace, path=args.path,
+                namespace=args.namespace, path=args.path, env=args.env,
             )
         except Exception as e:
             log(f"✗ 部署失败: {e}")

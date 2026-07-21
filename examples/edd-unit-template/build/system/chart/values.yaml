@@ -1,0 +1,11 @@
+# EDD 部署时对每个服务注入 --set services.<服务名>.image=<镜像ref>
+services:
+  demo:
+    image: edd.local/demo:latest
+    port: 8080
+
+# EDD 的部署配置注入挂点（平台「部署配置(.env.eval)」动态生成，不用手填）：
+#   eddEnv     = .env.eval 原文（多行 KEY=VALUE）→ 挂载成 /app/.env.eval 文件
+#   eddEnvVars = 同内容解析成的字典            → envFrom 直接进环境变量
+eddEnv: ""
+eddEnvVars: {}

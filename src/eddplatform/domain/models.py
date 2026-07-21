@@ -60,6 +60,7 @@ class SystemProgram(BaseModel):
     name: str
     git_url: str
     path: str = "."                   # 仓库内单元目录（一个仓库可含多个单元）
+    env: str | None = None            # 部署配置默认值（.env.eval 内容；建任务时带出可改）
     owner: str | None = None
 
     @field_validator("git_url")
@@ -84,6 +85,7 @@ class EvalProgram(BaseModel):
     name: str
     git_url: str
     path: str = "."                   # 仓库内单元目录（评估程序可与被评系统同仓不同目录）
+    env: str | None = None            # 部署配置默认值（.env.eval 内容；建任务时带出可改）
     owner: str | None = None
 
     @field_validator("git_url")
@@ -223,6 +225,7 @@ class Precondition(BaseModel):
     branch: str | None = None                # 固化的分支名（用户可见）
     commit: str | None = None                # 固化的 commit sha（部署用它，钉死可复现）
     script: str | None = None                # custom_script 的脚本内容
+    env: str | None = None                   # 固化：部署配置（.env.eval 内容，KEY=VALUE 每行）
 
 
 class Task(BaseModel):

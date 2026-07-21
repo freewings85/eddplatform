@@ -15,7 +15,7 @@ class FakeDeployer:
     def __init__(self):
         self.deployed = []
 
-    def deploy(self, *, git_url, ref, release, namespace, path="."):
+    def deploy(self, *, git_url, ref, release, namespace, path=".", env=None):
         self.deployed.append((release, ref))
         return DeployResult(
             release=release, namespace=namespace, ref=ref, image_tag=ref[:12],

@@ -27,6 +27,19 @@ DEFAULT_IMAGE_IMPORT: list[str] = ["sudo", "k3s", "ctr", "-n", "k8s.io", "images
 DEFAULT_KUBECONFIG = "/etc/rancher/k3s/k3s.yaml"
 
 
+def _parse_env(text: str | None) -> dict[str, str]:
+    """.env 文本 → {KEY: VALUE}（跳过空行/注释；VALUE 保留原样含 =）。"""
+    out: dict[str, str] = {}
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        if k.strip():
+            out[k.strip()] = v.strip()
+    return out
+
+
 @dataclass
 class DeployResult:
     release: str
@@ -76,6 +89,7 @@ class ConventionDeployer:
         release: str,
         namespace: str,
         path: str = ".",
+        env: str | None = None,        # .env.eval 内容 → helm values eddEnv/eddEnvVars
         timeout: str = "300s",
     ) -> DeployResult:
         with tempfile.TemporaryDirectory(prefix="edd-deploy-") as tmp:
@@ -101,8 +115,10 @@ class ConventionDeployer:
             for tar in sorted(out_dir.glob("*.tar")):
                 self._run([*self.image_import_cmd, str(tar)])
 
-            self._log(f"[5/5] helm 部署 {release} -> ns/{namespace}")
-            self._helm_install(unit / CHART_DIR, release, namespace, images, timeout)
+            self._log(f"[5/5] helm 部署 {release} -> ns/{namespace}"
+                      + (f"（注入 .env.eval：{len(_parse_env(env))} 个配置项）" if env else ""))
+            self._helm_install(unit / CHART_DIR, release, namespace, images, timeout,
+                               env=env, tmp=Path(tmp))
 
             pods = self._pods(namespace)
             self._log(f"✓ 部署完成，{len(pods)} 个 pod: {', '.join(pods)}")
@@ -155,12 +171,21 @@ class ConventionDeployer:
             raise RuntimeError("构建脚本没有产出 images.json（约定：写到 $EDD_OUT_DIR/images.json）")
 
     def _helm_install(
-        self, chart: Path, release: str, namespace: str, images: dict[str, str], timeout: str
+        self, chart: Path, release: str, namespace: str, images: dict[str, str],
+        timeout: str, *, env: str | None = None, tmp: Path | None = None,
     ) -> None:
         cmd = [
             self.helm_bin, "upgrade", "--install", release, str(chart),
             "-n", namespace, "--create-namespace", "--wait", "--timeout", timeout,
         ]
+        # 部署配置注入：eddEnv=.env.eval 原文（挂文件用）+ eddEnvVars=解析后的字典
+        # （envFrom 用）。走临时 values 文件，避免 --set 的转义地狱。
+        if env and env.strip() and tmp is not None:
+            values = {"eddEnv": env, "eddEnvVars": _parse_env(env)}
+            vf = tmp / "edd-values.yaml"
+            vf.write_text(
+                json.dumps(values, ensure_ascii=False), encoding="utf-8")  # JSON 是合法 YAML
+            cmd += ["-f", str(vf)]
         for svc, image in images.items():
             cmd += ["--set", f"services.{svc}.image={image}"]
         self._run(cmd, env=self._kube_env())

@@ -55,3 +55,10 @@ def test_demo_system_repo_satisfies_convention():
     spec = read_unit(DEMO)
     assert spec.name == "demo-system"
     assert set(spec.services) == {"quote", "gateway"}
+
+
+def test_parse_env_lines():
+    from eddplatform.runtime.deployer import _parse_env
+    text = "LITELLM_KEY=sk-x\n# 注释\n\nFOO=bar=baz\n 空格KEY = v \nBAD_LINE\n"
+    assert _parse_env(text) == {"LITELLM_KEY": "sk-x", "FOO": "bar=baz", "空格KEY": "v"}
+    assert _parse_env(None) == {} and _parse_env("") == {}

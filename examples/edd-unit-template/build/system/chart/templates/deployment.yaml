@@ -1,0 +1,70 @@
+{{- /* EDD 部署配置：eddEnvVars → ConfigMap(envFrom)；eddEnv → ConfigMap(.env.eval 文件) */}}
+{{- if .Values.eddEnvVars }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-edd-env
+data:
+{{- range $k, $v := .Values.eddEnvVars }}
+  {{ $k }}: {{ $v | quote }}
+{{- end }}
+---
+{{- end }}
+{{- if .Values.eddEnv }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-edd-env-file
+data:
+  .env.eval: {{ .Values.eddEnv | quote }}
+---
+{{- end }}
+{{- range $name, $svc := .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: { edd-unit: {{ $.Release.Name }} }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: {{ $name }} }
+  template:
+    metadata:
+      labels: { app: {{ $name }}, edd-unit: {{ $.Release.Name }} }
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ $svc.image }}
+          imagePullPolicy: Never
+          ports: [{ containerPort: {{ $svc.port }} }]
+          env:
+            # 配置文件模式的应用：以 eval 档启动，读挂载进来的 .env.eval
+            - name: ACTIVE
+              value: eval
+          {{- if $.Values.eddEnvVars }}
+          envFrom:
+            - configMapRef: { name: {{ $.Release.Name }}-edd-env }
+          {{- end }}
+          {{- if $.Values.eddEnv }}
+          volumeMounts:
+            - name: edd-env-file
+              mountPath: /app/.env.eval
+              subPath: .env.eval
+          {{- end }}
+      {{- if $.Values.eddEnv }}
+      volumes:
+        - name: edd-env-file
+          configMap: { name: {{ $.Release.Name }}-edd-env-file }
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels: { edd-unit: {{ $.Release.Name }} }
+spec:
+  selector: { app: {{ $name }} }
+  ports: [{ port: {{ $svc.port }}, targetPort: {{ $svc.port }} }]
+---
+{{- end }}

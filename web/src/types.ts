@@ -26,6 +26,7 @@ export interface SystemProgram {
   name: string;
   git_url: string;
   path: string; // 仓库内单元目录
+  env?: string | null; // 部署配置默认值（.env.eval 内容）
   owner?: string | null;
 }
 
@@ -40,6 +41,7 @@ export interface EvalProgram {
   name: string;
   git_url: string;
   path: string; // 仓库内单元目录（可与被评系统同仓不同目录）
+  env?: string | null; // 部署配置默认值（.env.eval 内容）
   owner?: string | null;
 }
 
@@ -59,6 +61,7 @@ export interface Precondition {
   branch?: string | null; // 固化的分支名（用户可见）
   commit?: string | null; // 固化的 commit sha（部署用它，钉死可复现）
   script?: string | null;
+  env?: string | null; // 固化：部署配置（.env.eval 内容，KEY=VALUE 每行）
 }
 
 export interface Task {
