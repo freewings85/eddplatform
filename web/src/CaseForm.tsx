@@ -216,28 +216,29 @@ export default function CaseForm({
                   onClick={importFromUrl}>⇩ 从链接导入</button>
               </div>
             </label>
+            <div className="fld">
+              <span>
+                轨迹 JSON
+                {archivedAt && `（归档于 ${archivedAt.slice(0, 19).replace("T", " ")}`
+                  + (traceRef ? ` · trace ${traceRef}` : "") + "）"}
+              </span>
+              {traceData ? (
+                <pre className="mono trace-pre">{JSON.stringify(traceData, null, 2)}</pre>
+              ) : (
+                <div className="trace-pre empty">（暂无轨迹数据——填好链接后点「⇩ 从链接导入」）</div>
+              )}
+              <div className="pc-add">
+                <button className="btn sm" onClick={exportToLangfuse}
+                  disabled={!traceData || busy}>
+                  ↥ 导出到 Langfuse（把归档轨迹恢复回去）
+                </button>
+              </div>
+            </div>
             <label className="fld">
-              <span>轨迹问题简述</span>
+              <span>轨迹描述（该轨迹暴露了什么问题）</span>
               <input value={traceNote ?? ""} onChange={(e) => setTraceNote(e.target.value)}
                 placeholder="该轨迹暴露了什么问题" />
             </label>
-            {traceData && (
-              <>
-                <div className="pc-add">
-                  <button className="btn sm" onClick={exportToLangfuse} disabled={busy}>
-                    ↥ 导出到 Langfuse（把归档轨迹恢复回去）
-                  </button>
-                  <span className="muted count">
-                    已归档{archivedAt ? ` 于 ${archivedAt.slice(0, 19).replace("T", " ")}` : ""}
-                    {traceRef ? ` · trace ${traceRef}` : ""}
-                  </span>
-                </div>
-                <details className="trace-json">
-                  <summary>查看轨迹 JSON</summary>
-                  <pre className="mono">{JSON.stringify(traceData, null, 2)}</pre>
-                </details>
-              </>
-            )}
           </fieldset>
 
           <label className="fld chk">
