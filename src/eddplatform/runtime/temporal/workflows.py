@@ -19,6 +19,7 @@ with workflow.unsafe.imports_passed_through():
         CaseResultOut,
         DeployArgs,
         EvalArgs,
+        LogArgs,
         OutcomeOut,
         RunCaseInput,
         RunTaskInput,
@@ -28,6 +29,20 @@ with workflow.unsafe.imports_passed_through():
     )
 
 _ROLE = {"start_system": "system", "start_eval_program": "eval"}
+
+
+async def _log(run_id: str, line: str) -> None:
+    """编排级控制台日志（尽力而为——日志失败绝不影响执行）。"""
+    if not run_id:
+        return
+    try:
+        await workflow.execute_activity_method(
+            TaskActivities.append_run_log, LogArgs(run_id, line),
+            start_to_close_timeout=timedelta(seconds=15),
+            retry_policy=RetryPolicy(maximum_attempts=2),
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 @workflow.defn
@@ -49,9 +64,13 @@ class RunTaskWorkflow:
                     if not pc.git_url or not pc.ref:
                         raise ValueError(f"{pc.kind} 需要 git_url 和 ref")
                     role = _ROLE[pc.kind]
+                    await _log(inp.run_id,
+                               f"=== [{pc.kind}] {name}: 部署 {pc.git_url} @ {pc.ref} "
+                               f"(单元目录 {pc.path or '.'}) ===")
                     d = await workflow.execute_activity_method(
                         TaskActivities.deploy_repo,
-                        DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role, pc.path or "."),
+                        DeployArgs(pc.git_url, pc.ref, name, inp.namespace, role,
+                                   pc.path or ".", inp.run_id),
                         **opts,
                     )
                     # release 名以单元 chart/Chart.yaml 的 name 为准（部署器解析后回传）
@@ -74,7 +93,8 @@ class RunTaskWorkflow:
                     if not pc.script:
                         raise ValueError("custom_script 需要 script")
                     await workflow.execute_activity_method(
-                        TaskActivities.run_script, ScriptArgs(pc.script, inp.namespace), **opts
+                        TaskActivities.run_script,
+                        ScriptArgs(pc.script, inp.namespace, inp.run_id), **opts
                     )
                     out.outcomes.append(OutcomeOut(pc.kind, name, "ok"))
                 else:
@@ -82,6 +102,7 @@ class RunTaskWorkflow:
             except (ActivityError, ValueError) as e:
                 out.status = "failed"
                 out.outcomes.append(OutcomeOut(pc.kind, name, "failed", detail=str(e)))
+                await _log(inp.run_id, f"✗ 前置条件 [{pc.kind}] {name} 失败，终止后续步骤")
                 break
 
         # 环境就绪 → 评估程序观测系统（真正「跑一次评估」的最小闭环）
@@ -95,10 +116,11 @@ class RunTaskWorkflow:
         # 逐用例分派：评估程序 worker 认领 eval_code 队列（方案 A：平台=client / 评估程序=worker）
         if out.status == "up" and inp.eval_code and inp.cases:
             # 队列预检：worker 没上线/名字配错 → 整场 fail fast，别让每条用例干等超时
+            await _log(inp.run_id, f"=== 队列预检: 等评估 worker 认领队列 {inp.eval_code!r} ===")
             try:
                 await workflow.execute_activity_method(
                     TaskActivities.wait_eval_worker,
-                    WaitWorkerArgs(inp.eval_code, inp.eval_worker_wait_s),
+                    WaitWorkerArgs(inp.eval_code, inp.eval_worker_wait_s, inp.run_id),
                     start_to_close_timeout=timedelta(seconds=inp.eval_worker_wait_s + 60),
                     retry_policy=RetryPolicy(maximum_attempts=1),
                 )
@@ -111,7 +133,11 @@ class RunTaskWorkflow:
                     "eval_dispatch", inp.eval_code, "failed",
                     detail=str(getattr(cause, "message", None) or cause)))
                 return out
-            for case in inp.cases:
+            total = len(inp.cases)
+            for i, case in enumerate(inp.cases, 1):
+                await _log(inp.run_id,
+                           f"▶ [{i}/{total}] 用例 {case.case_id} ({case.name}) → "
+                           f"child workflow {inp.eval_code} (code={case.code})")
                 try:
                     r = await workflow.execute_child_workflow(
                         inp.eval_code,
@@ -122,11 +148,18 @@ class RunTaskWorkflow:
                         execution_timeout=timedelta(minutes=5),
                     )
                     out.case_results.append(r)
+                    mark = "✓" if r.status == "passed" else "✗"
+                    await _log(inp.run_id,
+                               f"{mark} [{i}/{total}] 用例 {case.case_id} {r.status}"
+                               f"{' · ' + str(r.scores) if r.scores else ''}"
+                               f"{' · ' + r.detail if r.detail else ''}")
                 except Exception as e:  # noqa: BLE001 —— 单用例失败不拖垮整场
                     cause = e
                     while getattr(cause, "cause", None) is not None:
                         cause = cause.cause
+                    detail = str(getattr(cause, "message", None) or cause)
                     out.case_results.append(
-                        CaseResultOut(case_id=case.case_id, status="error",
-                                      detail=str(getattr(cause, "message", None) or cause)))
+                        CaseResultOut(case_id=case.case_id, status="error", detail=detail))
+                    await _log(inp.run_id,
+                               f"! [{i}/{total}] 用例 {case.case_id} error · {detail}")
         return out

@@ -78,10 +78,18 @@ SCHEMA = [
         data    JSON NOT NULL,
         PRIMARY KEY (run_id, case_id)
     ) CHARACTER SET utf8mb4""",
+    """CREATE TABLE IF NOT EXISTS run_logs (
+        id     BIGINT NOT NULL AUTO_INCREMENT,
+        run_id VARCHAR(64) NOT NULL,
+        ts     DATETIME(3) NOT NULL,
+        line   TEXT NOT NULL,
+        PRIMARY KEY (id),
+        KEY idx_run_logs_run (run_id, id)
+    ) CHARACTER SET utf8mb4""",
 ]
 
 TABLES = ["cases", "datasets", "tags", "systems", "system_programs", "eval_programs", "tasks",
-          "runs", "case_results", "settings"]
+          "runs", "case_results", "run_logs", "settings"]
 
 
 class Db:

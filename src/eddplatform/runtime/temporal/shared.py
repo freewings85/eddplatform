@@ -21,18 +21,28 @@ class DeployArgs:
     namespace: str
     role: str                          # system | eval
     path: str = "."                    # 仓库内单元目录（一个仓库可含多个可部署单元）
+    run_id: str = ""                   # 控制台日志归属的运行（空=不落库）
 
 
 @dataclass
 class ScriptArgs:
     script: str
     namespace: str
+    run_id: str = ""
 
 
 @dataclass
 class WaitWorkerArgs:
     queue: str                         # 评估 workflow 名 = 队列名
     timeout_s: int = 90                # 等 worker 上线的宽限期（评估程序 pod 启动需要时间）
+    run_id: str = ""
+
+
+@dataclass
+class LogArgs:
+    """workflow 侧写一行控制台日志（逐用例分派等编排级事件）。"""
+    run_id: str
+    line: str
 
 
 @dataclass

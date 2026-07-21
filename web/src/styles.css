@@ -171,3 +171,12 @@ td.empty { text-align: center; color: var(--muted); padding: 28px; }
 .tagselect-item.on { background: #eef2ff; }
 .tag-x { margin-left: 4px; cursor: pointer; color: var(--muted); font-weight: 700; }
 .tag-x:hover { color: var(--bad, #dc2626); }
+
+/* 运行记录：控制台输出（Jenkins 式） */
+.console { background: #0b1220; color: #d5e0f0; border-radius: 10px; padding: 12px 14px; max-height: 420px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.55; }
+.console-line { display: flex; gap: 10px; white-space: pre-wrap; word-break: break-all; }
+.console-ts { color: #5b708c; flex: none; user-select: none; }
+.console-line.cmd { color: #8ec7ff; }
+.console-line.ok { color: #7ee2a8; }
+.console-line.bad { color: #ff9b9b; }
+.console-empty { color: #5b708c; }

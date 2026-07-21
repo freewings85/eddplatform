@@ -9,6 +9,7 @@ import type {
   SystemProgramInput,
   ImportResult,
   RunDetail,
+  RunLogPage,
   RunRecord,
   System,
   TagNode,
@@ -137,4 +138,6 @@ export const api = {
   runs: (sysId?: string) =>
     get<RunRecord[]>(`/runs${sysId ? `?system_id=${encodeURIComponent(sysId)}` : ""}`),
   run: (id: string) => get<RunDetail>(`/runs/${id}`),
+  runLogs: (id: string, after = 0) =>
+    get<RunLogPage>(`/runs/${id}/logs?after=${after}`),
 };

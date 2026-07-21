@@ -168,3 +168,14 @@ export interface CaseRunResult {
 }
 
 export type RunDetail = RunRecord & { case_results: CaseRunResult[] };
+
+export interface RunLogLine {
+  id: number;
+  ts: string;
+  line: string;
+}
+
+export interface RunLogPage {
+  lines: RunLogLine[];
+  last_id: number;
+}

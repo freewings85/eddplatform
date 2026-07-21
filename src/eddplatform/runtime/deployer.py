@@ -61,6 +61,13 @@ class ConventionDeployer:
         self._log = log or (lambda m: print(m))
 
     # --- 对外 ------------------------------------------------------------
+    def with_log(self, log: Callable[[str], None]) -> "ConventionDeployer":
+        """同配置、换日志通道的浅拷贝（一次部署一条日志流，避免并发串台）。"""
+        import copy
+        clone = copy.copy(self)
+        clone._log = log
+        return clone
+
     def deploy(
         self,
         *,
@@ -132,7 +139,18 @@ class ConventionDeployer:
         if not script.exists():
             raise FileNotFoundError(f"构建脚本不存在: {script}")
         env = {**os.environ, "EDD_IMAGE_TAG": image_tag, "EDD_OUT_DIR": str(out_dir)}
-        self._run(["bash", str(script)], cwd=unit, env=env)
+        # 构建可能跑几分钟（docker build），输出逐行转发到日志流，控制台能看到进度
+        self._log(f"$ bash {script}")
+        proc = subprocess.Popen(
+            ["bash", str(script)], cwd=unit, env=env,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            self._log(line.rstrip("\n"))
+        rc = proc.wait()
+        if rc != 0:
+            raise RuntimeError(f"构建脚本失败({rc}): {script}")
         if not (out_dir / "images.json").exists():
             raise RuntimeError("构建脚本没有产出 images.json（约定：写到 $EDD_OUT_DIR/images.json）")
 
@@ -160,12 +178,18 @@ class ConventionDeployer:
 
     def _run(
         self, cmd: Sequence[str], *, cwd: Path | None = None,
-        env: dict | None = None, check: bool = True,
+        env: dict | None = None, check: bool = True, echo: bool = True,
     ) -> str:
+        if echo:
+            self._log(f"$ {' '.join(cmd)}")
         proc = subprocess.run(
             list(cmd), cwd=cwd, env=env, check=False,
             capture_output=True, text=True,
         )
+        if echo:
+            for out in (proc.stdout, proc.stderr):
+                if out and out.strip():
+                    self._log(out.rstrip("\n"))
         if check and proc.returncode != 0:
             raise RuntimeError(
                 f"命令失败({proc.returncode}): {' '.join(cmd)}\n"

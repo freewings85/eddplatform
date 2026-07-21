@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import type { CaseRunResult, RunDetail, RunRecord } from "./types";
+import type { CaseRunResult, RunDetail, RunLogLine, RunRecord } from "./types";
 
 function StatusPill({ status }: { status: string }) {
   const kind = status === "succeeded" || status === "passed" ? "ok"
@@ -95,6 +95,60 @@ export default function Runs({ sysId }: { sysId: string }) {
   );
 }
 
+function lineKind(line: string): string {
+  if (line.startsWith("$ ")) return "cmd";
+  if (line.startsWith("✓") || line.startsWith("=== RUN") && line.includes("succeeded")) return "ok";
+  if (line.startsWith("✗") || line.startsWith("!") || line.includes("失败")) return "bad";
+  return "";
+}
+
+function ConsoleOutput({ runId, running }: { runId: string; running: boolean }) {
+  const [lines, setLines] = useState<RunLogLine[]>([]);
+  const lastId = useRef(0);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    lastId.current = 0;
+    setLines([]);
+    let stop = false;
+    const pull = () =>
+      api.runLogs(runId, lastId.current).then((p) => {
+        if (stop || p.lines.length === 0) return;
+        lastId.current = p.last_id;
+        setLines((prev) => [...prev, ...p.lines]);
+      }).catch(() => { /* 日志拉取失败不打扰主界面 */ });
+    pull();
+    if (!running) return () => { stop = true; };
+    const t = setInterval(pull, 2000);
+    return () => { stop = true; clearInterval(t); };
+  }, [runId, running]);
+
+  // 新行到达时贴底滚动（像 Jenkins 控制台）
+  useEffect(() => {
+    const el = boxRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines]);
+
+  return (
+    <>
+      <div className="section-title">控制台输出</div>
+      <div className="console" ref={boxRef}>
+        {lines.map((l) => (
+          <div key={l.id} className={`console-line ${lineKind(l.line)}`}>
+            <span className="console-ts">{new Date(l.ts).toLocaleTimeString("zh-CN", { hour12: false })}</span>
+            <span>{l.line || " "}</span>
+          </div>
+        ))}
+        {lines.length === 0 && (
+          <div className="console-empty">
+            {running ? "等待执行日志…" : "（该运行没有控制台日志——可能是本功能上线前的历史运行）"}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function RunDetailView({ detail }: { detail: RunDetail }) {
   return (
     <>
@@ -103,6 +157,8 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
         {detail.workflow_id && <> · workflow <span className="mono">{detail.workflow_id}</span></>}
       </div>
       {detail.detail && <p className="err">{detail.detail}</p>}
+
+      <ConsoleOutput runId={detail.id} running={detail.status === "running"} />
 
       <div className="card">
         <table>

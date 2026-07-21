@@ -16,9 +16,9 @@ from eddplatform.api import case_git, case_yaml, git_resolve, langfuse_client, r
 from eddplatform.domain.models import (Case, DatasetInfo, EvalProgram, GlobalSettings,
                                        PreconditionKind, RunRecord, System, SystemProgram,
                                        TagNode, Task)
-from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunStore,
-                               SettingsStore, SystemProgramStore, SystemStore, TagStore,
-                               TaskStore)
+from eddplatform.store import (CaseStore, DatasetStore, EvalProgramStore, RunLogStore,
+                               RunStore, SettingsStore, SystemProgramStore, SystemStore,
+                               TagStore, TaskStore)
 
 app = FastAPI(
     title="EddPlatform",
@@ -37,6 +37,7 @@ system_program_store = SystemProgramStore()
 task_store = TaskStore()
 eval_program_store = EvalProgramStore()
 run_store = RunStore()
+run_log_store = RunLogStore(run_store.db)
 settings_store = SettingsStore()
 
 
@@ -342,6 +343,15 @@ def get_run(run_id: str):
         raise HTTPException(404, "run not found")
     return {**run.model_dump(),
             "case_results": [c.model_dump() for c in run_store.case_results(run_id)]}
+
+
+@app.get("/api/runs/{run_id}/logs")
+def get_run_logs(run_id: str, after: int = 0):
+    """控制台输出（Jenkins 式）。``after``=上次拿到的最大行 id，支持增量轮询。"""
+    if not run_store.get(run_id):
+        raise HTTPException(404, "run not found")
+    lines = run_log_store.list(run_id, after=after)
+    return {"lines": lines, "last_id": lines[-1]["id"] if lines else after}
 
 
 # --- 用例仓 git 双向（数据库=工作区，git=版本仓）---------------------------

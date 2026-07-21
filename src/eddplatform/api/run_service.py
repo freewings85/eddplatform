@@ -13,6 +13,7 @@ from temporalio.client import Client
 from eddplatform.domain.models import Case, CaseRunResult, RunRecord, RunStatus, Task
 from eddplatform.runtime.temporal.shared import (TASK_QUEUE, CaseSpec, RunTaskInput,
                                                  RunTaskOutput, to_spec)
+from eddplatform.store.run_log_store import RunLogStore
 from eddplatform.store.run_store import RunStore
 
 TEMPORAL_ADDRESS = os.environ.get("TEMPORAL_ADDRESS", "localhost:7233")
@@ -64,8 +65,19 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
     run.workflow_id = f"edd-run-{run.id}"
     run.namespace = inp.namespace
     run_store.update(run)
+    _log(run_store, run.id,
+         f"RUN {run.id} 已提交 · 任务「{task.name}」 · workflow {run.workflow_id} · "
+         f"namespace {inp.namespace} · 用例 {len(cases)} 条 · 评估 workflow {eval_code or '—'}")
     asyncio.get_running_loop().create_task(_watch(handle, run.id, run_store))
     return run
+
+
+def _log(run_store: RunStore, run_id: str, line: str) -> None:
+    """API 侧的控制台日志（提交/收尾），尽力而为。"""
+    try:
+        RunLogStore(run_store.db).append(run_id, line)
+    except Exception:  # noqa: BLE001 —— 日志失败不影响执行
+        pass
 
 
 async def _watch(handle, run_id: str, run_store: RunStore) -> None:
@@ -85,5 +97,9 @@ async def _watch(handle, run_id: str, run_store: RunStore) -> None:
                          outcomes=[o if isinstance(o, dict) else o.__dict__ for o in out.outcomes],
                          case_stats=stats,
                          detail="" if out.status == "up" else "执行失败，见 outcomes")
+        _log(run_store, run_id,
+             f"=== RUN {run_id} 结束: {status.value} · 用例统计 {stats or '—'} · "
+             f"版本 {out.versions or '—'} ===")
     except Exception as e:  # noqa: BLE001 —— workflow 失败/超时都归 FAILED
         run_store.finish(run_id, RunStatus.FAILED, detail=str(e))
+        _log(run_store, run_id, f"=== RUN {run_id} 结束: failed · {e} ===")
