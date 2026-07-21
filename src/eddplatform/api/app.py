@@ -96,6 +96,36 @@ def test_langfuse():
         raise HTTPException(400, str(e))
 
 
+# --- Langfuse 轨迹（无状态：表单里新增/编辑用例时直接用，不要求用例已保存）----
+class TraceUrlBody(BaseModel):
+    url: str
+
+
+class TraceDataBody(BaseModel):
+    data: dict
+
+
+@app.post("/api/langfuse/fetch-trace")
+def langfuse_fetch_trace(body: TraceUrlBody):
+    """按轨迹链接把完整 trace JSON 拉回来（trace id 从 URL 解析）。"""
+    try:
+        ref = langfuse_client.trace_id_from_url(body.url)
+        data = langfuse_client.fetch_trace(settings_store.get(), ref)
+    except langfuse_client.LangfuseError as e:
+        raise HTTPException(400, str(e))
+    return {"ref": ref, "data": data,
+            "observations": len(data.get("observations", []) or [])}
+
+
+@app.post("/api/langfuse/push-trace")
+def langfuse_push_trace(body: TraceDataBody):
+    """把归档的轨迹 JSON 回灌进 Langfuse（同 id 幂等），返回可打开的 URL。"""
+    try:
+        return langfuse_client.restore_trace(settings_store.get(), body.data)
+    except langfuse_client.LangfuseError as e:
+        raise HTTPException(400, str(e))
+
+
 # --- 系统注册 --------------------------------------------------------------
 @app.get("/api/systems")
 def list_systems() -> list[System]:
@@ -509,13 +539,15 @@ def archive_trace(system_id: str, dataset_id: str, case_id: str):
     case = store.get_case(system_id, dataset_id, case_id)
     if case is None:
         raise HTTPException(404, "case not found")
-    if not case.trace or not case.trace.ref:
-        raise HTTPException(400, "该用例未配置 trace id（编辑用例填 Langfuse trace id）")
+    if not case.trace or not (case.trace.ref or case.trace.url):
+        raise HTTPException(400, "该用例未配置轨迹链接（编辑用例填 Langfuse 链接 URL）")
     try:
-        data = langfuse_client.fetch_trace(settings_store.get(), case.trace.ref)
+        ref = case.trace.ref or langfuse_client.trace_id_from_url(case.trace.url or "")
+        data = langfuse_client.fetch_trace(settings_store.get(), ref)
     except langfuse_client.LangfuseError as e:
         raise HTTPException(400, str(e))
     from datetime import datetime, timezone
+    case.trace.ref = ref
     case.trace.data = data
     case.trace.archived_at = datetime.now(timezone.utc)
     store.update_case(system_id, dataset_id, case_id, case)

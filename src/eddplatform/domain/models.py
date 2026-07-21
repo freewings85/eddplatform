@@ -134,7 +134,7 @@ class CaseTrace(BaseModel):
     （并随用例导出进 git），将来 Langfuse 里没了也能查看。
     """
 
-    ref: str                              # Langfuse trace id
+    ref: str | None = None                # Langfuse trace id（从 URL 解析，用户不直接填）
     url: str | None = None                # 直达轨迹视图的链接（host + id 拼）
     note: str | None = None               # 这条轨迹的问题简述
     data: dict | None = None              # 归档的完整 trace JSON（可选）

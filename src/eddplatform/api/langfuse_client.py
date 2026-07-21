@@ -36,6 +36,19 @@ def test_connection(settings: GlobalSettings) -> dict:
     return {"ok": True, "projects": [p.get("name") for p in projects]}
 
 
+def trace_id_from_url(url: str) -> str:
+    """Langfuse 轨迹链接 → trace id（``…/traces/<id>`` 或旧式 ``…/trace/<id>``）。"""
+    from urllib.parse import urlparse
+    parts = [p for p in urlparse(url.strip()).path.split("/") if p]
+    for marker in ("traces", "trace"):
+        if marker in parts:
+            i = parts.index(marker)
+            if i + 1 < len(parts) and parts[i + 1]:
+                return parts[i + 1]
+    raise LangfuseError(
+        f"链接里找不到 trace id（应形如 …/traces/<id>）: {url.strip()!r}")
+
+
 def fetch_trace(settings: GlobalSettings, trace_id: str) -> dict:
     """拉取完整 trace（含 observations/scores）——归档进用例。"""
     auth = _auth(settings)

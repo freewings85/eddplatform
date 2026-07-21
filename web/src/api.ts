@@ -86,6 +86,12 @@ export const api = {
     send<DatasetInfo>("PUT", `/systems/${sysId}/datasets/${dsId}`, d),
   deleteDataset: (sysId: string, dsId: string) =>
     send<void>("DELETE", `/systems/${sysId}/datasets/${dsId}`),
+  fetchTraceByUrl: (url: string) =>
+    send<{ ref: string; data: Record<string, unknown>; observations: number }>(
+      "POST", "/langfuse/fetch-trace", { url }),
+  pushTrace: (data: Record<string, unknown>) =>
+    send<{ trace_id: string; url: string; events: number }>(
+      "POST", "/langfuse/push-trace", { data }),
   archiveTrace: (sysId: string, dsId: string, caseId: string) =>
     send<{ ok: boolean; observations: number; archived_at: string }>(
       "POST", `/systems/${sysId}/datasets/${dsId}/cases/${caseId}/archive-trace`),

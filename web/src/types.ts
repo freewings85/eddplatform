@@ -75,7 +75,7 @@ export interface Task {
 export type TaskInput = Omit<Task, "id"> & { id?: string };
 
 export interface CaseTrace {
-  ref: string;
+  ref?: string | null; // trace id（从 URL 解析，用户不直接填）
   url?: string | null;
   note?: string | null;
   data?: Record<string, unknown> | null; // 归档的完整 trace JSON

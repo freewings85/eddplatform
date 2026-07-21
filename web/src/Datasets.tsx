@@ -104,7 +104,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `trace-${c.trace.ref}.json`;
+    a.download = `trace-${c.trace.ref || c.id}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -288,7 +288,7 @@ export default function Datasets({ sysId }: { sysId: string }) {
                         href={c.trace.url ?? undefined}
                         target="_blank"
                         rel="noreferrer"
-                        title={c.trace.note ?? c.trace.ref}
+                        title={c.trace.note ?? c.trace.ref ?? undefined}
                       >
                         🔗
                       </a>{" "}

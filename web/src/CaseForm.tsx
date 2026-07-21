@@ -28,6 +28,10 @@ export default function CaseForm({
   const [traceRef, setTraceRef] = useState(initial?.trace?.ref ?? "");
   const [traceUrl, setTraceUrl] = useState(initial?.trace?.url ?? "");
   const [traceNote, setTraceNote] = useState(initial?.trace?.note ?? "");
+  const [traceData, setTraceData] = useState<Record<string, unknown> | null>(
+    initial?.trace?.data ?? null);
+  const [archivedAt, setArchivedAt] = useState<string | null>(
+    initial?.trace?.archived_at ?? null);
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -41,15 +45,34 @@ export default function CaseForm({
   // 标签树 ∪ 当前用例已用的标签（保留不在树里的历史标签），父在子前
   const knownTags = [...new Set([...availableTags, ...tags])].sort();
 
-  async function restoreToLangfuse() {
-    if (!initial) return;
+  /** 从链接把完整 trace JSON 拉进表单（保存时随用例入库）。 */
+  async function importFromUrl() {
     setError(null);
     setNotice(null);
     setBusy(true);
     try {
-      const r = await api.restoreTrace(sysId, dsId, initial.id);
-      setTraceUrl(r.url);   // 导入成功 → URL 同步回链接框
-      setNotice(`已导入 Langfuse（${r.events} 个事件），URL 已回填——记得点「保存」`);
+      const r = await api.fetchTraceByUrl(traceUrl.trim());
+      setTraceRef(r.ref);
+      setTraceData(r.data);
+      setArchivedAt(new Date().toISOString());
+      setNotice(`已从链接导入轨迹数据（${r.observations} 个 observation）——记得点「保存」`);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** 把表单里的轨迹数据回灌进 Langfuse（源数据被清也能恢复）。 */
+  async function exportToLangfuse() {
+    if (!traceData) return;
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      const r = await api.pushTrace(traceData);
+      setTraceUrl(r.url);   // 导出成功 → URL 同步回链接框
+      setNotice(`已导出到 Langfuse（${r.events} 个事件），URL 已回填——记得点「保存」`);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -73,8 +96,14 @@ export default function CaseForm({
       author: initial?.author ?? null,
       tags,
       case_version: initial?.case_version ?? "v1",
-      trace: traceRef.trim()
-        ? { ref: traceRef.trim(), url: traceUrl.trim() || null, note: traceNote.trim() || null }
+      trace: traceUrl.trim() || traceNote.trim() || traceData
+        ? {
+            ref: traceRef.trim() || null,
+            url: traceUrl.trim() || null,
+            note: traceNote.trim() || null,
+            data: traceData,          // 归档数据随表单保存，不再被编辑保存冲掉
+            archived_at: archivedAt,
+          }
         : null,
       enabled,
     };
@@ -176,35 +205,38 @@ export default function CaseForm({
 
           <fieldset className="fld trace-box">
             <legend>对应轨迹（Langfuse，可空）</legend>
-            <div className="fld-row">
-              <label className="fld">
-                <span>trace id</span>
-                <input value={traceRef} onChange={(e) => setTraceRef(e.target.value)} placeholder="trace-abc123" />
-              </label>
-              <label className="fld">
-                <span>链接 URL</span>
-                <div className="inline-btn">
-                  <input value={traceUrl ?? ""} onChange={(e) => setTraceUrl(e.target.value)}
-                    placeholder="http://localhost:3100/trace/..." />
-                  <button className="btn sm" disabled={!traceUrl?.trim()}
-                    onClick={() => window.open(traceUrl!, "_blank")}>打开</button>
-                </div>
-              </label>
-            </div>
+            <label className="fld">
+              <span>链接 URL</span>
+              <div className="inline-btn">
+                <input value={traceUrl ?? ""} onChange={(e) => setTraceUrl(e.target.value)}
+                  placeholder="http://localhost:3100/project/xxx/traces/..." />
+                <button className="btn sm" disabled={!traceUrl?.trim() || busy}
+                  onClick={() => window.open(traceUrl!, "_blank")}>打开</button>
+                <button className="btn sm" disabled={!traceUrl?.trim() || busy}
+                  onClick={importFromUrl}>⇩ 从链接导入</button>
+              </div>
+            </label>
             <label className="fld">
               <span>轨迹问题简述</span>
               <input value={traceNote ?? ""} onChange={(e) => setTraceNote(e.target.value)}
                 placeholder="该轨迹暴露了什么问题" />
             </label>
-            {initial?.trace?.data && (
-              <div className="pc-add">
-                <button className="btn sm" onClick={restoreToLangfuse} disabled={busy}>
-                  ↥ 导入 Langfuse（把归档轨迹恢复回去）
-                </button>
-                <span className="muted count">
-                  已归档 {initial.trace.archived_at ? `于 ${initial.trace.archived_at.slice(0, 19)}` : ""}
-                </span>
-              </div>
+            {traceData && (
+              <>
+                <div className="pc-add">
+                  <button className="btn sm" onClick={exportToLangfuse} disabled={busy}>
+                    ↥ 导出到 Langfuse（把归档轨迹恢复回去）
+                  </button>
+                  <span className="muted count">
+                    已归档{archivedAt ? ` 于 ${archivedAt.slice(0, 19).replace("T", " ")}` : ""}
+                    {traceRef ? ` · trace ${traceRef}` : ""}
+                  </span>
+                </div>
+                <details className="trace-json">
+                  <summary>查看轨迹 JSON</summary>
+                  <pre className="mono">{JSON.stringify(traceData, null, 2)}</pre>
+                </details>
+              </>
             )}
           </fieldset>
 
