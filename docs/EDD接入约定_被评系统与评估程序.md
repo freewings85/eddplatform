@@ -28,6 +28,16 @@
 要点：**cases 代码与 Temporal 代码分离**——业务子目录里只有原生 pydantic-evals，
 `worker.py` 只做汇总与 `serve()`；helm/构建只出现在 `build/` 下。
 
+**基础组件（可选）`build/infra/<组件名>/`**：每个子文件夹 = 一个可独立部署进
+运行 namespace 的基础组件（kafka / postgres / …），它是**纯 chart 单元**——
+只有 `chart/`（Chart.yaml name = release 名，values.yaml 声明
+`services.<服务名>.port` 供页面提示集群内地址），**没有 build.sh**（镜像来自
+公共仓库，平台跳过构建直接 helm 部署）。用途：多任务并发时共享基础组件会有
+冲突（Temporal 同名评估队列互抢、Kafka topic / 数据库数据串扰）——新建任务的
+「基础组件」区块扫描本目录、勾选要独立部署的组件，并把「部署配置」里的相应
+地址改成组件的集群内服务名（如 `kafka:9092`、`postgres:5432`）；不需要隔离时
+不选，继续用统一实例。
+
 EDD 定位一个可部署单元用三元组：**git 仓库 + ref（分支或 commit）+ 单元目录**。
 平台侧对应的填法：
 - 「系统程序」注册：仓库 + 目录 `build/system`；

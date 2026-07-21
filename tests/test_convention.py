@@ -32,11 +32,18 @@ def test_unit_folder_convention(tmp_path):
     assert spec.name == "eval-demo"
 
 
-def test_missing_build_script_raises(tmp_path):
+def test_missing_build_script_means_pure_chart_unit(tmp_path):
+    """无 build.sh = 纯 chart 单元（基础组件）：不报错，标记 has_build=False。"""
     _write_unit(tmp_path)
     (tmp_path / "build.sh").unlink()
-    with pytest.raises(FileNotFoundError):
-        read_unit(tmp_path)
+    spec = read_unit(tmp_path)
+    assert spec.has_build is False
+    assert spec.name
+
+
+def test_regular_unit_has_build(tmp_path):
+    _write_unit(tmp_path)
+    assert read_unit(tmp_path).has_build is True
 
 
 def test_missing_chart_raises(tmp_path):

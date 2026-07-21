@@ -253,6 +253,15 @@ def validate_unit(body: UnitQuery):
         raise HTTPException(400, str(e))
 
 
+@app.post("/api/git/scan-infra")
+def scan_infra(body: UnitQuery):
+    """扫描 仓库@ref 的基础组件目录（纯 chart 单元清单，含服务地址提示）。"""
+    try:
+        return git_resolve.scan_infra(body.git_url, body.ref, body.path or "build/infra")
+    except git_resolve.GitResolveError as e:
+        raise HTTPException(400, str(e))
+
+
 @app.get("/api/edd-unit-template")
 def download_unit_template():
     """下载单元规范示例文件夹（edd_helm/，含 README 说明书）。"""

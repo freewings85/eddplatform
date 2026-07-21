@@ -68,6 +68,10 @@ export const api = {
   validateUnit: (gitUrl: string, ref: string, path: string) =>
     send<{ ok: boolean; errors: string[]; name?: string | null; services: string[] }>(
       "POST", "/git/validate-unit", { git_url: gitUrl, ref, path }),
+  scanInfra: (gitUrl: string, ref: string, path: string) =>
+    send<{ path: string; components: { name: string; release: string;
+           services: Record<string, string> }[] }>(
+      "POST", "/git/scan-infra", { git_url: gitUrl, ref, path }),
 
   // 评估程序注册
   evalPrograms: (sysId: string) => get<EvalProgram[]>(`/systems/${sysId}/eval-programs`),

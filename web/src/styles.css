@@ -188,3 +188,6 @@ td.empty { text-align: center; color: var(--muted); padding: 28px; }
 /* 用例表单：轨迹 JSON 常显区（有数据=深色 JSON，无数据=空态提示） */
 .trace-pre { max-height: 260px; overflow: auto; background: #0b1220; color: #d5e0f0; border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.5; margin: 0; }
 .trace-pre.empty { background: #f8fafc; color: var(--muted); border: 1px dashed var(--line); font-size: 12.5px; }
+
+/* 任务表单：并发冲突红字提醒 */
+.warn-red { color: var(--bad); font-size: 12.5px; line-height: 1.6; margin: 2px 0 4px; }

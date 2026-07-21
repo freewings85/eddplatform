@@ -30,15 +30,18 @@ _NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]*")
 class UnitSpec:
     name: str                          # helm release 名（来自 chart/Chart.yaml 的 name）
     services: list[str] = field(default_factory=list)   # values.yaml services 的键
+    has_build: bool = True             # False = 纯 chart 单元（基础组件：不构建，直接 helm）
 
 
 def read_unit(repo_dir: str | Path, path: str = ".") -> UnitSpec:
-    """从仓库的单元目录（``repo_dir/path``）读单元信息；不满足约定直接报错。"""
+    """从仓库的单元目录（``repo_dir/path``）读单元信息；不满足约定直接报错。
+
+    ``build.sh`` 可以没有——那是**纯 chart 单元**（基础组件如 kafka/postgres：
+    镜像来自公共仓库，无需构建，平台跳过 build/导入直接 helm 部署）。
+    """
     unit = Path(repo_dir) / path
     build = unit / BUILD_SCRIPT
     chart_yaml = unit / CHART_DIR / "Chart.yaml"
-    if not build.exists():
-        raise FileNotFoundError(f"单元缺少构建脚本: {build}")
     if not chart_yaml.exists():
         raise FileNotFoundError(f"单元缺少 helm chart: {chart_yaml}")
     chart = yaml.safe_load(chart_yaml.read_text()) or {}
@@ -51,4 +54,4 @@ def read_unit(repo_dir: str | Path, path: str = ".") -> UnitSpec:
     if values_file.exists():
         values = yaml.safe_load(values_file.read_text()) or {}
         services = list((values.get("services") or {}).keys())
-    return UnitSpec(name=str(name), services=services)
+    return UnitSpec(name=str(name), services=services, has_build=build.exists())

@@ -107,13 +107,17 @@ class ConventionDeployer:
             release = spec.name
             self._log(f"[2/5] 单元: name={spec.name} services={spec.services} → release={release}")
 
-            self._log(f"[3/5] 跑构建脚本 {BUILD_SCRIPT} (EDD_IMAGE_TAG={image_tag})")
-            self._run_build(unit, BUILD_SCRIPT, image_tag, out_dir)
-            images = json.loads((out_dir / "images.json").read_text())
+            if spec.has_build:
+                self._log(f"[3/5] 跑构建脚本 {BUILD_SCRIPT} (EDD_IMAGE_TAG={image_tag})")
+                self._run_build(unit, BUILD_SCRIPT, image_tag, out_dir)
+                images = json.loads((out_dir / "images.json").read_text())
 
-            self._log(f"[4/5] 送镜像进集群: {list(images.values())}")
-            for tar in sorted(out_dir.glob("*.tar")):
-                self._run([*self.image_import_cmd, str(tar)])
+                self._log(f"[4/5] 送镜像进集群: {list(images.values())}")
+                for tar in sorted(out_dir.glob("*.tar")):
+                    self._run([*self.image_import_cmd, str(tar)])
+            else:
+                self._log("[3-4/5] 纯 chart 单元（无 build.sh，基础组件）：跳过构建与镜像导入")
+                images = {}
 
             self._log(f"[5/5] helm 部署 {release} -> ns/{namespace}"
                       + (f"（注入 .env.eval：{len(_parse_env(env))} 个配置项）" if env else ""))
