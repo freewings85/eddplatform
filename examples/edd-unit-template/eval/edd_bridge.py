@@ -66,6 +66,7 @@ class Skip(Exception):
 
 
 _REGISTRY: dict[str, tuple] = {}       # dataset name -> (Dataset, task)
+_EVALUATE_KWARGS: dict = {}            # 透传给 Dataset.evaluate 的额外参数（serve 里配）
 
 
 @activity.defn(name="edd_run_case")
@@ -85,8 +86,14 @@ async def _run_case(inp: RunCaseInput) -> CaseResultOut:
             f"（已定义: {[c.name for c in ds.cases]}）"
             "——EDD 用例 name 与评估代码不对应", non_retryable=True)
 
-    sub = Dataset(name=ds.name, cases=[case], evaluators=list(ds.evaluators))
-    report = await sub.evaluate(task, progress=False, max_concurrency=1)
+    # 子数据集 = 该 case 原样 + 原 Dataset 的全部评估器（case 级评估器随 case 自带；
+    # report_evaluators 一并透传）——pydantic-evals 原生语义不动
+    extra = {}
+    if getattr(ds, "report_evaluators", None):
+        extra["report_evaluators"] = list(ds.report_evaluators)
+    sub = Dataset(name=ds.name, cases=[case], evaluators=list(ds.evaluators), **extra)
+    report = await sub.evaluate(
+        task, **{"progress": False, "max_concurrency": 1, **_EVALUATE_KWARGS})
 
     # task 自身异常：Skip → skipped；其它 → 评估链路错误
     if report.failures:
@@ -106,13 +113,20 @@ async def _run_case(inp: RunCaseInput) -> CaseResultOut:
     failures = [f"{name}: {res.reason or '未通过'}"
                 for name, res in rc.assertions.items() if not res.value]
     scores = {name: float(res.value) for name, res in rc.scores.items()}
-    metrics = {**{k: float(v) for k, v in rc.metrics.items()},
-               "task_duration_s": round(rc.task_duration, 3)}
+    metrics = {"task_duration_s": round(rc.task_duration, 3)}
+    for k, v in rc.metrics.items():
+        try:
+            metrics[k] = float(v)
+        except (TypeError, ValueError):
+            pass                                     # 非数值指标不进 metrics
+    # labels（字符串型评估器输出）没有专属字段——并进 detail 展示
+    labels = [f"{name}={res.value}" for name, res in rc.labels.items()]
+    detail_parts = failures + labels
     return CaseResultOut(
         case_id=inp.case,
         status="failed" if failures else "passed",
         scores=scores, metrics=metrics,
-        detail="；".join(failures),
+        detail="；".join(detail_parts),
     )
 
 
@@ -128,12 +142,20 @@ class _EddRunCaseWorkflow:
         )
 
 
-def serve(workflow_name: str, entries: list) -> None:
-    """阻塞运行 worker。``entries`` = [(pydantic_evals.Dataset, task 函数), ...]。"""
+def serve(workflow_name: str, entries: list, *,
+          evaluate_kwargs: dict | None = None) -> None:
+    """阻塞运行 worker。``entries`` = [(pydantic_evals.Dataset, task 函数), ...]。
+
+    ``evaluate_kwargs`` 原样透传 ``Dataset.evaluate``（如 retry_task=/repeat=），
+    需要 pydantic-evals 高级执行参数时用。
+    """
     wf_name = os.environ.get("EVAL_WORKFLOW") or workflow_name
+    if evaluate_kwargs:
+        _EVALUATE_KWARGS.update(evaluate_kwargs)
     for ds, task in entries:
         if not getattr(ds, "name", None):
-            raise ValueError("Dataset 必须有 name（EDD 用它对应用例库）")
+            raise ValueError("Dataset 必须有 name（EDD 用它对应用例库；"
+                             "未命名的 Case 也无法被平台按 name 调度）")
         _REGISTRY[ds.name] = (ds, task)
 
     wf_cls = workflow.defn(name=wf_name, sandboxed=False)(_EddRunCaseWorkflow)

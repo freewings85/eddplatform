@@ -95,6 +95,38 @@ async def test_task_crash_is_application_error(registered):
 
 
 @pytest.mark.asyncio
+async def test_native_pydantic_evals_surface(bridge):
+    """pydantic-evals 原生特性经桥不丢：case 级评估器、同步 task、labels 输出。"""
+    from dataclasses import dataclass
+
+    from pydantic_evals import Case, Dataset
+    from pydantic_evals.evaluators import Evaluator, EvaluatorContext
+
+    @dataclass
+    class CaseLevel(Evaluator):
+        def evaluate(self, ctx: EvaluatorContext):
+            return {"case_level_ok": True}
+
+    @dataclass
+    class Labeler(Evaluator):
+        def evaluate(self, ctx: EvaluatorContext):
+            return {"tone": "polite"}          # str → label
+
+    ds = Dataset(name="d", cases=[
+        Case(name="c1", inputs="x", evaluators=[CaseLevel()]),
+    ], evaluators=[Labeler()])
+
+    def sync_task(inputs):                     # 同步 task 也是原生支持面
+        return "y"
+
+    bridge._REGISTRY.clear()
+    bridge._REGISTRY["d"] = (ds, sync_task)
+    out = await bridge._run_case(bridge.RunCaseInput("R", "ns", "d", "c1"))
+    assert out.status == "passed"              # case 级断言生效
+    assert "tone=polite" in out.detail         # labels 并进 detail
+
+
+@pytest.mark.asyncio
 async def test_unknown_dataset_or_case_is_application_error(registered):
     with pytest.raises(ApplicationError, match="未知用例集"):
         await registered._run_case(_inp(registered, "ok_case", dataset="nope"))
