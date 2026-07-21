@@ -116,6 +116,18 @@ async def _run_case(inp: RunCaseInput) -> CaseResultOut:
     )
 
 
+class _EddRunCaseWorkflow:
+    """RunCase workflow 骨架（temporalio 要求模块级类；名字在 serve 里动态指定）。"""
+
+    @workflow.run
+    async def run(self, inp: RunCaseInput) -> CaseResultOut:
+        return await workflow.execute_activity(
+            _run_case, inp,
+            start_to_close_timeout=timedelta(minutes=CASE_TIMEOUT_MIN),
+            retry_policy=RetryPolicy(maximum_attempts=1),
+        )
+
+
 def serve(workflow_name: str, entries: list) -> None:
     """阻塞运行 worker。``entries`` = [(pydantic_evals.Dataset, task 函数), ...]。"""
     wf_name = os.environ.get("EVAL_WORKFLOW") or workflow_name
@@ -123,15 +135,6 @@ def serve(workflow_name: str, entries: list) -> None:
         if not getattr(ds, "name", None):
             raise ValueError("Dataset 必须有 name（EDD 用它对应用例库）")
         _REGISTRY[ds.name] = (ds, task)
-
-    class _EddRunCaseWorkflow:
-        @workflow.run
-        async def run(self, inp: RunCaseInput) -> CaseResultOut:
-            return await workflow.execute_activity(
-                _run_case, inp,
-                start_to_close_timeout=timedelta(minutes=CASE_TIMEOUT_MIN),
-                retry_policy=RetryPolicy(maximum_attempts=1),
-            )
 
     wf_cls = workflow.defn(name=wf_name, sandboxed=False)(_EddRunCaseWorkflow)
 
