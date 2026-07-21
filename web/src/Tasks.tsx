@@ -219,6 +219,33 @@ export default function Tasks({ sysId }: { sysId: string }) {
   );
 }
 
+/** 点击即复制的小地址块（用于基础组件的集群内地址等）。 */
+function CopyChip({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy(e: React.MouseEvent) {
+    e.preventDefault();               // 别触发外层 label 的勾选
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");   // 非安全上下文回退
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
+  return (
+    <span className={`copy-chip mono ${copied ? "ok" : ""}`} title="点击复制"
+      onClick={copy}>
+      {text} {copied ? "✓ 已复制" : "⧉"}
+    </span>
+  );
+}
+
 function toRows(task: Task): Row[] {
   return task.preconditions.map((p) => ({
     kind: p.kind,
@@ -580,7 +607,11 @@ function TaskForm({
                 <select value={infraProgramId}
                   onChange={(e) => { setInfraProgramId(e.target.value); setInfraScan(null); }}>
                   {infraPrograms.length === 0 && <option value="">（先在「基础组件」页登记组件库）</option>}
-                  {infraPrograms.map((p) => <option key={p.id} value={p.id}>{p.name}（{p.git_url}）</option>)}
+                  {infraPrograms.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}（{p.git_url} · 目录 {p.path || "."}）
+                    </option>
+                  ))}
                 </select>
                 <input style={{ maxWidth: 110 }} value={infraBranch}
                   onChange={(e) => setInfraBranch(e.target.value)} placeholder="分支" />
@@ -596,10 +627,12 @@ function TaskForm({
                       return n;
                     })} />
                   <span className="mono">{c.name}</span>
-                  <span className="muted sm">
-                    集群内地址 {Object.values(c.services).join("、") || c.release}
-                    ——把「部署配置」中相应值改成它
-                  </span>
+                  <span className="muted sm">集群内地址</span>
+                  {(Object.values(c.services).length
+                    ? Object.values(c.services) : [c.release]).map((addr) => (
+                    <CopyChip key={addr} text={addr} />
+                  ))}
+                  <span className="muted sm">——把「部署配置」中相应值改成它</span>
                 </label>
               ))}
               {infraScan && infraSel.size > 0 && (
