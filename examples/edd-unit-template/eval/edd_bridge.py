@@ -59,10 +59,22 @@ class CaseResultOut:
     metrics: dict = field(default_factory=dict)
     detail: str = ""
     trace_url: str | None = None
+    report: str = ""                   # pydantic-evals 原生报告表（文本渲染，平台展示）
 
 
 class Skip(Exception):
     """task 内抛出 → 该用例在此版本不适用（EDD 记 skipped，对比时剔除）。"""
+
+
+def _render_report(report) -> str:
+    """pydantic-evals 报告 → 原生表格文本（与本地裸跑 report.print 同款）。"""
+    try:
+        from rich.console import Console
+        console = Console(record=True, width=110, force_terminal=False)
+        report.print(console=console, include_reasons=True, include_averages=False)
+        return console.export_text().rstrip()
+    except Exception:  # noqa: BLE001 —— 渲染失败不影响结果回传
+        return ""
 
 
 _REGISTRY: dict[str, tuple] = {}       # dataset name -> (Dataset, task)
@@ -127,6 +139,7 @@ async def _run_case(inp: RunCaseInput) -> CaseResultOut:
         status="failed" if failures else "passed",
         scores=scores, metrics=metrics,
         detail="；".join(detail_parts),
+        report=_render_report(report),
     )
 
 

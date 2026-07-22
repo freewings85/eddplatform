@@ -104,6 +104,7 @@ class CaseResultOut:
     metrics: dict[str, float] = field(default_factory=dict)
     detail: str = ""
     trace_url: str | None = None
+    report: str = ""                   # pydantic-evals 原生报告表（文本，评估程序渲染）
 
 
 @dataclass

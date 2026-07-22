@@ -224,6 +224,7 @@ class CaseRunResult(BaseModel):
     metrics: dict[str, float] = {}
     detail: str = ""
     trace_url: str | None = None
+    report: str = ""                       # pydantic-evals 原生报告表（文本渲染）
 
 
 # --------------------------------------------------------------------------- 任务前置条件

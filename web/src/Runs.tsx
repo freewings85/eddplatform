@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { CaseRunResult, RunDetail, RunLogLine, RunRecord } from "./types";
 
@@ -198,6 +198,14 @@ function ConsoleOutput({ runId, running }: { runId: string; running: boolean }) 
 }
 
 function RunDetailView({ detail }: { detail: RunDetail }) {
+  const [openReports, setOpenReports] = useState<Set<string>>(new Set());
+  function toggleReport(id: string) {
+    setOpenReports((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  }
   return (
     <>
       <div className="section-title">
@@ -251,22 +259,40 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
           </thead>
           <tbody>
             {detail.case_results.map((c: CaseRunResult) => (
-              <tr key={c.case_id}>
-                <td className="mono">{c.case_id}</td>
-                <td><StatusPill status={c.status} /></td>
-                <td className="mono">
-                  {Object.entries(c.scores).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
-                </td>
-                <td className="mono">
-                  {Object.entries(c.metrics).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
-                </td>
-                <td>
-                  {c.trace_url ? (
-                    <a href={c.trace_url} target="_blank" rel="noreferrer">Langfuse ↗</a>
-                  ) : "—"}
-                </td>
-                <td className="muted">{c.detail || "—"}</td>
-              </tr>
+              <React.Fragment key={c.case_id}>
+                <tr>
+                  <td className="mono">{c.case_id}</td>
+                  <td><StatusPill status={c.status} /></td>
+                  <td className="mono">
+                    {Object.entries(c.scores).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
+                  </td>
+                  <td className="mono">
+                    {Object.entries(c.metrics).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
+                  </td>
+                  <td>
+                    {c.trace_url ? (
+                      <a href={c.trace_url} target="_blank" rel="noreferrer">Langfuse ↗</a>
+                    ) : "—"}
+                  </td>
+                  <td className="muted">
+                    {c.detail || "—"}
+                    {c.report && (
+                      <div>
+                        <button className="btn sm" onClick={() => toggleReport(c.case_id)}>
+                          {openReports.has(c.case_id) ? "收起报告" : "pydantic 报告"}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+                {c.report && openReports.has(c.case_id) && (
+                  <tr>
+                    <td colSpan={6} style={{ padding: 8 }}>
+                      <pre className="trace-pre" style={{ maxHeight: 400 }}>{c.report}</pre>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
             {detail.case_results.length === 0 && (
               <tr>

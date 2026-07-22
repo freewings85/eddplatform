@@ -170,6 +170,9 @@ class RunTaskWorkflow:
                                f"{mark} [{i}/{total}] 用例 {case_name} {r.status}"
                                f"{' · ' + str(r.scores) if r.scores else ''}"
                                f"{' · ' + r.detail if r.detail else ''}")
+                    if getattr(r, "report", ""):
+                        await _log(inp.run_id, r.report)   # pydantic-evals 原生报告表
+
                 except Exception as e:  # noqa: BLE001 —— 单用例失败不拖垮整场
                     cause = e
                     while getattr(cause, "cause", None) is not None:

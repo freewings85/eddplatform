@@ -178,6 +178,7 @@ export interface CaseRunResult {
   metrics: Record<string, number>;
   detail: string;
   trace_url?: string | null;
+  report?: string; // pydantic-evals 原生报告表（文本渲染）
 }
 
 export type RunDetail = RunRecord & { case_results: CaseRunResult[] };
