@@ -82,7 +82,7 @@ async def _watch(handle, run_id: str, run_store: RunStore) -> None:
                 case_id=d.get("case_id", ""), status=status_s,
                 scores=d.get("scores") or {}, metrics=d.get("metrics") or {},
                 detail=d.get("detail", ""), trace_url=d.get("trace_url"),
-                report=d.get("report") or ""))
+                report=d.get("report") or "", program=d.get("program") or ""))
         status = RunStatus.SUCCEEDED if out.status == "up" else RunStatus.FAILED
         run_store.finish(run_id, status, versions=out.versions,
                          outcomes=[o if isinstance(o, dict) else o.__dict__ for o in out.outcomes],

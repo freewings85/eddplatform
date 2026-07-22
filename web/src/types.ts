@@ -179,6 +179,7 @@ export interface CaseRunResult {
   detail: string;
   trace_url?: string | null;
   report?: string; // pydantic-evals 原生报告表（文本渲染）
+  program?: string; // 处理本用例的评估程序（workflow 名）
 }
 
 export type RunDetail = RunRecord & { case_results: CaseRunResult[] };

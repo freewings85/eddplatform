@@ -105,6 +105,7 @@ class CaseResultOut:
     detail: str = ""
     trace_url: str | None = None
     report: str = ""                   # pydantic-evals 原生报告表（文本，评估程序渲染）
+    program: str = ""                  # 处理本用例的评估程序(workflow 名)——平台回填
 
 
 @dataclass

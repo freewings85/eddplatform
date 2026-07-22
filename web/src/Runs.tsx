@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { CaseRunResult, RunDetail, RunLogLine, RunRecord } from "./types";
 
@@ -197,15 +197,44 @@ function ConsoleOutput({ runId, running }: { runId: string; running: boolean }) 
   );
 }
 
+/** 评估程序输出：pydantic-evals 原生报告表，按评估程序（workflow 名）分组可选。 */
+function EvalProgramOutput({ results }: { results: CaseRunResult[] }) {
+  const withReport = results.filter((c) => c.report);
+  const programs = [...new Set(withReport.map((c) => c.program || "评估程序"))];
+  const [picked, setPicked] = useState<string | null>(null);
+  if (withReport.length === 0) return null;
+  const current = picked ?? programs[0];
+  const cases = withReport.filter((c) => (c.program || "评估程序") === current);
+  return (
+    <>
+      <div className="section-title">
+        评估程序输出（pydantic-evals 报告）
+        {programs.length > 1 && (
+          <span style={{ marginLeft: 10 }}>
+            {programs.map((p) => (
+              <button key={p} className={`btn sm ${p === current ? "primary" : ""}`}
+                style={{ marginRight: 6 }} onClick={() => setPicked(p)}>{p}</button>
+            ))}
+          </span>
+        )}
+        {programs.length === 1 && <span className="mono muted"> · {current}</span>}
+      </div>
+      <div className="console">
+        {cases.map((c) => (
+          <div key={c.case_id}>
+            <div className={`console-line ${c.status === "passed" ? "ok" : "bad"}`}>
+              <span>===== {c.case_id}（{c.status}）=====</span>
+            </div>
+            <pre style={{ margin: "2px 0 12px", color: "inherit", background: "none",
+                          padding: 0, overflowX: "auto" }}>{c.report}</pre>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function RunDetailView({ detail }: { detail: RunDetail }) {
-  const [openReports, setOpenReports] = useState<Set<string>>(new Set());
-  function toggleReport(id: string) {
-    setOpenReports((s) => {
-      const n = new Set(s);
-      n.has(id) ? n.delete(id) : n.add(id);
-      return n;
-    });
-  }
   return (
     <>
       <div className="section-title">
@@ -215,6 +244,8 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
       {detail.detail && <p className="err">{detail.detail}</p>}
 
       <ConsoleOutput runId={detail.id} running={detail.status === "running"} />
+
+      <EvalProgramOutput results={detail.case_results} />
 
       <div className="card">
         <table>
@@ -259,40 +290,22 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
           </thead>
           <tbody>
             {detail.case_results.map((c: CaseRunResult) => (
-              <React.Fragment key={c.case_id}>
-                <tr>
-                  <td className="mono">{c.case_id}</td>
-                  <td><StatusPill status={c.status} /></td>
-                  <td className="mono">
-                    {Object.entries(c.scores).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
-                  </td>
-                  <td className="mono">
-                    {Object.entries(c.metrics).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
-                  </td>
-                  <td>
-                    {c.trace_url ? (
-                      <a href={c.trace_url} target="_blank" rel="noreferrer">Langfuse ↗</a>
-                    ) : "—"}
-                  </td>
-                  <td className="muted">
-                    {c.detail || "—"}
-                    {c.report && (
-                      <div>
-                        <button className="btn sm" onClick={() => toggleReport(c.case_id)}>
-                          {openReports.has(c.case_id) ? "收起报告" : "pydantic 报告"}
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-                {c.report && openReports.has(c.case_id) && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: 8 }}>
-                      <pre className="trace-pre" style={{ maxHeight: 400 }}>{c.report}</pre>
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
+              <tr key={c.case_id}>
+                <td className="mono">{c.case_id}</td>
+                <td><StatusPill status={c.status} /></td>
+                <td className="mono">
+                  {Object.entries(c.scores).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
+                </td>
+                <td className="mono">
+                  {Object.entries(c.metrics).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
+                </td>
+                <td>
+                  {c.trace_url ? (
+                    <a href={c.trace_url} target="_blank" rel="noreferrer">Langfuse ↗</a>
+                  ) : "—"}
+                </td>
+                <td className="muted">{c.detail || "—"}</td>
+              </tr>
             ))}
             {detail.case_results.length === 0 && (
               <tr>

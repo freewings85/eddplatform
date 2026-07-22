@@ -225,6 +225,7 @@ class CaseRunResult(BaseModel):
     detail: str = ""
     trace_url: str | None = None
     report: str = ""                       # pydantic-evals 原生报告表（文本渲染）
+    program: str = ""                      # 处理本用例的评估程序（workflow 名）
 
 
 # --------------------------------------------------------------------------- 任务前置条件
