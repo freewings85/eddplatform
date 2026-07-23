@@ -106,6 +106,60 @@ class CaseResultOut:
     trace_url: str | None = None
     report: str = ""                   # pydantic-evals 原生报告表（文本，评估程序渲染）
     program: str = ""                  # 处理本用例的评估程序(workflow 名)——平台回填
+    attempts: int = 1                  # 本用例实际执行次数（任务「每用例执行次数」）
+    passed_attempts: int = 1           # 其中通过的次数（attempts>1 时界面显示 n/N）
+
+
+def aggregate_attempts(case_name: str, attempts: list[CaseResultOut]) -> CaseResultOut:
+    """把同一用例的多次执行聚合成一条结果（LLM 非确定性：一次过≠稳定过）。
+
+    - status：任一 failed → failed；否则任一 error → error；全 skipped → skipped；
+      其余 → passed（全部通过才算过——宽松口径由 scores.pass_rate 自行判断）。
+    - scores：取最后一次的分数，多次时附 ``pass_rate``（通过次数/总次数）。
+    - metrics：数值指标按次取均值（如 task_duration_s）。
+    - detail/report：逐次拼接，失败的那次细节不丢。
+    """
+    n = len(attempts)
+    if n == 1:
+        one = attempts[0]
+        one.attempts = 1
+        one.passed_attempts = 1 if one.status == "passed" else 0
+        return one
+    statuses = [a.status for a in attempts]
+    passed = sum(1 for s in statuses if s == "passed")
+    if "failed" in statuses:
+        status = "failed"
+    elif "error" in statuses:
+        status = "error"
+    elif all(s == "skipped" for s in statuses):
+        status = "skipped"
+    else:
+        status = "passed"
+
+    scores: dict[str, float] = dict(attempts[-1].scores)
+    scores["pass_rate"] = round(passed / n, 2)
+    metric_keys = {k for a in attempts for k in a.metrics}
+    metrics = {k: round(sum(a.metrics[k] for a in attempts if k in a.metrics)
+                        / max(1, sum(1 for a in attempts if k in a.metrics)), 3)
+               for k in metric_keys}
+
+    marks = {"passed": "✓", "failed": "✗", "error": "!", "skipped": "→"}
+    seq = ",".join(marks.get(s, "?") for s in statuses)
+    fail_details = [f"第{i}次: {a.detail}" for i, a in enumerate(attempts, 1)
+                    if a.status != "passed" and a.detail]
+    detail = f"{passed}/{n} 次通过 · 各次: {seq}"
+    if fail_details:
+        detail += " · " + "；".join(fail_details[:3])
+
+    reports = [f"----- 第 {i}/{n} 次（{a.status}）-----\n{a.report}"
+               for i, a in enumerate(attempts, 1) if a.report]
+    trace_urls = [a.trace_url for a in attempts if a.trace_url]
+    return CaseResultOut(
+        case_id=case_name, status=status, scores=scores, metrics=metrics,
+        detail=detail, trace_url=trace_urls[-1] if trace_urls else None,
+        report="\n".join(reports), program=attempts[-1].program,
+        attempts=n, passed_attempts=passed,
+    )
 
 
 @dataclass
@@ -120,6 +174,7 @@ class RunTaskInput:
     dataset_name: str = ""             # 用例集 name（随每条用例传给评估 workflow）
     cases: list[str] = field(default_factory=list)   # 用例 name 清单
     destroy: bool = False              # 运行结束后销毁 namespace（任务选项）
+    runs_per_case: int = 1             # 每用例执行次数（>1 时聚合出 pass_rate，全过才算过）
 
 
 @dataclass

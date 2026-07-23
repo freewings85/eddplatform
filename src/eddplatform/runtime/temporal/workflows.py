@@ -27,6 +27,7 @@ with workflow.unsafe.imports_passed_through():
         RunTaskOutput,
         ScriptArgs,
         WaitWorkerArgs,
+        aggregate_attempts,
     )
 
 _ROLE = {"start_system": "system", "start_eval_program": "eval"}
@@ -150,35 +151,44 @@ class RunTaskWorkflow:
                 await _maybe_destroy(inp)
                 return out
             total = len(inp.cases)
+            reps = max(1, inp.runs_per_case)
             for i, case_name in enumerate(inp.cases, 1):
                 await _log(inp.run_id,
                            f"▶ [{i}/{total}] 用例 {case_name} → child workflow "
-                           f"{inp.eval_code} (dataset={inp.dataset_name})")
-                try:
-                    r = await workflow.execute_child_workflow(
-                        inp.eval_code,
-                        RunCaseInput(run_id=inp.run_id, namespace=inp.namespace,
-                                     dataset=inp.dataset_name, case=case_name),
-                        id=f"{workflow.info().workflow_id}-case-{case_name}",
-                        task_queue=inp.eval_code,
-                        result_type=CaseResultOut,
-                        execution_timeout=timedelta(minutes=5),
-                    )
-                    r.program = inp.eval_code              # 报告按评估程序归组（界面分区展示）
-                    out.case_results.append(r)
-                    mark = "✓" if r.status == "passed" else "✗"
-                    await _log(inp.run_id,
-                               f"{mark} [{i}/{total}] 用例 {case_name} {r.status}"
-                               f"{' · ' + str(r.scores) if r.scores else ''}"
-                               f"{' · ' + r.detail if r.detail else ''}")
-                except Exception as e:  # noqa: BLE001 —— 单用例失败不拖垮整场
-                    cause = e
-                    while getattr(cause, "cause", None) is not None:
-                        cause = cause.cause
-                    detail = str(getattr(cause, "message", None) or cause)
-                    out.case_results.append(
-                        CaseResultOut(case_id=case_name, status="error", detail=detail))
-                    await _log(inp.run_id,
-                               f"! [{i}/{total}] 用例 {case_name} error · {detail}")
+                           f"{inp.eval_code} (dataset={inp.dataset_name}"
+                           f"{f', 执行 {reps} 次' if reps > 1 else ''})")
+                attempts: list[CaseResultOut] = []
+                for t in range(1, reps + 1):
+                    suffix = f"-t{t}" if reps > 1 else ""
+                    try:
+                        r = await workflow.execute_child_workflow(
+                            inp.eval_code,
+                            RunCaseInput(run_id=inp.run_id, namespace=inp.namespace,
+                                         dataset=inp.dataset_name, case=case_name),
+                            id=f"{workflow.info().workflow_id}-case-{case_name}{suffix}",
+                            task_queue=inp.eval_code,
+                            result_type=CaseResultOut,
+                            execution_timeout=timedelta(minutes=5),
+                        )
+                    except Exception as e:  # noqa: BLE001 —— 单次失败不拖垮整场
+                        cause = e
+                        while getattr(cause, "cause", None) is not None:
+                            cause = cause.cause
+                        r = CaseResultOut(case_id=case_name, status="error",
+                                          detail=str(getattr(cause, "message", None) or cause))
+                    attempts.append(r)
+                    if reps > 1:
+                        await _log(inp.run_id,
+                                   f"  · 第 {t}/{reps} 次: {r.status}"
+                                   f"{' · ' + r.detail if r.status != 'passed' and r.detail else ''}")
+                agg = aggregate_attempts(case_name, attempts)
+                agg.program = inp.eval_code            # 报告按评估程序归组（界面分区展示）
+                out.case_results.append(agg)
+                mark = {"passed": "✓", "failed": "✗", "error": "!", "skipped": "→"}.get(
+                    agg.status, "?")
+                await _log(inp.run_id,
+                           f"{mark} [{i}/{total}] 用例 {case_name} {agg.status}"
+                           f"{' · ' + str(agg.scores) if agg.scores else ''}"
+                           f"{' · ' + agg.detail if agg.detail else ''}")
         await _maybe_destroy(inp)
         return out

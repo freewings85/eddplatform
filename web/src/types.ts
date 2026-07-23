@@ -88,6 +88,7 @@ export interface Task {
   case_ids?: string[] | null; // 用例清单：null/缺省 = 全部用例（动态跟随所选库）
   eval_target?: string | null;
   destroy_after?: boolean; // 运行结束后销毁 k8s 资源（namespace）
+  runs_per_case?: number; // 每用例执行次数（>1 = 稳定性口径，全过才算过 + pass_rate）
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -180,6 +181,8 @@ export interface CaseRunResult {
   trace_url?: string | null;
   report?: string; // pydantic-evals 原生报告表（文本渲染）
   program?: string; // 处理本用例的评估程序（workflow 名）
+  attempts?: number; // 实际执行次数（任务「每用例执行次数」）
+  passed_attempts?: number; // 通过次数（attempts>1 时显示 n/N）
 }
 
 export type RunDetail = RunRecord & { case_results: CaseRunResult[] };

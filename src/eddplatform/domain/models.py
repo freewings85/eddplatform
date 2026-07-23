@@ -226,6 +226,8 @@ class CaseRunResult(BaseModel):
     trace_url: str | None = None
     report: str = ""                       # pydantic-evals 原生报告表（文本渲染）
     program: str = ""                      # 处理本用例的评估程序（workflow 名）
+    attempts: int = 1                      # 实际执行次数（任务「每用例执行次数」）
+    passed_attempts: int = 1               # 通过次数（attempts>1 时界面显示 n/N）
 
 
 # --------------------------------------------------------------------------- 任务前置条件
@@ -270,5 +272,6 @@ class Task(BaseModel):
     case_ids: list[str] | None = None        # 用例清单：None = 全部用例（动态跟随用例库）
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）
     destroy_after: bool = False              # 运行结束后销毁 k8s 资源（namespace）
+    runs_per_case: int = 1                   # 每用例执行次数（LLM 非确定性：>1 看稳定性/pass_rate）
     created_at: datetime | None = None       # store 自动维护
     updated_at: datetime | None = None       # store 自动维护

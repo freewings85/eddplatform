@@ -139,6 +139,9 @@ export default function Tasks({ sysId }: { sysId: string }) {
                 <td>
                   <b>{t.name}</b>
                   {t.destroy_after && <div><span className="tag only">运行后销毁资源</span></div>}
+                  {(t.runs_per_case ?? 1) > 1 && (
+                    <div><span className="tag only">每用例 ×{t.runs_per_case}</span></div>
+                  )}
                 </td>
                 <td>
                   {t.preconditions.map((p, i) => (
@@ -278,6 +281,7 @@ function TaskForm({
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [destroyAfter, setDestroyAfter] = useState(initial?.destroy_after ?? false);
+  const [runsPerCase, setRunsPerCase] = useState(initial?.runs_per_case ?? 1);
   const [rows, setRows] = useState<Row[]>(
     initial
       ? toRows(initial)
@@ -551,6 +555,7 @@ function TaskForm({
       dataset_id: datasetId || null,
       case_ids: [...selected],
       destroy_after: destroyAfter,
+      runs_per_case: Math.max(1, Math.floor(runsPerCase) || 1),
     };
     setBusy(true);
     try {
@@ -590,6 +595,16 @@ function TaskForm({
               onChange={(e) => setDestroyAfter(e.target.checked)} />
             <span>运行结束后销毁本次创建的 k8s 资源（整个一次性 namespace：pod/service/configmap）；
               不勾 = 保留现场供排查，需手动清理</span>
+          </label>
+
+          <label className="fld">
+            <span>每用例执行次数</span>
+            <input type="number" min={1} max={10} value={runsPerCase} style={{ width: 80 }}
+              onChange={(e) => setRunsPerCase(Number(e.target.value))} />
+            <span className="muted count">
+              LLM 输出有随机性：一次通过≠稳定通过。&gt;1 时每条用例跑 N 次，
+              全部通过才记 passed，结果里给出通过率（pass_rate）与逐次明细。
+            </span>
           </label>
 
           <div className="fld">

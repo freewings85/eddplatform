@@ -292,7 +292,14 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
             {detail.case_results.map((c: CaseRunResult) => (
               <tr key={c.case_id}>
                 <td className="mono">{c.case_id}</td>
-                <td><StatusPill status={c.status} /></td>
+                <td>
+                  <StatusPill status={c.status} />
+                  {(c.attempts ?? 1) > 1 && (
+                    <span className="mono sm muted" title="通过次数/执行次数">
+                      {" "}{c.passed_attempts}/{c.attempts}
+                    </span>
+                  )}
+                </td>
                 <td className="mono">
                   {Object.entries(c.scores).map(([k, v]) => `${k}=${v}`).join(" ") || "—"}
                 </td>

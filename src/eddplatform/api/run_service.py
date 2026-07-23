@@ -46,6 +46,7 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
         dataset_name=dataset_name,
         cases=list(cases or []),
         destroy=bool(getattr(task, "destroy_after", False)),
+        runs_per_case=max(1, int(getattr(task, "runs_per_case", 1) or 1)),
     )
     handle = await client.start_workflow(
         "RunTaskWorkflow", inp, id=f"edd-run-{run.id}", task_queue=TASK_QUEUE,
@@ -57,7 +58,9 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
     run_store.update(run)
     _log(run_store, run.id,
          f"RUN {run.id} 已提交 · 任务「{task.name}」 · workflow {run.workflow_id} · "
-         f"namespace {inp.namespace} · 用例 {len(cases)} 条 · 评估 workflow {eval_code or '—'}")
+         f"namespace {inp.namespace} · 用例 {len(cases)} 条"
+         f"{f' × {inp.runs_per_case} 次' if inp.runs_per_case > 1 else ''}"
+         f" · 评估 workflow {eval_code or '—'}")
     asyncio.get_running_loop().create_task(_watch(handle, run.id, run_store))
     return run
 
@@ -82,7 +85,9 @@ async def _watch(handle, run_id: str, run_store: RunStore) -> None:
                 case_id=d.get("case_id", ""), status=status_s,
                 scores=d.get("scores") or {}, metrics=d.get("metrics") or {},
                 detail=d.get("detail", ""), trace_url=d.get("trace_url"),
-                report=d.get("report") or "", program=d.get("program") or ""))
+                report=d.get("report") or "", program=d.get("program") or "",
+                attempts=int(d.get("attempts") or 1),
+                passed_attempts=int(d.get("passed_attempts") or 0)))
         status = RunStatus.SUCCEEDED if out.status == "up" else RunStatus.FAILED
         run_store.finish(run_id, status, versions=out.versions,
                          outcomes=[o if isinstance(o, dict) else o.__dict__ for o in out.outcomes],
