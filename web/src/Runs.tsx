@@ -28,6 +28,28 @@ export default function Runs({ sysId }: { sysId: string }) {
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  // 对比：勾选两条运行 → 逐用例对齐比较（老的当基线 A，新的当 B）
+  const [picked, setPicked] = useState<string[]>([]);
+  const [compare, setCompare] = useState<[RunDetail, RunDetail] | null>(null);
+
+  function togglePick(id: string) {
+    setPicked((cur) => cur.includes(id)
+      ? cur.filter((x) => x !== id)
+      : cur.length >= 2 ? [cur[1], id] : [...cur, id]);
+    setCompare(null);
+  }
+
+  async function loadCompare() {
+    if (picked.length !== 2) return;
+    try {
+      const pair = await Promise.all(picked.map((id) => api.run(id)));
+      pair.sort((a, b) => (a.created_at ?? "").localeCompare(b.created_at ?? ""));
+      setCompare(pair as [RunDetail, RunDetail]);
+      setOpenId(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
 
   const reload = useCallback(() => {
     api.runs(sysId).then(setRuns).catch((e) => setError(String(e)));
@@ -75,12 +97,22 @@ export default function Runs({ sysId }: { sysId: string }) {
           <option value="asc">按创建时间 ↑</option>
         </select>
         <span className="muted count">{visible.length} / {(runs ?? []).length} 条</span>
+        <button className="btn sm primary" disabled={picked.length !== 2} onClick={loadCompare}
+          title="勾选两条运行后对比（逐用例对齐）">
+          对比{picked.length ? `（已选 ${picked.length}/2）` : ""}
+        </button>
+        {compare && (
+          <button className="btn sm" onClick={() => { setCompare(null); setPicked([]); }}>
+            关闭对比
+          </button>
+        )}
       </div>
 
       <div className="card">
         <table>
           <thead>
             <tr>
+              <th title="勾选两条运行做对比">⇄</th>
               <th>运行</th>
               <th>任务</th>
               <th>状态</th>
@@ -94,6 +126,11 @@ export default function Runs({ sysId }: { sysId: string }) {
           <tbody>
             {pageRuns.map((r) => (
               <tr key={r.id}>
+                <td>
+                  <input type="checkbox" checked={picked.includes(r.id)}
+                    disabled={r.status === "running"}
+                    onChange={() => togglePick(r.id)} />
+                </td>
                 <td className="mono">{r.id}</td>
                 <td><b>{r.task_name || r.task_id}</b></td>
                 <td><StatusPill status={r.status} /></td>
@@ -112,13 +149,13 @@ export default function Runs({ sysId }: { sysId: string }) {
             ))}
             {runs && runs.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">
+                <td colSpan={9} className="empty">
                   暂无运行记录 — 在「评估任务」页对任务点「执行」。
                 </td>
               </tr>
             )}
             {runs && runs.length > 0 && visible.length === 0 && (
-              <tr><td colSpan={8} className="empty">没有匹配过滤条件的运行。</td></tr>
+              <tr><td colSpan={9} className="empty">没有匹配过滤条件的运行。</td></tr>
             )}
           </tbody>
         </table>
@@ -138,7 +175,95 @@ export default function Runs({ sysId }: { sysId: string }) {
         <button className="btn sm" disabled={pageSafe >= pageCount} onClick={() => setPage(pageSafe + 1)}>下一页 ▶</button>
       </div>
 
-      {detail && <RunDetailView detail={detail} />}
+      {compare && <RunCompareView a={compare[0]} b={compare[1]} />}
+      {!compare && detail && <RunDetailView detail={detail} />}
+    </>
+  );
+}
+
+/** 两条运行的逐用例对比：按 用例集/用例 对齐，标记 改善/退化/不变/新增。 */
+function RunCompareView({ a, b }: { a: RunDetail; b: RunDetail }) {
+  const [onlyDiff, setOnlyDiff] = useState(true);
+  const key = (c: CaseRunResult) => `${c.dataset ?? ""}/${c.case_id}`;
+  const mapA = new Map(a.case_results.map((c) => [key(c), c]));
+  const mapB = new Map(b.case_results.map((c) => [key(c), c]));
+  const keys = [...new Set([...mapA.keys(), ...mapB.keys()])].sort();
+
+  type Change = "改善" | "退化" | "不变" | "仅基线" | "新增";
+  function judge(ca?: CaseRunResult, cb?: CaseRunResult): Change {
+    if (ca && !cb) return "仅基线";
+    if (!ca && cb) return "新增";
+    if (ca!.status === cb!.status) return "不变";
+    if (cb!.status === "passed") return "改善";
+    if (ca!.status === "passed") return "退化";
+    return "不变";                       // failed↔error 之类的横向变化不计好坏
+  }
+  const rows = keys.map((k) => {
+    const ca = mapA.get(k), cb = mapB.get(k);
+    return { k, ca, cb, change: judge(ca, cb) };
+  });
+  const counts: Record<Change, number> = { 改善: 0, 退化: 0, 不变: 0, 仅基线: 0, 新增: 0 };
+  rows.forEach((r) => { counts[r.change] += 1; });
+  const shown = rows.filter((r) => !onlyDiff || r.change !== "不变");
+  const changeColor: Record<Change, string> = {
+    改善: "ok", 退化: "down", 不变: "neutral", 仅基线: "neutral", 新增: "run" };
+  const nn = (c?: CaseRunResult) => c && (c.attempts ?? 1) > 1
+    ? ` ${c.passed_attempts}/${c.attempts}` : "";
+
+  return (
+    <>
+      <div className="section-title">
+        运行对比 · 基线 A <span className="mono">{a.id}</span>
+        （{new Date(a.created_at ?? "").toLocaleString()}） vs B{" "}
+        <span className="mono">{b.id}</span>
+        （{new Date(b.created_at ?? "").toLocaleString()}）
+      </div>
+      <div className="toolbar">
+        <span className="mono">A: <CaseStats stats={a.case_stats} /></span>
+        <span className="mono">B: <CaseStats stats={b.case_stats} /></span>
+        <span className="muted count">
+          改善 {counts["改善"]} · 退化 {counts["退化"]} · 不变 {counts["不变"]}
+          {counts["新增"] ? ` · 新增 ${counts["新增"]}` : ""}
+          {counts["仅基线"] ? ` · 仅基线 ${counts["仅基线"]}` : ""}
+        </span>
+        <label className="muted count" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="checkbox" checked={onlyDiff}
+            onChange={(e) => setOnlyDiff(e.target.checked)} />
+          只看有变化的
+        </label>
+      </div>
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>用例集</th>
+              <th>用例</th>
+              <th>A（基线）</th>
+              <th>B</th>
+              <th>变化</th>
+              <th>B 详情</th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map(({ k, ca, cb, change }) => (
+              <tr key={k}>
+                <td className="mono sm">{(ca ?? cb)?.dataset || "—"}</td>
+                <td className="mono">{(ca ?? cb)?.case_id}</td>
+                <td>{ca ? <><StatusPill status={ca.status} />
+                  <span className="mono sm muted">{nn(ca)}</span></> : <span className="muted">—</span>}</td>
+                <td>{cb ? <><StatusPill status={cb.status} />
+                  <span className="mono sm muted">{nn(cb)}</span></> : <span className="muted">—</span>}</td>
+                <td><span className={`pill ${changeColor[change]}`}>{change}</span></td>
+                <td className="muted sm">{cb?.status !== "passed" ? (cb?.detail ?? "").slice(0, 110)
+                  : (ca && ca.status !== "passed" ? `基线时: ${ca.detail.slice(0, 90)}` : "—")}</td>
+              </tr>
+            ))}
+            {shown.length === 0 && (
+              <tr><td colSpan={6} className="empty">两次运行逐用例结果完全一致。</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
