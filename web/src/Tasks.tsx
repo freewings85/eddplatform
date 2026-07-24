@@ -398,19 +398,26 @@ function TaskForm({
     // eslint-disable-next-line
   }, [sysPrograms, evalPrograms]);
 
-  /** 行对应的注册项（系统程序 或 评估程序）。 */
+  /** 行对应的注册项（系统程序 / 评估程序 / 基础组件）。
+
+  「基础组件」区块添加的行 kind=start_system 但 program_id 是基础组件登记项
+  （IC-xxxx）——编辑已有任务时这些行也要能解析，否则合法任务被误拦。 */
   function regOf(row: Row): { git_url: string; path: string; label: string;
                               env?: string | null } | null {
     if (row.kind === "start_system") {
       const p = sysPrograms.find((x) => x.id === row.programId);
-      return p ? { git_url: p.git_url, path: p.path, label: p.name, env: p.env } : null;
+      if (p) return { git_url: p.git_url, path: p.path, label: p.name, env: p.env };
     }
     if (row.kind === "start_eval_program") {
       const p = evalPrograms.find((x) => x.id === row.programId);
       return p ? { git_url: p.git_url, path: p.path, label: p.name, env: p.env } : null;
     }
     const infra = infraPrograms.find((x) => x.id === row.programId);
-    if (infra) return { git_url: infra.git_url, path: infra.path, label: infra.name };
+    if (infra) {
+      // 组件行的具体目录在 row.path（如 build/infra/kafka）；label 带上组件名
+      return { git_url: infra.git_url, path: row.path || infra.path,
+               label: row.name ? `${infra.name} · ${row.name}` : infra.name };
+    }
     return null;
   }
 
