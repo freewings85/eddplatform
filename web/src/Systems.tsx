@@ -50,17 +50,19 @@ export default function Systems({ onOpen }: { onOpen: (id: string, name: string)
           </thead>
           <tbody>
             {(systems ?? []).map((s) => (
-              <tr key={s.id}>
-                <td className="click" onClick={() => onOpen(s.id, s.name)}>
-                  <b>{s.name}</b>
-                </td>
+              <tr key={s.id} className="click" style={{ cursor: "pointer" }}
+                title="点击进入系统工作台"
+                onClick={() => onOpen(s.id, s.name)}>
+                <td><b>{s.name}</b></td>
                 <td className="mono">{s.id}</td>
                 <td>{s.owner ?? "—"}</td>
                 <td className="muted">{s.description ?? "—"}</td>
                 <td>
-                  <button className="btn sm" onClick={() => onOpen(s.id, s.name)}>进入</button>{" "}
-                  <button className="btn sm" onClick={() => setEditing(s)}>编辑</button>{" "}
-                  <button className="btn sm danger" onClick={() => remove(s)}>删除</button>
+                  {/* 行点击=进入；操作按钮阻止冒泡避免误进 */}
+                  <button className="btn sm"
+                    onClick={(e) => { e.stopPropagation(); setEditing(s); }}>编辑</button>{" "}
+                  <button className="btn sm danger"
+                    onClick={(e) => { e.stopPropagation(); remove(s); }}>删除</button>
                 </td>
               </tr>
             ))}
