@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { CaseRunResult, RunDetail, RunLogLine, RunRecord } from "./types";
 
@@ -181,15 +181,50 @@ export default function Runs({ sysId }: { sysId: string }) {
   );
 }
 
-/** 两条运行的逐用例对比：按 用例集/用例 对齐，标记 改善/退化/不变/新增。 */
+type Change = "改善" | "退化" | "不变" | "仅基线" | "新增";
+
+/** 对比展开面板里的一侧（A 或 B）：完整结果详情。 */
+function CompareSide({ label, c }: { label: string; c?: CaseRunResult }) {
+  if (!c) return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="section-title">{label}</div>
+      <i className="muted">该运行没有这条用例。</i>
+    </div>
+  );
+  const kv = (m: Record<string, number>) =>
+    Object.entries(m).map(([k, v]) => `${k}=${v}`).join(" ") || "—";
+  return (
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="section-title">
+        {label} · <StatusPill status={c.status} />
+        {(c.attempts ?? 1) > 1 && (
+          <span className="mono sm muted"> {c.passed_attempts}/{c.attempts}</span>
+        )}
+      </div>
+      <div className="mono sm">分数: {kv(c.scores)}</div>
+      <div className="mono sm">指标: {kv(c.metrics)}</div>
+      {c.detail && <div className="muted sm" style={{ margin: "4px 0" }}>{c.detail}</div>}
+      {c.trace_url && (
+        <div><a href={c.trace_url} target="_blank" rel="noreferrer">Langfuse ↗</a></div>
+      )}
+      {c.report && (
+        <pre className="mono sm" style={{ maxHeight: 260, overflow: "auto",
+            background: "rgba(127,127,127,.08)", padding: 8, marginTop: 6 }}>{c.report}</pre>
+      )}
+    </div>
+  );
+}
+
+/** 两条运行的逐用例对比：按 用例集/用例 对齐，标记 改善/退化/不变/新增；
+    按变化类型过滤；点行展开 A/B 双侧完整详情。 */
 function RunCompareView({ a, b }: { a: RunDetail; b: RunDetail }) {
-  const [onlyDiff, setOnlyDiff] = useState(true);
+  const [changeFilter, setChangeFilter] = useState<Change | "">("");
+  const [openKey, setOpenKey] = useState<string | null>(null);
   const key = (c: CaseRunResult) => `${c.dataset ?? ""}/${c.case_id}`;
   const mapA = new Map(a.case_results.map((c) => [key(c), c]));
   const mapB = new Map(b.case_results.map((c) => [key(c), c]));
   const keys = [...new Set([...mapA.keys(), ...mapB.keys()])].sort();
 
-  type Change = "改善" | "退化" | "不变" | "仅基线" | "新增";
   function judge(ca?: CaseRunResult, cb?: CaseRunResult): Change {
     if (ca && !cb) return "仅基线";
     if (!ca && cb) return "新增";
@@ -204,7 +239,7 @@ function RunCompareView({ a, b }: { a: RunDetail; b: RunDetail }) {
   });
   const counts: Record<Change, number> = { 改善: 0, 退化: 0, 不变: 0, 仅基线: 0, 新增: 0 };
   rows.forEach((r) => { counts[r.change] += 1; });
-  const shown = rows.filter((r) => !onlyDiff || r.change !== "不变");
+  const shown = rows.filter((r) => !changeFilter || r.change === changeFilter);
   const changeColor: Record<Change, string> = {
     改善: "ok", 退化: "down", 不变: "neutral", 仅基线: "neutral", 新增: "run" };
   const nn = (c?: CaseRunResult) => c && (c.attempts ?? 1) > 1
@@ -221,16 +256,15 @@ function RunCompareView({ a, b }: { a: RunDetail; b: RunDetail }) {
       <div className="toolbar">
         <span className="mono">A: <CaseStats stats={a.case_stats} /></span>
         <span className="mono">B: <CaseStats stats={b.case_stats} /></span>
-        <span className="muted count">
-          改善 {counts["改善"]} · 退化 {counts["退化"]} · 不变 {counts["不变"]}
-          {counts["新增"] ? ` · 新增 ${counts["新增"]}` : ""}
-          {counts["仅基线"] ? ` · 仅基线 ${counts["仅基线"]}` : ""}
-        </span>
-        <label className="muted count" style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <input type="checkbox" checked={onlyDiff}
-            onChange={(e) => setOnlyDiff(e.target.checked)} />
-          只看有变化的
-        </label>
+        <button className={`btn sm ${changeFilter === "" ? "primary" : ""}`}
+          onClick={() => setChangeFilter("")}>全部 {rows.length}</button>
+        {(Object.keys(counts) as Change[]).filter((c) => counts[c]).map((c) => (
+          <button key={c} className={`btn sm ${changeFilter === c ? "primary" : ""}`}
+            onClick={() => setChangeFilter(changeFilter === c ? "" : c)}>
+            {c} {counts[c]}
+          </button>
+        ))}
+        <span className="muted count">点行展开 A/B 详情</span>
       </div>
       <div className="card">
         <table>
@@ -246,20 +280,36 @@ function RunCompareView({ a, b }: { a: RunDetail; b: RunDetail }) {
           </thead>
           <tbody>
             {shown.map(({ k, ca, cb, change }) => (
-              <tr key={k}>
-                <td className="mono sm">{(ca ?? cb)?.dataset || "—"}</td>
-                <td className="mono">{(ca ?? cb)?.case_id}</td>
-                <td>{ca ? <><StatusPill status={ca.status} />
-                  <span className="mono sm muted">{nn(ca)}</span></> : <span className="muted">—</span>}</td>
-                <td>{cb ? <><StatusPill status={cb.status} />
-                  <span className="mono sm muted">{nn(cb)}</span></> : <span className="muted">—</span>}</td>
-                <td><span className={`pill ${changeColor[change]}`}>{change}</span></td>
-                <td className="muted sm">{cb?.status !== "passed" ? (cb?.detail ?? "").slice(0, 110)
-                  : (ca && ca.status !== "passed" ? `基线时: ${ca.detail.slice(0, 90)}` : "—")}</td>
-              </tr>
+              <Fragment key={k}>
+                <tr onClick={() => setOpenKey(openKey === k ? null : k)}
+                  style={{ cursor: "pointer" }}
+                  title="点击展开/收起 A/B 详情">
+                  <td className="mono sm">{(ca ?? cb)?.dataset || "—"}</td>
+                  <td className="mono">{openKey === k ? "▾ " : "▸ "}{(ca ?? cb)?.case_id}</td>
+                  <td>{ca ? <><StatusPill status={ca.status} />
+                    <span className="mono sm muted">{nn(ca)}</span></> : <span className="muted">—</span>}</td>
+                  <td>{cb ? <><StatusPill status={cb.status} />
+                    <span className="mono sm muted">{nn(cb)}</span></> : <span className="muted">—</span>}</td>
+                  <td><span className={`pill ${changeColor[change]}`}>{change}</span></td>
+                  <td className="muted sm">{cb?.status !== "passed" ? (cb?.detail ?? "").slice(0, 110)
+                    : (ca && ca.status !== "passed" ? `基线时: ${ca.detail.slice(0, 90)}` : "—")}</td>
+                </tr>
+                {openKey === k && (
+                  <tr>
+                    <td colSpan={6}>
+                      <div style={{ display: "flex", gap: 16, padding: "6px 4px" }}>
+                        <CompareSide label={`A（基线 ${a.id}）`} c={ca} />
+                        <CompareSide label={`B（${b.id}）`} c={cb} />
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             ))}
             {shown.length === 0 && (
-              <tr><td colSpan={6} className="empty">两次运行逐用例结果完全一致。</td></tr>
+              <tr><td colSpan={6} className="empty">
+                {changeFilter ? `没有「${changeFilter}」的用例。` : "两次运行逐用例结果完全一致。"}
+              </td></tr>
             )}
           </tbody>
         </table>
@@ -360,6 +410,14 @@ function EvalProgramOutput({ results }: { results: CaseRunResult[] }) {
 }
 
 function RunDetailView({ detail }: { detail: RunDetail }) {
+  // 逐用例结果的状态过滤（"" = 全部）
+  const [statusFilter, setStatusFilter] = useState("");
+  const statusCounts: Record<string, number> = {};
+  detail.case_results.forEach((c) => {
+    statusCounts[c.status] = (statusCounts[c.status] ?? 0) + 1;
+  });
+  const shownCases = detail.case_results.filter(
+    (c) => !statusFilter || c.status === statusFilter);
   return (
     <>
       <div className="section-title">
@@ -400,7 +458,20 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
         </table>
       </div>
 
-      <div className="section-title">逐用例结果（{detail.case_results.length}）</div>
+      <div className="section-title">
+        逐用例结果（{shownCases.length}{statusFilter ? ` / ${detail.case_results.length}` : ""}）
+        <span style={{ marginLeft: 10 }}>
+          <button className={`btn sm ${statusFilter === "" ? "primary" : ""}`}
+            onClick={() => setStatusFilter("")}>全部 {detail.case_results.length}</button>
+          {["passed", "failed", "error", "skipped"].filter((s) => statusCounts[s]).map((s) => (
+            <button key={s} className={`btn sm ${statusFilter === s ? "primary" : ""}`}
+              style={{ marginLeft: 6 }}
+              onClick={() => setStatusFilter(statusFilter === s ? "" : s)}>
+              {s} {statusCounts[s]}
+            </button>
+          ))}
+        </span>
+      </div>
       <div className="card">
         <table>
           <thead>
@@ -415,7 +486,7 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
             </tr>
           </thead>
           <tbody>
-            {detail.case_results.map((c: CaseRunResult) => (
+            {shownCases.map((c: CaseRunResult) => (
               <tr key={`${c.dataset ?? ""}/${c.case_id}`}>
                 <td className="mono sm">{c.dataset || "—"}</td>
                 <td className="mono">{c.case_id}</td>
@@ -447,6 +518,9 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
                   {detail.status === "running" ? "评估进行中…" : "该运行没有逐用例结果（任务未挂评估程序，或环境未就绪）。"}
                 </td>
               </tr>
+            )}
+            {detail.case_results.length > 0 && shownCases.length === 0 && (
+              <tr><td colSpan={7} className="empty">没有 {statusFilter} 状态的用例。</td></tr>
             )}
           </tbody>
         </table>
