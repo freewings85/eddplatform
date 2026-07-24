@@ -186,6 +186,7 @@ class RunTaskInput:
     case_groups: list[CaseGroup] = field(default_factory=list)  # 用例分组（非空时优先）
     destroy: bool = False              # 运行结束后销毁 namespace（任务选项）
     runs_per_case: int = 1             # 每用例执行次数（>1 时聚合出 pass_rate，全过才算过）
+    case_concurrency: int = 4          # 用例并发数（gather+信号量；1=串行）
 
 
 @dataclass

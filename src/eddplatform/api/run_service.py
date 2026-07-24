@@ -47,6 +47,7 @@ async def start_run(system_id: str, task: Task, *,
         case_groups=groups,
         destroy=bool(getattr(task, "destroy_after", False)),
         runs_per_case=max(1, int(getattr(task, "runs_per_case", 1) or 1)),
+        case_concurrency=max(1, int(getattr(task, "case_concurrency", 4) or 4)),
     )
     handle = await client.start_workflow(
         "RunTaskWorkflow", inp, id=f"edd-run-{run.id}", task_queue=TASK_QUEUE,

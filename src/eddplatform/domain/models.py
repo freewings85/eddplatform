@@ -283,6 +283,7 @@ class Task(BaseModel):
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）
     destroy_after: bool = False              # 运行结束后销毁 k8s 资源（namespace）
     runs_per_case: int = 1                   # 每用例执行次数（LLM 非确定性：>1 看稳定性/pass_rate）
+    case_concurrency: int = 4                # 同一任务内用例并发数（1=串行；上限受评估 worker/LLM 配额）
     hidden: bool = False                     # 软删除：隐藏任务（其运行记录随之隐藏）
     created_at: datetime | None = None       # store 自动维护
     updated_at: datetime | None = None       # store 自动维护
