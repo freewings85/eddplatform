@@ -48,6 +48,11 @@ def _require_system(system_id: str) -> None:
         raise HTTPException(404, "system not found")
 
 
+class HideRequest(BaseModel):
+    """软删除/恢复（hidden=false 即恢复显示）。"""
+    hidden: bool = True
+
+
 class ImportRequest(BaseModel):
     cases: list[Case]
     mode: str = "append"                  # append(按 id upsert) / replace(清空重建)
@@ -377,6 +382,17 @@ def update_task(system_id: str, task_id: str, task: Task) -> Task:
         raise HTTPException(404, "task not found")
 
 
+@app.post("/api/systems/{system_id}/tasks/{task_id}/hide")
+def hide_task(system_id: str, task_id: str, body: HideRequest) -> Task:
+    """软删除/恢复评估任务（其运行记录在列表里随之隐藏——由前端按 task.hidden 联动）。"""
+    _require_system(system_id)
+    task = task_store.get(system_id, task_id)
+    if task is None:
+        raise HTTPException(404, "task not found")
+    task.hidden = body.hidden
+    return task_store.update(system_id, task_id, task)
+
+
 @app.delete("/api/systems/{system_id}/tasks/{task_id}", status_code=204)
 def delete_task(system_id: str, task_id: str) -> None:
     _require_system(system_id)
@@ -425,6 +441,16 @@ async def run_task_endpoint(system_id: str, task_id: str) -> RunRecord:
 @app.get("/api/runs")
 def list_runs(system_id: str | None = None) -> list[RunRecord]:
     return run_store.list(system_id)
+
+
+@app.post("/api/runs/{run_id}/hide")
+def hide_run(run_id: str, body: HideRequest) -> RunRecord:
+    """软删除/恢复一条运行记录（数据保留，仅列表默认不展示）。"""
+    run = run_store.get(run_id)
+    if not run:
+        raise HTTPException(404, "run not found")
+    run.hidden = body.hidden
+    return run_store.update(run)
 
 
 @app.get("/api/runs/{run_id}")

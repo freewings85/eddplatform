@@ -156,6 +156,10 @@ export const api = {
     send<RunRecord>("POST", `/systems/${sysId}/tasks/${tid}/run`),
 
   // 运行记录
+  hideTask: (sysId: string, tid: string, hidden: boolean) =>
+    send<Task>("POST", `/systems/${sysId}/tasks/${tid}/hide`, { hidden }),
+  hideRun: (id: string, hidden: boolean) =>
+    send<RunRecord>("POST", `/runs/${id}/hide`, { hidden }),
   runs: (sysId?: string) =>
     get<RunRecord[]>(`/runs${sysId ? `?system_id=${encodeURIComponent(sysId)}` : ""}`),
   run: (id: string) => get<RunDetail>(`/runs/${id}`),

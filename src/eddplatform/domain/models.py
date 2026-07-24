@@ -211,6 +211,7 @@ class RunRecord(BaseModel):
     outcomes: list[dict] = []              # 每条前置条件的 OutcomeOut dict
     case_stats: dict[str, int] = {}        # 用例结果汇总 {passed/failed/error/skipped: n}
     detail: str = ""                       # 失败原因等
+    hidden: bool = False                   # 软删除：隐藏该运行记录
     created_at: datetime | None = None
     finished_at: datetime | None = None
 
@@ -282,5 +283,6 @@ class Task(BaseModel):
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）
     destroy_after: bool = False              # 运行结束后销毁 k8s 资源（namespace）
     runs_per_case: int = 1                   # 每用例执行次数（LLM 非确定性：>1 看稳定性/pass_rate）
+    hidden: bool = False                     # 软删除：隐藏任务（其运行记录随之隐藏）
     created_at: datetime | None = None       # store 自动维护
     updated_at: datetime | None = None       # store 自动维护

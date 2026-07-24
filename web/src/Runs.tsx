@@ -28,6 +28,8 @@ export default function Runs({ sysId }: { sysId: string }) {
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [showHidden, setShowHidden] = useState(false);
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(new Set());
   // 对比：勾选两条运行 → 逐用例对齐比较（老的当基线 A，新的当 B）
   const [picked, setPicked] = useState<string[]>([]);
   const [compare, setCompare] = useState<[RunDetail, RunDetail] | null>(null);
@@ -53,6 +55,9 @@ export default function Runs({ sysId }: { sysId: string }) {
 
   const reload = useCallback(() => {
     api.runs(sysId).then(setRuns).catch((e) => setError(String(e)));
+    // 任务隐藏 → 其运行记录联动隐藏
+    api.tasks(sysId).then((ts) =>
+      setHiddenTaskIds(new Set(ts.filter((t) => t.hidden).map((t) => t.id)))).catch(() => {});
   }, [sysId]);
   useEffect(reload, [reload]);
 
@@ -70,7 +75,9 @@ export default function Runs({ sysId }: { sysId: string }) {
 
   // 过滤（运行 id/任务名/状态/namespace 包含匹配）+ 按创建时间排序 + 分页
   const q = filter.trim().toLowerCase();
+  const isHidden = (r: RunRecord) => !!r.hidden || hiddenTaskIds.has(r.task_id);
   const visible = (runs ?? []).filter((r) => {
+    if (!showHidden && isHidden(r)) return false;
     if (!q) return true;
     return [r.id, r.task_name, r.task_id, r.status, r.namespace]
       .join(" ").toLowerCase().includes(q);
@@ -96,6 +103,11 @@ export default function Runs({ sysId }: { sysId: string }) {
           <option value="desc">按创建时间 ↓</option>
           <option value="asc">按创建时间 ↑</option>
         </select>
+        <label className="muted count" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="checkbox" checked={showHidden}
+            onChange={(e) => setShowHidden(e.target.checked)} />
+          显示隐藏
+        </label>
         <span className="muted count">{visible.length} / {(runs ?? []).length} 条</span>
         <button className="btn sm primary" disabled={picked.length !== 2} onClick={loadCompare}
           title="勾选两条运行后对比（逐用例对齐）">
@@ -132,7 +144,9 @@ export default function Runs({ sysId }: { sysId: string }) {
                     onChange={() => togglePick(r.id)} />
                 </td>
                 <td className="mono">{r.id}</td>
-                <td><b>{r.task_name || r.task_id}</b></td>
+                <td><b>{r.task_name || r.task_id}</b>
+                  {isHidden(r) && <span className="tag only" style={{ marginLeft: 6 }}>已隐藏</span>}
+                </td>
                 <td><StatusPill status={r.status} /></td>
                 <td><CaseStats stats={r.case_stats} /></td>
                 <td className="mono">
@@ -143,6 +157,10 @@ export default function Runs({ sysId }: { sysId: string }) {
                 <td>
                   <button className="btn sm" onClick={() => setOpenId(openId === r.id ? null : r.id)}>
                     {openId === r.id ? "收起" : "详情"}
+                  </button>{" "}
+                  <button className="btn sm" title="软删除：数据保留，默认不展示"
+                    onClick={() => api.hideRun(r.id, !r.hidden).then(reload).catch((e) => setError(String(e)))}>
+                    {r.hidden ? "恢复" : "隐藏"}
                   </button>
                 </td>
               </tr>

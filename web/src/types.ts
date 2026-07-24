@@ -95,6 +95,7 @@ export interface Task {
   eval_target?: string | null;
   destroy_after?: boolean; // 运行结束后销毁 k8s 资源（namespace）
   runs_per_case?: number; // 每用例执行次数（>1 = 稳定性口径，全过才算过 + pass_rate）
+  hidden?: boolean; // 软删除：隐藏任务（其运行记录随之隐藏）
   created_at?: string | null;
   updated_at?: string | null;
 }
@@ -174,6 +175,7 @@ export interface RunRecord {
   outcomes: Outcome[];
   case_stats?: Record<string, number>;
   detail: string;
+  hidden?: boolean; // 软删除：隐藏该运行记录
   created_at?: string | null;
   finished_at?: string | null;
 }

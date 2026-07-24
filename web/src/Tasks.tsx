@@ -47,6 +47,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [sortKey, setSortKey] = useState<"updated" | "created">("updated");
+  const [showHidden, setShowHidden] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -62,6 +63,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
   // 过滤（任务名/id/前置条件程序名/用例库名 包含匹配）+ 按时间排序 + 分页
   const q = filter.trim().toLowerCase();
   const visibleTasks = tasks.filter((t) => {
+    if (!showHidden && t.hidden) return false;
     if (!q) return true;
     const libNames = taskSetsOf(t)
       .map((s) => libs.find((l) => l.id === s.dataset_id)?.name ?? "").join(" ");
@@ -118,6 +120,11 @@ export default function Tasks({ sysId }: { sysId: string }) {
           <option value="updated">按更新时间 ↓</option>
           <option value="created">按创建时间 ↓</option>
         </select>
+        <label className="muted count" style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="checkbox" checked={showHidden}
+            onChange={(e) => setShowHidden(e.target.checked)} />
+          显示隐藏
+        </label>
         <span className="muted count">{visibleTasks.length} / {tasks.length} 个任务</span>
       </div>
 
@@ -140,6 +147,7 @@ export default function Tasks({ sysId }: { sysId: string }) {
                 <td className="mono">{t.id}</td>
                 <td>
                   <b>{t.name}</b>
+                  {t.hidden && <div><span className="tag only">已隐藏</span></div>}
                   {t.destroy_after && <div><span className="tag only">运行后销毁资源</span></div>}
                   {(t.runs_per_case ?? 1) > 1 && (
                     <div><span className="tag only">每用例 ×{t.runs_per_case}</span></div>
@@ -175,6 +183,10 @@ export default function Tasks({ sysId }: { sysId: string }) {
                 <td>
                   <button className="btn sm primary" onClick={() => run(t)}>执行</button>{" "}
                   <button className="btn sm" onClick={() => setEditing(t)}>编辑</button>{" "}
+                  <button className="btn sm" title="软删除：数据保留，默认不展示（其运行记录随之隐藏）"
+                    onClick={() => api.hideTask(sysId, t.id, !t.hidden).then(reload).catch((e) => setError(String(e)))}>
+                    {t.hidden ? "恢复" : "隐藏"}
+                  </button>{" "}
                   <button className="btn sm danger" onClick={() => remove(t)}>删除</button>
                 </td>
               </tr>
