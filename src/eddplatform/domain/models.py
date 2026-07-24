@@ -226,6 +226,7 @@ class CaseRunResult(BaseModel):
     trace_url: str | None = None
     report: str = ""                       # pydantic-evals 原生报告表（文本渲染）
     program: str = ""                      # 处理本用例的评估程序（workflow 名）
+    dataset: str = ""                      # 所属用例集 name（多用例库任务区分来源）
     attempts: int = 1                      # 实际执行次数（任务「每用例执行次数」）
     passed_attempts: int = 1               # 通过次数（attempts>1 时界面显示 n/N）
 
@@ -256,11 +257,18 @@ class Precondition(BaseModel):
     env: str | None = None                   # 固化：部署配置（.env.eval 内容，KEY=VALUE 每行）
 
 
+class TaskCaseSet(BaseModel):
+    """任务里的一个用例分组：一个用例库 + 该库勾选的用例清单。"""
+
+    dataset_id: str
+    case_ids: list[str] | None = None        # None = 全部用例（动态跟随用例库）
+
+
 class Task(BaseModel):
-    """评估任务定义：数据集 + **有序前置条件** + 评估观测目标。
+    """评估任务定义：用例分组 + **有序前置条件** + 评估观测目标。
 
     运行一次 task = 一条运行记录(experiment)：前置条件把被测系统、评估程序按序拉起，
-    再用数据集跑评估。前置条件包含：启动系统 / 启动评估程序 / 自定义脚本。
+    再逐分组、逐用例分派评估。前置条件包含：启动系统 / 启动评估程序 / 自定义脚本。
     """
 
     id: str = ""
@@ -268,8 +276,9 @@ class Task(BaseModel):
     system_id: str
     dataset_name: str | None = None
     preconditions: list[Precondition] = []
-    dataset_id: str | None = None            # 选定的用例库；None = 不跑用例
-    case_ids: list[str] | None = None        # 用例清单：None = 全部用例（动态跟随用例库）
+    case_sets: list[TaskCaseSet] = []        # 用例分组（可多个用例库）；非空时优先于下两个旧字段
+    dataset_id: str | None = None            # 旧单库格式：选定的用例库；None = 不跑用例
+    case_ids: list[str] | None = None        # 旧单库格式：None = 全部用例
     eval_target: str | None = None           # 评估观测的被测服务（如 quote）
     destroy_after: bool = False              # 运行结束后销毁 k8s 资源（namespace）
     runs_per_case: int = 1                   # 每用例执行次数（LLM 非确定性：>1 看稳定性/pass_rate）

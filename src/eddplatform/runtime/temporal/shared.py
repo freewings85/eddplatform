@@ -95,6 +95,15 @@ class RunCaseInput:
 
 
 @dataclass
+class CaseGroup:
+    """一个用例分组的执行参数：用例集 name + 该组的评估 workflow + 用例清单。"""
+
+    dataset: str
+    workflow: str                      # 评估 workflow 名 = 队列名（来自用例库配置）
+    cases: list[str] = field(default_factory=list)
+
+
+@dataclass
 class CaseResultOut:
     case_id: str                       # = 用例 name（回传对齐用）
     # passed=通过 | failed=没通过(被评系统的问题,计回归) |
@@ -106,6 +115,7 @@ class CaseResultOut:
     trace_url: str | None = None
     report: str = ""                   # pydantic-evals 原生报告表（文本，评估程序渲染）
     program: str = ""                  # 处理本用例的评估程序(workflow 名)——平台回填
+    dataset: str = ""                  # 所属用例集 name——平台回填（多用例库任务区分来源）
     attempts: int = 1                  # 本用例实际执行次数（任务「每用例执行次数」）
     passed_attempts: int = 1           # 其中通过的次数（attempts>1 时界面显示 n/N）
 
@@ -158,7 +168,7 @@ def aggregate_attempts(case_name: str, attempts: list[CaseResultOut]) -> CaseRes
         case_id=case_name, status=status, scores=scores, metrics=metrics,
         detail=detail, trace_url=trace_urls[-1] if trace_urls else None,
         report="\n".join(reports), program=attempts[-1].program,
-        attempts=n, passed_attempts=passed,
+        dataset=attempts[-1].dataset, attempts=n, passed_attempts=passed,
     )
 
 
@@ -169,10 +179,11 @@ class RunTaskInput:
     eval_deploy: str | None = None     # 评估观测：发起方服务
     eval_target: str | None = None     # 评估观测：被测服务
     run_id: str = ""                   # 平台侧 RunRecord id
-    eval_code: str | None = None       # 评估 workflow 名（来自用例库配置）
+    eval_code: str | None = None       # 旧单库格式：评估 workflow 名（来自用例库配置）
     eval_worker_wait_s: int = 90       # 队列预检：等评估 worker 上线的宽限期
-    dataset_name: str = ""             # 用例集 name（随每条用例传给评估 workflow）
-    cases: list[str] = field(default_factory=list)   # 用例 name 清单
+    dataset_name: str = ""             # 旧单库格式：用例集 name
+    cases: list[str] = field(default_factory=list)   # 旧单库格式：用例 name 清单
+    case_groups: list[CaseGroup] = field(default_factory=list)  # 用例分组（非空时优先）
     destroy: bool = False              # 运行结束后销毁 namespace（任务选项）
     runs_per_case: int = 1             # 每用例执行次数（>1 时聚合出 pass_rate，全过才算过）
 

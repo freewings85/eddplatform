@@ -16,6 +16,7 @@ from temporalio.exceptions import ActivityError
 with workflow.unsafe.imports_passed_through():
     from eddplatform.runtime.temporal.activities import TaskActivities
     from eddplatform.runtime.temporal.shared import (
+        CaseGroup,
         CaseResultOut,
         DeployArgs,
         DestroyArgs,
@@ -129,66 +130,78 @@ class RunTaskWorkflow:
                 **opts,
             )
 
-        # 逐用例分派：评估程序 worker 认领 eval_code 队列（方案 A：平台=client / 评估程序=worker）
-        if out.status == "up" and inp.eval_code and inp.cases:
-            # 队列预检：worker 没上线/名字配错 → 整场 fail fast，别让每条用例干等超时
-            await _log(inp.run_id, f"=== 队列预检: 等评估 worker 认领队列 {inp.eval_code!r} ===")
-            try:
-                await workflow.execute_activity_method(
-                    TaskActivities.wait_eval_worker,
-                    WaitWorkerArgs(inp.eval_code, inp.eval_worker_wait_s, inp.run_id),
-                    start_to_close_timeout=timedelta(seconds=inp.eval_worker_wait_s + 60),
-                    retry_policy=RetryPolicy(maximum_attempts=1),
-                )
-            except ActivityError as e:
-                cause = e
-                while getattr(cause, "cause", None) is not None:
-                    cause = cause.cause
-                out.status = "failed"
-                out.outcomes.append(OutcomeOut(
-                    "eval_dispatch", inp.eval_code, "failed",
-                    detail=str(getattr(cause, "message", None) or cause)))
-                await _maybe_destroy(inp)
-                return out
-            total = len(inp.cases)
+        # 逐组、逐用例分派：评估程序 worker 认领各组 workflow 队列
+        # （方案 A：平台=client / 评估程序=worker）。旧单库入参归一成单组。
+        groups = list(inp.case_groups)
+        if not groups and inp.eval_code and inp.cases:
+            groups = [CaseGroup(dataset=inp.dataset_name, workflow=inp.eval_code,
+                                cases=list(inp.cases))]
+        groups = [g for g in groups if g.cases]
+        if out.status == "up" and groups:
+            # 队列预检：每个不同 workflow 一次——worker 没上线/名字配错 → 整场
+            # fail fast，别让每条用例干等超时
+            for queue in dict.fromkeys(g.workflow for g in groups):
+                await _log(inp.run_id, f"=== 队列预检: 等评估 worker 认领队列 {queue!r} ===")
+                try:
+                    await workflow.execute_activity_method(
+                        TaskActivities.wait_eval_worker,
+                        WaitWorkerArgs(queue, inp.eval_worker_wait_s, inp.run_id),
+                        start_to_close_timeout=timedelta(seconds=inp.eval_worker_wait_s + 60),
+                        retry_policy=RetryPolicy(maximum_attempts=1),
+                    )
+                except ActivityError as e:
+                    cause = e
+                    while getattr(cause, "cause", None) is not None:
+                        cause = cause.cause
+                    out.status = "failed"
+                    out.outcomes.append(OutcomeOut(
+                        "eval_dispatch", queue, "failed",
+                        detail=str(getattr(cause, "message", None) or cause)))
+                    await _maybe_destroy(inp)
+                    return out
+            total = sum(len(g.cases) for g in groups)
             reps = max(1, inp.runs_per_case)
-            for i, case_name in enumerate(inp.cases, 1):
-                await _log(inp.run_id,
-                           f"▶ [{i}/{total}] 用例 {case_name} → child workflow "
-                           f"{inp.eval_code} (dataset={inp.dataset_name}"
-                           f"{f', 执行 {reps} 次' if reps > 1 else ''})")
-                attempts: list[CaseResultOut] = []
-                for t in range(1, reps + 1):
-                    suffix = f"-t{t}" if reps > 1 else ""
-                    try:
-                        r = await workflow.execute_child_workflow(
-                            inp.eval_code,
-                            RunCaseInput(run_id=inp.run_id, namespace=inp.namespace,
-                                         dataset=inp.dataset_name, case=case_name),
-                            id=f"{workflow.info().workflow_id}-case-{case_name}{suffix}",
-                            task_queue=inp.eval_code,
-                            result_type=CaseResultOut,
-                            execution_timeout=timedelta(minutes=5),
-                        )
-                    except Exception as e:  # noqa: BLE001 —— 单次失败不拖垮整场
-                        cause = e
-                        while getattr(cause, "cause", None) is not None:
-                            cause = cause.cause
-                        r = CaseResultOut(case_id=case_name, status="error",
-                                          detail=str(getattr(cause, "message", None) or cause))
-                    attempts.append(r)
-                    if reps > 1:
-                        await _log(inp.run_id,
-                                   f"  · 第 {t}/{reps} 次: {r.status}"
-                                   f"{' · ' + r.detail if r.status != 'passed' and r.detail else ''}")
-                agg = aggregate_attempts(case_name, attempts)
-                agg.program = inp.eval_code            # 报告按评估程序归组（界面分区展示）
-                out.case_results.append(agg)
-                mark = {"passed": "✓", "failed": "✗", "error": "!", "skipped": "→"}.get(
-                    agg.status, "?")
-                await _log(inp.run_id,
-                           f"{mark} [{i}/{total}] 用例 {case_name} {agg.status}"
-                           f"{' · ' + str(agg.scores) if agg.scores else ''}"
-                           f"{' · ' + agg.detail if agg.detail else ''}")
+            i = 0
+            for g in groups:
+                for case_name in g.cases:
+                    i += 1
+                    await _log(inp.run_id,
+                               f"▶ [{i}/{total}] 用例 {g.dataset}/{case_name} → child workflow "
+                               f"{g.workflow}{f' (执行 {reps} 次)' if reps > 1 else ''}")
+                    attempts: list[CaseResultOut] = []
+                    for t in range(1, reps + 1):
+                        suffix = f"-t{t}" if reps > 1 else ""
+                        try:
+                            r = await workflow.execute_child_workflow(
+                                g.workflow,
+                                RunCaseInput(run_id=inp.run_id, namespace=inp.namespace,
+                                             dataset=g.dataset, case=case_name),
+                                id=(f"{workflow.info().workflow_id}-case-"
+                                    f"{g.dataset}-{case_name}{suffix}"),
+                                task_queue=g.workflow,
+                                result_type=CaseResultOut,
+                                execution_timeout=timedelta(minutes=5),
+                            )
+                        except Exception as e:  # noqa: BLE001 —— 单次失败不拖垮整场
+                            cause = e
+                            while getattr(cause, "cause", None) is not None:
+                                cause = cause.cause
+                            r = CaseResultOut(case_id=case_name, status="error",
+                                              detail=str(getattr(cause, "message", None) or cause))
+                        attempts.append(r)
+                        if reps > 1:
+                            await _log(inp.run_id,
+                                       f"  · 第 {t}/{reps} 次: {r.status}"
+                                       f"{' · ' + r.detail if r.status != 'passed' and r.detail else ''}")
+                    agg = aggregate_attempts(case_name, attempts)
+                    agg.program = g.workflow       # 报告按评估程序归组（界面分区展示）
+                    agg.dataset = g.dataset        # 多用例库任务区分结果来源
+                    out.case_results.append(agg)
+                    mark = {"passed": "✓", "failed": "✗", "error": "!", "skipped": "→"}.get(
+                        agg.status, "?")
+                    await _log(inp.run_id,
+                               f"{mark} [{i}/{total}] 用例 {g.dataset}/{case_name} {agg.status}"
+                               f"{' · ' + str(agg.scores) if agg.scores else ''}"
+                               f"{' · ' + agg.detail if agg.detail else ''}")
         await _maybe_destroy(inp)
         return out

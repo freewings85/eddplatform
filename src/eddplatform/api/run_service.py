@@ -10,8 +10,9 @@ from datetime import timedelta
 from temporalio.client import Client
 
 from eddplatform.domain.models import CaseRunResult, RunRecord, RunStatus, Task
-from eddplatform.runtime.temporal.shared import (TASK_QUEUE, RunTaskInput,
-                                                 RunTaskOutput, to_spec)
+from eddplatform.runtime.temporal.shared import (TASK_QUEUE, CaseGroup,
+                                                 RunTaskInput, RunTaskOutput,
+                                                 to_spec)
 from eddplatform.store.run_log_store import RunLogStore
 from eddplatform.store.run_store import RunStore
 
@@ -26,8 +27,8 @@ def _namespace(system_id: str, run_id: str) -> str:
     return re.sub(r"[^a-z0-9-]", "-", f"edd-{system_id}-{run_id}".lower()).strip("-")
 
 
-async def start_run(system_id: str, task: Task, *, eval_code: str | None,
-                    dataset_name: str = "", cases: list[str] | None = None,
+async def start_run(system_id: str, task: Task, *,
+                    case_groups: list[CaseGroup] | None = None,
                     run_store: RunStore) -> RunRecord:
     """提交执行。Temporal 连不上抛 ConnectionError（API 层转 503），不留运行记录。"""
     try:
@@ -35,6 +36,7 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
     except Exception as e:  # noqa: BLE001 —— 连接失败统一视为不可达
         raise ConnectionError(f"Temporal server 未启动（{TEMPORAL_ADDRESS}）: {e}")
 
+    groups = [g for g in (case_groups or []) if g.cases]
     run = run_store.create(RunRecord(system_id=system_id, task_id=task.id, task_name=task.name))
     inp = RunTaskInput(
         preconditions=[to_spec(pc) for pc in task.preconditions],
@@ -42,9 +44,7 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
         eval_deploy=None,
         eval_target=None,
         run_id=run.id,
-        eval_code=eval_code,
-        dataset_name=dataset_name,
-        cases=list(cases or []),
+        case_groups=groups,
         destroy=bool(getattr(task, "destroy_after", False)),
         runs_per_case=max(1, int(getattr(task, "runs_per_case", 1) or 1)),
     )
@@ -56,11 +56,12 @@ async def start_run(system_id: str, task: Task, *, eval_code: str | None,
     run.workflow_id = f"edd-run-{run.id}"
     run.namespace = inp.namespace
     run_store.update(run)
+    parts = "、".join(f"{g.dataset}({len(g.cases)})" for g in groups) or "—"
     _log(run_store, run.id,
          f"RUN {run.id} 已提交 · 任务「{task.name}」 · workflow {run.workflow_id} · "
-         f"namespace {inp.namespace} · 用例 {len(cases)} 条"
+         f"namespace {inp.namespace} · 用例 {sum(len(g.cases) for g in groups)} 条"
          f"{f' × {inp.runs_per_case} 次' if inp.runs_per_case > 1 else ''}"
-         f" · 评估 workflow {eval_code or '—'}")
+         f" · 分组 {parts}")
     asyncio.get_running_loop().create_task(_watch(handle, run.id, run_store))
     return run
 
@@ -86,6 +87,7 @@ async def _watch(handle, run_id: str, run_store: RunStore) -> None:
                 scores=d.get("scores") or {}, metrics=d.get("metrics") or {},
                 detail=d.get("detail", ""), trace_url=d.get("trace_url"),
                 report=d.get("report") or "", program=d.get("program") or "",
+                dataset=d.get("dataset") or "",
                 attempts=int(d.get("attempts") or 1),
                 passed_attempts=int(d.get("passed_attempts") or 0)))
         status = RunStatus.SUCCEEDED if out.status == "up" else RunStatus.FAILED

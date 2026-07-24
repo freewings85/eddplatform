@@ -221,9 +221,9 @@ function EvalProgramOutput({ results }: { results: CaseRunResult[] }) {
       </div>
       <div className="console">
         {cases.map((c) => (
-          <div key={c.case_id}>
+          <div key={`${c.dataset ?? ""}/${c.case_id}`}>
             <div className={`console-line ${c.status === "passed" ? "ok" : "bad"}`}>
-              <span>===== {c.case_id}（{c.status}）=====</span>
+              <span>===== {c.dataset ? `${c.dataset} / ` : ""}{c.case_id}（{c.status}）=====</span>
             </div>
             <pre style={{ margin: "2px 0 12px", color: "inherit", background: "none",
                           padding: 0, overflowX: "auto" }}>{c.report}</pre>
@@ -280,6 +280,7 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
         <table>
           <thead>
             <tr>
+              <th>用例集</th>
               <th>用例</th>
               <th>状态</th>
               <th>分数</th>
@@ -290,7 +291,8 @@ function RunDetailView({ detail }: { detail: RunDetail }) {
           </thead>
           <tbody>
             {detail.case_results.map((c: CaseRunResult) => (
-              <tr key={c.case_id}>
+              <tr key={`${c.dataset ?? ""}/${c.case_id}`}>
+                <td className="mono sm">{c.dataset || "—"}</td>
                 <td className="mono">{c.case_id}</td>
                 <td>
                   <StatusPill status={c.status} />

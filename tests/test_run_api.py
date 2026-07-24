@@ -102,8 +102,9 @@ def test_run_uses_selected_cases_only(client, monkeypatch):
     r = client.post("/api/systems/sys1/tasks/T-0002/run")
     assert r.status_code == 202
     inp = fake.started[0][2]
-    assert inp.cases == ["c1", "c3"]           # 契约：只传用例 name
-    assert inp.dataset_name == "默认用例库"
+    assert len(inp.case_groups) == 1           # 旧单库任务归一成单分组
+    assert inp.case_groups[0].cases == ["c1", "c3"]   # 契约：只传用例 name
+    assert inp.case_groups[0].dataset == "默认用例库"
 
 
 def test_run_failure_writes_failed(client, monkeypatch):
@@ -140,8 +141,39 @@ def test_run_derives_eval_code_from_dataset_workflow(client, monkeypatch):
     r = client.post("/api/systems/sys1/tasks/T-0002/run")
     assert r.status_code == 202
     inp = fake.started[0][2]
-    assert inp.eval_code == "demo-eval"
-    assert inp.cases == ["c1"]
+    assert inp.case_groups[0].workflow == "demo-eval"
+    assert inp.case_groups[0].cases == ["c1"]
+
+
+def test_run_multi_case_sets_builds_groups(client, monkeypatch):
+    """新格式 case_sets：多个用例库 → 逐组（dataset/workflow/cases）传给 workflow。"""
+    import eddplatform.api.run_service as rs
+    client.post("/api/systems/sys1/datasets/DS-0001/cases", json={"name": "a1"})
+    r = client.post("/api/systems/sys1/datasets",
+                    json={"name": "另一个库", "workflow": "other-eval"})
+    ds2 = r.json()["id"]
+    for name in ("b1", "b2"):
+        client.post(f"/api/systems/sys1/datasets/{ds2}/cases", json={"name": name})
+    client.post("/api/systems/sys1/tasks", json={
+        "name": "多库任务", "system_id": "sys1",
+        "case_sets": [
+            {"dataset_id": "DS-0001", "case_ids": ["a1"]},
+            {"dataset_id": ds2, "case_ids": ["b1", "b2"]},
+        ],
+        "preconditions": [
+            {"kind": "start_system", "git_url": "/repo", "branch": "b", "commit": "c0ffee1"}]})
+    fake = FakeClient(RunTaskOutput(namespace="ns", status="up"))
+
+    async def fake_connect(_addr):
+        return fake
+    monkeypatch.setattr(rs, "_connect", fake_connect)
+    r = client.post("/api/systems/sys1/tasks/T-0002/run")
+    assert r.status_code == 202
+    groups = fake.started[0][2].case_groups
+    assert [(g.dataset, g.workflow, g.cases) for g in groups] == [
+        ("默认用例库", "demo-eval", ["a1"]),
+        ("另一个库", "other-eval", ["b1", "b2"]),
+    ]
 
 
 def test_run_rejects_dataset_without_workflow(client, monkeypatch):

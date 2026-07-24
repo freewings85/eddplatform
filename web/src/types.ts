@@ -78,14 +78,20 @@ export interface Precondition {
   env?: string | null; // 固化：部署配置（.env.eval 内容，KEY=VALUE 每行）
 }
 
+export interface TaskCaseSet {
+  dataset_id: string;
+  case_ids?: string[] | null; // null = 全部用例（动态跟随用例库）
+}
+
 export interface Task {
   id: string;
   name: string;
   system_id: string;
   dataset_name?: string | null;
   preconditions: Precondition[];
-  dataset_id?: string | null; // 选定的用例库；null = 不跑用例
-  case_ids?: string[] | null; // 用例清单：null/缺省 = 全部用例（动态跟随所选库）
+  case_sets?: TaskCaseSet[]; // 用例分组（可多个用例库）；非空时优先于下两个旧字段
+  dataset_id?: string | null; // 旧单库格式：选定的用例库；null = 不跑用例
+  case_ids?: string[] | null; // 旧单库格式：null/缺省 = 全部用例（动态跟随所选库）
   eval_target?: string | null;
   destroy_after?: boolean; // 运行结束后销毁 k8s 资源（namespace）
   runs_per_case?: number; // 每用例执行次数（>1 = 稳定性口径，全过才算过 + pass_rate）
@@ -181,6 +187,7 @@ export interface CaseRunResult {
   trace_url?: string | null;
   report?: string; // pydantic-evals 原生报告表（文本渲染）
   program?: string; // 处理本用例的评估程序（workflow 名）
+  dataset?: string; // 所属用例集 name（多用例库任务区分来源）
   attempts?: number; // 实际执行次数（任务「每用例执行次数」）
   passed_attempts?: number; // 通过次数（attempts>1 时显示 n/N）
 }

@@ -10,6 +10,7 @@ import type {
   PreconditionKind,
   SystemProgram,
   Task,
+  TaskCaseSet,
   TaskInput,
 } from "./types";
 
@@ -62,8 +63,9 @@ export default function Tasks({ sysId }: { sysId: string }) {
   const q = filter.trim().toLowerCase();
   const visibleTasks = tasks.filter((t) => {
     if (!q) return true;
-    const lib = libs.find((l) => l.id === t.dataset_id)?.name ?? "";
-    const hay = [t.id, t.name, lib, ...t.preconditions.map((p) => p.name ?? "")]
+    const libNames = taskSetsOf(t)
+      .map((s) => libs.find((l) => l.id === s.dataset_id)?.name ?? "").join(" ");
+    const hay = [t.id, t.name, libNames, ...t.preconditions.map((p) => p.name ?? "")]
       .join(" ").toLowerCase();
     return hay.includes(q);
   }).sort((a, b) => {
@@ -153,13 +155,18 @@ export default function Tasks({ sysId }: { sysId: string }) {
                   ))}
                 </td>
                 <td className="mono">
-                  {libs.find((l) => l.id === t.dataset_id)?.workflow ?? "—"}
+                  {[...new Set(taskSetsOf(t)
+                    .map((s) => libs.find((l) => l.id === s.dataset_id)?.workflow)
+                    .filter(Boolean))].join(" / ") || "—"}
                 </td>
                 <td>
-                  {t.dataset_id
-                    ? `${libs.find((l) => l.id === t.dataset_id)?.name ?? t.dataset_id} · ${
-                        t.case_ids == null ? "全部" : `勾选 ${t.case_ids.length} 条`}`
-                    : "—"}
+                  {taskSetsOf(t).length === 0 ? "—" : taskSetsOf(t).map((s, i) => (
+                    <div key={i}>
+                      {libs.find((l) => l.id === s.dataset_id)?.name ?? s.dataset_id}
+                      {" · "}
+                      {s.case_ids == null ? "全部" : `勾选 ${s.case_ids.length} 条`}
+                    </div>
+                  ))}
                 </td>
                 <td className="muted sm">
                   {t.created_at ? new Date(t.created_at).toLocaleString() : "—"}
@@ -249,6 +256,13 @@ function CopyChip({ text }: { text: string }) {
   );
 }
 
+/** 任务的有效用例分组：新格式 case_sets 优先，旧单库字段归一成单分组。 */
+function taskSetsOf(t: Task): TaskCaseSet[] {
+  if (t.case_sets?.length) return t.case_sets;
+  if (t.dataset_id) return [{ dataset_id: t.dataset_id, case_ids: t.case_ids }];
+  return [];
+}
+
 function toRows(task: Task): Row[] {
   return task.preconditions.map((p) => ({
     kind: p.kind,
@@ -291,11 +305,29 @@ function TaskForm({
         ],
   );
   const [libraries, setLibraries] = useState<DatasetInfo[]>([]);
-  const [datasetId, setDatasetId] = useState<string>(initial?.dataset_id ?? "");
-  const [cases, setCases] = useState<Case[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set(initial?.case_ids ?? []));
+  // 用例分组：一组 = 一个用例库 + 勾选集合；标签页切换，「＋」可加多个库
+  const [sets, setSets] = useState<{ datasetId: string; selected: Set<string> }[]>(() => {
+    const init = taskSetsOf(initial ?? ({ preconditions: [] } as unknown as Task));
+    if (init.length)
+      return init.map((cs) => ({ datasetId: cs.dataset_id, selected: new Set(cs.case_ids ?? []) }));
+    return [{ datasetId: "", selected: new Set() }];
+  });
+  const [active, setActive] = useState(0);
+  const [casesByDs, setCasesByDs] = useState<Record<string, Case[]>>({});
   // 旧任务的 case_ids=null 曾表示「全部用例」——编辑时展开成全选，保存后固化为明确清单
-  const legacyAll = useRef(initial != null && initial.case_ids == null);
+  const legacyAll = useRef(
+    initial != null && !initial.case_sets?.length && initial.case_ids == null);
+  const activeSet = sets[Math.min(active, sets.length - 1)];
+  const datasetId = activeSet?.datasetId ?? "";
+  const selected = activeSet?.selected ?? new Set<string>();
+  const cases = casesByDs[datasetId] ?? [];
+
+  function patchSet(i: number, fn: (s: { datasetId: string; selected: Set<string> })
+      => { datasetId: string; selected: Set<string> }) {
+    setSets((ss) => ss.map((s, j) => (j === i ? fn(s) : s)));
+  }
+  const setSelected = (next: Set<string>) =>
+    patchSet(active, (s) => ({ ...s, selected: next }));
   const [filter, setFilter] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
@@ -356,7 +388,9 @@ function TaskForm({
   useEffect(() => {
     api.datasets(sysId).then((ls) => {
       setLibraries(ls);
-      if (!initial) setDatasetId((cur) => cur || (ls[0]?.id ?? ""));
+      if (!initial)
+        setSets((ss) => (ss[0]?.datasetId ? ss
+          : ss.map((s, i) => (i === 0 ? { ...s, datasetId: ls[0]?.id ?? "" } : s))));
     }).catch(() => {});
     // eslint-disable-next-line
   }, [sysId]);
@@ -364,14 +398,15 @@ function TaskForm({
   useEffect(() => {
     setFilter("");
     setPage(1);
-    if (!datasetId) return setCases([]);
+    if (!datasetId || casesByDs[datasetId] !== undefined) return;
     api.datasetCases(sysId, datasetId).then((cs) => {
-      setCases(cs);
+      setCasesByDs((m) => ({ ...m, [datasetId]: cs }));
       if (legacyAll.current) {           // 旧「全部用例」任务：首次加载展开成全选
         legacyAll.current = false;
         setSelected(new Set(cs.map((c) => c.id)));
       }
-    }).catch(() => setCases([]));
+    }).catch(() => setCasesByDs((m) => ({ ...m, [datasetId]: [] })));
+    // eslint-disable-next-line
   }, [sysId, datasetId]);
 
   // 过滤（id/名称/标签 包含匹配）+ 分页
@@ -498,12 +533,22 @@ function TaskForm({
   }
 
   function toggleCase(id: string) {
-    setSelected((cur) => {
-      const next = new Set(cur);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelected(next);
+  }
+
+  function addSet() {
+    setSets((ss) => [...ss, { datasetId: "", selected: new Set<string>() }]);
+    setActive(sets.length);
+  }
+
+  function removeSet(i: number) {
+    setSets((ss) => (ss.length <= 1
+      ? [{ datasetId: "", selected: new Set<string>() }]
+      : ss.filter((_, j) => j !== i)));
+    setActive((a) => Math.max(0, a > i ? a - 1 : Math.min(a, sets.length - 2)));
   }
 
   function toPrecondition(row: Row): Precondition {
@@ -553,14 +598,19 @@ function TaskForm({
       setStep(1);
       return setError(err);
     }
-    if (datasetId && selected.size === 0)
-      return setError("至少勾选一条用例（可用「全选」）");
+    const cleanSets = sets.filter((s) => s.datasetId);
+    for (const s of cleanSets)
+      if (s.selected.size === 0)
+        return setError(`用例库「${libraries.find((l) => l.id === s.datasetId)?.name
+          ?? s.datasetId}」还没勾选用例（可用「全选」）`);
     const payload: TaskInput = {
       name: name.trim(),
       system_id: sysId,
       preconditions: rows.map(toPrecondition),
-      dataset_id: datasetId || null,
-      case_ids: [...selected],
+      case_sets: cleanSets.map((s) => ({ dataset_id: s.datasetId, case_ids: [...s.selected] })),
+      // 旧字段镜像第一组（兼容尚未理解 case_sets 的读取方）
+      dataset_id: cleanSets[0]?.datasetId ?? null,
+      case_ids: cleanSets[0] ? [...cleanSets[0].selected] : [],
       destroy_after: destroyAfter,
       runs_per_case: Math.max(1, Math.floor(runsPerCase) || 1),
     };
@@ -800,15 +850,38 @@ function TaskForm({
 
           {step === 2 && (
           <div className="fld">
+            {/* 分组标签页：一个标签 = 一个用例库；「＋」再加一个库 */}
+            <div className="pc-add" style={{ marginBottom: 8, flexWrap: "wrap" }}>
+              {sets.map((s, i) => (
+                <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                  <button className={`btn sm ${i === active ? "primary" : ""}`}
+                    onClick={() => setActive(i)}>
+                    {libraries.find((l) => l.id === s.datasetId)?.name ?? "选择用例库…"}
+                    {s.datasetId ? `（${s.selected.size}）` : ""}
+                  </button>
+                  {(sets.length > 1 || s.datasetId) && (
+                    <a className="modal-x" title="移除该用例库分组"
+                      onClick={() => removeSet(i)}>✕</a>
+                  )}
+                </span>
+              ))}
+              <button className="btn sm" onClick={addSet}
+                disabled={sets.length >= libraries.length || sets.some((s) => !s.datasetId)}>
+                ＋ 加用例库
+              </button>
+            </div>
             <div className="fld-row">
               <label className="fld">
                 <span>用例库 *</span>
                 <select value={datasetId} onChange={(e) => {
-                  setDatasetId(e.target.value);
-                  setSelected(new Set());
+                  const v = e.target.value;
+                  patchSet(active, () => ({ datasetId: v, selected: new Set<string>() }));
                 }}>
                   <option value="">（不跑用例，只拉环境）</option>
-                  {libraries.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  {libraries
+                    .filter((l) => l.id === datasetId
+                      || !sets.some((s, i) => i !== active && s.datasetId === l.id))
+                    .map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </label>
               {datasetId && (
